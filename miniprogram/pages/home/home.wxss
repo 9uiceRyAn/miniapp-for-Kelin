@@ -1,0 +1,860 @@
+.home-page {
+  min-height: 100vh;
+  background: #f7f6f2;
+  color: #20251f;
+}
+
+.desktop-only,
+.desktop-only-inline {
+  display: none;
+}
+
+.mobile-only {
+  display: block;
+}
+
+.topbar {
+  min-height: 98rpx;
+  padding: 20rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  background: rgba(255, 255, 255, 0.84);
+  border-bottom: 1rpx solid #e4e1da;
+}
+
+.brand-lockup,
+.topbar-actions,
+.hero-actions,
+.service-status,
+.file-name-cell,
+.file-card-main,
+.row-actions,
+.mobile-row-actions {
+  display: flex;
+  align-items: center;
+}
+
+.brand-lockup {
+  gap: 14rpx;
+  min-width: 0;
+}
+
+.brand-logo {
+  flex: 0 0 auto;
+  width: 58rpx;
+  height: 58rpx;
+  display: block;
+}
+
+.brand-copy,
+.hero-copy,
+.category-copy,
+.file-meta,
+.file-card-copy {
+  min-width: 0;
+}
+
+.brand-name,
+.brand-desc,
+.eyebrow,
+.hero-title,
+.hero-summary,
+.stat-value,
+.stat-label,
+.section-kicker,
+.section-title,
+.section-note,
+.category-code,
+.category-name,
+.category-meta,
+.content-title,
+.content-subtitle,
+.file-name,
+.mobile-meta-line,
+.detail-label,
+.detail-value,
+.empty-title,
+.empty-copy {
+  display: block;
+}
+
+.brand-name {
+  color: #20251f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 25rpx;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.brand-desc {
+  margin-top: 5rpx;
+  color: #7d837b;
+  font-size: 18rpx;
+  letter-spacing: 0.3rpx;
+}
+
+.topbar-actions {
+  gap: 12rpx;
+  flex: 0 0 auto;
+}
+
+.service-status {
+  gap: 9rpx;
+  color: #7a8178;
+  font-size: 18rpx;
+}
+
+.status-dot {
+  width: 11rpx;
+  height: 11rpx;
+  border-radius: 50%;
+  background: #4caf79;
+  box-shadow: 0 0 0 7rpx #e6f4eb;
+}
+
+.role-badge {
+  height: 38rpx;
+  padding: 0 14rpx;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999rpx;
+  font-size: 17rpx;
+  font-weight: 600;
+}
+
+.role-badge.teacher {
+  color: #8d1c50;
+  background: #f5e8ee;
+}
+
+.role-badge.student {
+  color: #356046;
+  background: #eaf2ed;
+}
+
+.logout-link {
+  color: #777d76;
+  font-size: 18rpx;
+  padding: 10rpx 0 10rpx 8rpx;
+}
+
+.main-content {
+  width: 100%;
+  max-width: 1500rpx;
+  margin: 0 auto;
+  padding: 58rpx 24rpx 34rpx;
+}
+
+.hero-section {
+  padding-bottom: 32rpx;
+}
+
+.eyebrow {
+  color: #9b1f58;
+  font-size: 17rpx;
+  font-weight: 700;
+  letter-spacing: 3rpx;
+  text-transform: uppercase;
+}
+
+.hero-row {
+  margin-top: 22rpx;
+}
+
+.hero-title {
+  color: #1e241e;
+  font-family: "Songti SC", "STSong", "SimSun", Georgia, serif;
+  font-size: 52rpx;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -1.5rpx;
+}
+
+.hero-summary {
+  margin-top: 24rpx;
+  max-width: 930rpx;
+  color: #737a72;
+  font-size: 22rpx;
+  line-height: 1.75;
+}
+
+.hero-actions {
+  margin-top: 26rpx;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.action-button {
+  min-height: 64rpx;
+  padding: 0 22rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  font-size: 19rpx;
+  font-weight: 600;
+  letter-spacing: 0.2rpx;
+}
+
+.action-button.secondary {
+  color: #474d46;
+  background: #fff;
+  border: 1rpx solid #dcd9d2;
+}
+
+.action-button.primary {
+  color: #fff;
+  background: #9b1f58;
+  border: 1rpx solid #9b1f58;
+  box-shadow: 0 10rpx 24rpx rgba(126, 29, 75, 0.15);
+}
+
+.action-button[disabled] {
+  opacity: 0.48;
+}
+
+.stats-grid {
+  margin-top: 38rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+}
+
+.stat-card {
+  min-height: 150rpx;
+  padding: 24rpx 22rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1rpx solid #dedbd4;
+  border-radius: 26rpx;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.stat-value {
+  color: #1d241e;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 42rpx;
+  line-height: 1;
+}
+
+.stat-label {
+  margin-top: 17rpx;
+  color: #7f857d;
+  font-size: 18rpx;
+}
+
+.browse-card,
+.content-card {
+  border: 1rpx solid #dedbd4;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.browse-card {
+  overflow: hidden;
+  border-radius: 30rpx;
+}
+
+.section-heading,
+.content-heading {
+  padding: 24rpx;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.section-kicker {
+  color: #9b1f58;
+  font-size: 16rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.section-title,
+.content-title {
+  margin-top: 8rpx;
+  color: #222822;
+  font-family: "Songti SC", "STSong", "SimSun", Georgia, serif;
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.section-note,
+.content-subtitle {
+  color: #7d837b;
+  font-size: 18rpx;
+  line-height: 1.55;
+}
+
+.category-scroll {
+  width: 100%;
+  border-top: 1rpx solid #e2dfd8;
+}
+
+.category-track {
+  display: inline-flex;
+  gap: 10rpx;
+  padding: 16rpx;
+  min-width: 100%;
+}
+
+.category-tile {
+  flex: 0 0 auto;
+  min-width: 198rpx;
+  min-height: 92rpx;
+  padding: 15rpx 17rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  border: 1rpx solid transparent;
+  border-radius: 19rpx;
+  color: #383e37;
+  background: transparent;
+}
+
+.category-tile.active {
+  border-color: #e5c9d6;
+  background: #f6e9ef;
+}
+
+.category-code {
+  width: 44rpx;
+  height: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13rpx;
+  color: #6d736b;
+  background: #eceae5;
+  font-family: Georgia, serif;
+  font-size: 23rpx;
+  font-weight: 600;
+}
+
+.category-tile.active .category-code {
+  color: #fff;
+  background: #9b1f58;
+}
+
+.category-name {
+  color: inherit;
+  font-size: 19rpx;
+  font-weight: 650;
+}
+
+.category-meta {
+  margin-top: 5rpx;
+  color: #858b83;
+  font-size: 16rpx;
+}
+
+.content-card {
+  margin-top: 24rpx;
+  min-height: 620rpx;
+  overflow: hidden;
+  border-radius: 30rpx;
+}
+
+.content-heading {
+  align-items: center;
+  border-bottom: 1rpx solid #e2dfd8;
+}
+
+.current-code {
+  width: 50rpx;
+  height: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15rpx;
+  color: #fff;
+  background: #9b1f58;
+  font-family: Georgia, serif;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.table-toolbar {
+  padding: 18rpx 20rpx;
+  border-bottom: 1rpx solid #e8e5df;
+}
+
+.search-box {
+  height: 66rpx;
+  padding: 0 18rpx;
+  display: flex;
+  align-items: center;
+  border: 1rpx solid #dcd9d2;
+  border-radius: 999rpx;
+  background: #fbfaf7;
+}
+
+.search-icon {
+  margin-right: 10rpx;
+  color: #8b9189;
+  font-size: 27rpx;
+}
+
+.search-input {
+  flex: 1;
+  height: 62rpx;
+  color: #2a302a;
+  font-size: 20rpx;
+}
+
+.toolbar-right {
+  margin-top: 12rpx;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.hide-marked-option,
+.mark-option {
+  min-height: 46rpx;
+  padding: 0 12rpx 0 8rpx;
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  border: 1rpx solid #dfdcd5;
+  border-radius: 999rpx;
+  color: #666d65;
+  background: #fff;
+  font-size: 17rpx;
+}
+
+.hide-marked-option.active,
+.mark-option.active {
+  color: #8f1e52;
+  border-color: #e4c5d3;
+  background: #f7eaf0;
+}
+
+.native-checkbox {
+  transform: scale(0.76);
+  transform-origin: center;
+}
+
+.toolbar-count {
+  color: #8b9189;
+  font-size: 17rpx;
+}
+
+.progress-wrap {
+  padding: 18rpx 20rpx 0;
+}
+
+.progress-line {
+  display: flex;
+  justify-content: space-between;
+  color: #6f766d;
+  font-size: 18rpx;
+}
+
+.progress-number {
+  color: #9b1f58;
+  font-weight: 700;
+}
+
+.progress-track {
+  margin-top: 9rpx;
+  height: 8rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #ece8e4;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 999rpx;
+  background: #9b1f58;
+  transition: width 0.2s;
+}
+
+.desktop-table {
+  display: none;
+}
+
+.file-card {
+  margin: 0 14rpx 14rpx;
+  padding: 18rpx;
+  border: 1rpx solid #e2dfd8;
+  border-radius: 22rpx;
+  background: #fff;
+}
+
+.file-card-main,
+.file-name-cell {
+  gap: 13rpx;
+  min-width: 0;
+}
+
+.file-icon {
+  flex: 0 0 auto;
+  width: 50rpx;
+  height: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15rpx;
+  color: #fff;
+  background: #7f8a82;
+  font-family: Georgia, serif;
+  font-size: 18rpx;
+  font-weight: 700;
+}
+
+.file-icon.pdf { background: #b34a52; }
+.file-icon.image { background: #b8843a; }
+.file-icon.word { background: #4c698e; }
+.file-icon.sheet { background: #43765d; }
+.file-icon.ppt { background: #ad6542; }
+.file-icon.zip { background: #76638f; }
+
+.file-name {
+  max-width: 100%;
+  color: #252b25;
+  font-size: 20rpx;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-meta-line {
+  margin-top: 5rpx;
+  color: #8a9088;
+  font-size: 16rpx;
+}
+
+.mobile-mark-cell {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.mark-option.compact {
+  min-height: 42rpx;
+  padding-right: 10rpx;
+  font-size: 16rpx;
+}
+
+.file-detail-grid {
+  margin-top: 15rpx;
+  padding-top: 14rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  border-top: 1rpx solid #ece9e3;
+}
+
+.detail-label {
+  color: #999f97;
+  font-size: 15rpx;
+}
+
+.detail-value {
+  margin-top: 5rpx;
+  color: #596058;
+  font-size: 17rpx;
+  line-height: 1.45;
+}
+
+.mobile-row-actions,
+.row-actions {
+  justify-content: flex-end;
+  gap: 8rpx;
+}
+
+.mobile-row-actions {
+  margin-top: 14rpx;
+}
+
+.mini-button {
+  min-width: 72rpx;
+  height: 46rpx;
+  padding: 0 14rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  background: #fff;
+  font-size: 16rpx;
+  font-weight: 600;
+}
+
+.mini-button.download {
+  border: 1rpx solid #d9d5cf;
+  color: #4e554d;
+}
+
+.mini-button.delete {
+  border: 1rpx solid #eccdd0;
+  color: #b1414a;
+  background: #fffafb;
+}
+
+.state-panel {
+  min-height: 420rpx;
+  padding: 44rpx 26rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #7e857c;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 46rpx;
+  height: 46rpx;
+  margin-bottom: 18rpx;
+  border: 5rpx solid #ebe7e2;
+  border-top-color: #9b1f58;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-mark {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20rpx;
+  color: #fff;
+  background: #9b1f58;
+  font-family: Georgia, serif;
+  font-size: 31rpx;
+}
+
+.empty-title {
+  margin-top: 20rpx;
+  color: #343a33;
+  font-family: "Songti SC", "STSong", "SimSun", Georgia, serif;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.empty-copy {
+  margin-top: 9rpx;
+  color: #929890;
+  font-size: 18rpx;
+  line-height: 1.6;
+}
+
+.page-footer {
+  padding: 24rpx 2rpx 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 20rpx;
+  color: #9a9f98;
+  font-size: 15rpx;
+}
+
+@media (min-width: 800px) {
+  .desktop-only { display: block; }
+  .desktop-only-inline { display: inline-flex; }
+  .mobile-only { display: none; }
+
+  .topbar {
+    min-height: 112rpx;
+    padding: 22rpx 38rpx;
+  }
+
+  .brand-mark {
+    width: 64rpx;
+    height: 64rpx;
+    border-radius: 19rpx;
+    font-size: 37rpx;
+  }
+
+  .brand-name { font-size: 27rpx; }
+  .brand-desc { font-size: 18rpx; }
+
+  .main-content {
+    padding: 88rpx 42rpx 40rpx;
+  }
+
+  .hero-section {
+    padding-bottom: 56rpx;
+  }
+
+  .hero-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 40rpx;
+  }
+
+  .hero-title {
+    font-size: 72rpx;
+    line-height: 1.12;
+    letter-spacing: -2rpx;
+  }
+
+  .hero-summary {
+    max-width: 980rpx;
+    font-size: 22rpx;
+  }
+
+  .hero-actions {
+    max-width: 330rpx;
+    margin-top: 0;
+    justify-content: flex-end;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16rpx;
+  }
+
+  .stat-card {
+    min-height: 172rpx;
+    padding: 30rpx;
+    border-radius: 28rpx;
+  }
+
+  .stat-value { font-size: 48rpx; }
+  .stat-label { font-size: 18rpx; }
+
+  .browse-card,
+  .content-card {
+    border-radius: 34rpx;
+  }
+
+  .section-heading,
+  .content-heading {
+    padding: 28rpx 32rpx;
+  }
+
+  .section-title,
+  .content-title {
+    font-size: 32rpx;
+  }
+
+  .category-scroll {
+    overflow: visible;
+  }
+
+  .category-track {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    padding: 0;
+  }
+
+  .category-tile {
+    min-width: 0;
+    min-height: 104rpx;
+    border-radius: 0;
+    border-right: 1rpx solid #e5e2db;
+    padding: 22rpx 24rpx;
+  }
+
+  .category-tile:last-child {
+    border-right: none;
+  }
+
+  .category-tile.active {
+    border-top-color: transparent;
+    border-bottom-color: transparent;
+    background: #f6e9ef;
+  }
+
+  .content-card {
+    margin-top: 28rpx;
+  }
+
+  .table-toolbar {
+    padding: 18rpx 28rpx;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20rpx;
+  }
+
+  .search-box {
+    width: 430rpx;
+  }
+
+  .toolbar-right {
+    margin-top: 0;
+    flex-wrap: nowrap;
+  }
+
+  .desktop-table {
+    display: block;
+  }
+
+  .table-grid {
+    display: grid;
+    grid-template-columns:
+      0.78fr
+      minmax(320rpx, 2.2fr)
+      0.62fr
+      0.62fr
+      0.82fr
+      1.16fr
+      0.82fr;
+    align-items: center;
+    gap: 16rpx;
+  }
+
+  .table-head {
+    min-height: 56rpx;
+    padding: 0 28rpx;
+    color: #8a9088;
+    font-size: 15rpx;
+    font-weight: 600;
+    letter-spacing: 0.6rpx;
+    border-bottom: 1rpx solid #e4e1da;
+    background: #fbfaf7;
+  }
+
+  .table-row {
+    min-height: 86rpx;
+    padding: 14rpx 28rpx;
+    border-bottom: 1rpx solid #ece9e3;
+    transition: background 0.18s;
+  }
+
+  .table-row:last-child {
+    border-bottom: none;
+  }
+
+  .file-icon {
+    width: 46rpx;
+    height: 46rpx;
+    border-radius: 14rpx;
+    font-size: 17rpx;
+  }
+
+  .file-name { font-size: 18rpx; }
+  .cell-text { color: #697067; font-size: 16rpx; }
+  .time-text { white-space: nowrap; }
+
+  .mark-cell { min-width: 0; }
+  .mark-option { font-size: 15rpx; }
+
+  .row-actions {
+    justify-content: flex-start;
+  }
+
+  .mini-button {
+    height: 44rpx;
+    min-width: 64rpx;
+    padding: 0 12rpx;
+    font-size: 15rpx;
+  }
+
+  .state-panel {
+    min-height: 460rpx;
+  }
+}

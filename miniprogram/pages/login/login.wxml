@@ -1,0 +1,108 @@
+<view class="login-page">
+  <view class="safe-top"></view>
+
+  <view class="login-topbar">
+    <view class="brand-lockup">
+      <image class="brand-logo" src="/images/collins-logo.png" mode="aspectFit"></image>
+      <view>
+        <text class="top-brand-name">Collins Resource Library</text>
+        <text class="top-brand-desc">科林留学资料库</text>
+      </view>
+    </view>
+    <view class="service-status desktop-only-inline">
+      <view class="status-dot"></view>
+      <text>系统服务正常</text>
+    </view>
+  </view>
+
+  <view class="login-shell">
+    <view class="editorial-panel">
+      <text class="eyebrow">COLLINS LEARNING RESOURCES</text>
+      <text class="editorial-title">归档 · 检索 · 标记</text>
+      <text class="editorial-summary">为教师与学生集中管理备课资料、学习资源与个人使用标记，让查找和整理都更轻松。</text>
+
+    </view>
+
+    <view class="form-panel">
+      <view class="form-card">
+        <text class="form-kicker">WELCOME BACK</text>
+        <text class="form-title">欢迎回来</text>
+        <text class="form-subtitle">登录后进入科林留学资料库</text>
+
+        <view wx:if="{{autoLoggingIn}}" class="auto-login-box">
+          <view class="small-spinner"></view>
+          <text>正在使用已记住的设备自动登录…</text>
+        </view>
+
+        <view class="form-group">
+          <text class="field-label">用户名</text>
+          <view class="input-box {{focusedField === 'username' ? 'focused' : ''}}">
+            <input
+              class="field-input"
+              value="{{username}}"
+              placeholder="请输入用户名"
+              maxlength="30"
+              bindinput="onUsernameInput"
+              bindfocus="onUsernameFocus"
+              bindblur="onInputBlur"
+              confirm-type="next"
+            />
+          </view>
+        </view>
+
+        <view class="form-group">
+          <text class="field-label">密码</text>
+          <view class="input-box {{focusedField === 'password' ? 'focused' : ''}}">
+            <input
+              class="field-input password-input"
+              value="{{password}}"
+              password="{{!showPassword}}"
+              placeholder="请输入密码"
+              maxlength="64"
+              bindinput="onPasswordInput"
+              bindfocus="onPasswordFocus"
+              bindblur="onInputBlur"
+              confirm-type="done"
+              bindconfirm="submitLogin"
+            />
+            <text class="password-toggle" bindtap="togglePassword">{{showPassword ? '隐藏' : '显示'}}</text>
+          </view>
+        </view>
+
+        <view class="options-row">
+          <view class="check-option" bindtap="toggleRememberUsername">
+            <view class="custom-check {{rememberUsername ? 'checked' : ''}}">{{rememberUsername ? '✓' : ''}}</view>
+            <text>记住用户名</text>
+          </view>
+          <view class="check-option" bindtap="toggleRememberDevice">
+            <view class="custom-check {{rememberDevice ? 'checked' : ''}}">{{rememberDevice ? '✓' : ''}}</view>
+            <text>记住这台设备</text>
+          </view>
+        </view>
+
+        <view wx:if="{{errorMessage}}" class="message-box error">
+          <view class="message-icon">!</view>
+          <text>{{errorMessage}}</text>
+        </view>
+
+        <button class="login-button" loading="{{loading}}" disabled="{{loading || autoLoggingIn}}" bindtap="submitLogin">
+          <text>{{autoLoggingIn ? '正在自动登录' : loading ? '正在验证' : '登录'}}</text>
+          <text wx:if="{{!loading && !autoLoggingIn}}" class="button-arrow">→</text>
+        </button>
+
+        <view class="register-line">
+          <text>没有账号？</text>
+          <text class="register-link" bindtap="goRegister">立即注册</text>
+        </view>
+
+        <view class="login-footer">
+          <text>© 2026 COLLINS 科林</text>
+          <view class="footer-dot"></view>
+          <text>Secure Resource Portal</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

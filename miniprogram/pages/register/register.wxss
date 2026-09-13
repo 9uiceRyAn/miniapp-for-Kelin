@@ -1,0 +1,291 @@
+.register-page {
+  min-height: 100vh;
+  background: #f7f6f2;
+  color: #20251f;
+}
+
+.register-topbar {
+  min-height: 98rpx;
+  padding: 20rpx 24rpx;
+  display: grid;
+  grid-template-columns: 58rpx minmax(0, 1fr) 58rpx;
+  align-items: center;
+  gap: 14rpx;
+  border-bottom: 1rpx solid #e4e1da;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.back-button,
+.top-space {
+  width: 58rpx;
+}
+
+.back-button {
+  height: 58rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid #ddd9d2;
+  border-radius: 18rpx;
+  color: #4f564e;
+  background: #fff;
+  font-size: 40rpx;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 50rpx;
+  height: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15rpx;
+  color: #fff;
+  background: #9b1f58;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 29rpx;
+}
+
+.top-brand-name,
+.top-brand-desc,
+.eyebrow,
+.intro-title,
+.intro-summary,
+.card-kicker,
+.card-title,
+.card-subtitle,
+.role-title,
+.role-desc,
+.field-label {
+  display: block;
+}
+
+.top-brand-name {
+  color: #20251f;
+  font-family: Georgia, serif;
+  font-size: 20rpx;
+  font-weight: 600;
+}
+
+.top-brand-desc {
+  margin-top: 4rpx;
+  color: #858b83;
+  font-size: 15rpx;
+}
+
+.register-shell {
+  width: 100%;
+  max-width: 1380rpx;
+  margin: 0 auto;
+  padding: 48rpx 24rpx 44rpx;
+}
+
+.register-intro {
+  padding-bottom: 28rpx;
+}
+
+.eyebrow,
+.card-kicker {
+  color: #9b1f58;
+  font-size: 16rpx;
+  font-weight: 700;
+  letter-spacing: 3rpx;
+}
+
+.intro-title {
+  color: #1f251f;
+  font-family: "Songti SC", "STSong", "SimSun", Georgia, serif;
+  font-size: 50rpx;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -1.3rpx;
+}
+
+.register-intro .eyebrow + .intro-title {
+  margin-top: 20rpx;
+}
+
+.intro-summary {
+  margin-top: 20rpx;
+  max-width: 880rpx;
+  color: #777e76;
+  font-size: 20rpx;
+  line-height: 1.72;
+}
+
+.register-card {
+  padding: 28rpx 24rpx 26rpx;
+  border: 1rpx solid #ddd9d2;
+  border-radius: 30rpx;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18rpx 48rpx rgba(47, 43, 40, 0.06);
+}
+
+.card-title {
+  margin-top: 13rpx;
+  color: #232923;
+  font-family: "Songti SC", "STSong", "SimSun", Georgia, serif;
+  font-size: 36rpx;
+  font-weight: 600;
+}
+
+.card-subtitle {
+  margin-top: 8rpx;
+  color: #8b9189;
+  font-size: 18rpx;
+}
+
+.role-selector {
+  margin-top: 24rpx;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12rpx;
+}
+
+.role-option {
+  min-height: 92rpx;
+  padding: 16rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  border: 1rpx solid #dedbd4;
+  border-radius: 20rpx;
+  background: #fbfaf7;
+}
+
+.role-option.active {
+  border-color: #e1bfd0;
+  background: #f7eaf0;
+}
+
+.role-icon {
+  flex: 0 0 auto;
+  width: 52rpx;
+  height: 52rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+  color: #687067;
+  background: #ece9e4;
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.role-option.active .role-icon {
+  color: #fff;
+  background: #9b1f58;
+}
+
+.role-title {
+  color: #303630;
+  font-size: 20rpx;
+  font-weight: 650;
+}
+
+.role-desc {
+  margin-top: 5rpx;
+  color: #8b9189;
+  font-size: 16rpx;
+  line-height: 1.45;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.field-group {
+  margin-top: 21rpx;
+}
+
+.field-label {
+  margin-bottom: 8rpx;
+  color: #50574f;
+  font-size: 18rpx;
+  font-weight: 600;
+}
+
+.field-input {
+  height: 68rpx;
+  padding: 0 17rpx;
+  border: 1rpx solid #dcd9d2;
+  border-radius: 17rpx;
+  color: #252b25;
+  background: #fbfaf7;
+  font-size: 20rpx;
+}
+
+.error-box {
+  margin-top: 18rpx;
+  padding: 14rpx;
+  border: 1rpx solid #efd0d3;
+  border-radius: 15rpx;
+  color: #aa3b44;
+  background: #fff5f5;
+  font-size: 18rpx;
+}
+
+.submit-button {
+  margin-top: 24rpx;
+  min-height: 70rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  color: #fff;
+  background: #9b1f58;
+  box-shadow: 0 10rpx 24rpx rgba(126, 29, 75, 0.16);
+  font-size: 21rpx;
+  font-weight: 650;
+}
+
+.submit-button[disabled] {
+  opacity: 0.55;
+}
+
+@media (min-width: 800px) {
+  .register-topbar {
+    min-height: 112rpx;
+    padding: 22rpx 38rpx;
+  }
+
+  .register-shell {
+    min-height: calc(100vh - 112rpx);
+    padding: 64rpx 42rpx 48rpx;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(650rpx, 1.1fr);
+    align-items: start;
+    gap: 64rpx;
+  }
+
+  .register-intro {
+    padding-top: 28rpx;
+  }
+
+  .intro-title {
+    font-size: 66rpx;
+    line-height: 1.13;
+  }
+
+  .register-card {
+    padding: 36rpx 34rpx 30rpx;
+    border-radius: 32rpx;
+  }
+
+  .role-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 14rpx;
+  }
+}

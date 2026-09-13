@@ -1,0 +1,32 @@
+# Secrets / local config
+.env
+.env.*
+!.env.example
+project.private.config.json
+
+# Dependencies
+node_modules/
+
+# macOS / archives
+.DS_Store
+__MACOSX/
+*.zip
+*.tar.gz
+
+# Logs / runtime
+*.log
+logs/
+*.pid
+.pm2/
+
+# Uploads / user content
+uploads/
+backend/uploads/
+
+# Editor
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.swp

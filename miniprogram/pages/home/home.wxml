@@ -1,0 +1,182 @@
+<view class="home-page">
+  <view class="safe-top"></view>
+
+  <view class="topbar">
+    <view class="brand-lockup">
+      <image class="brand-logo" src="/images/collins-logo.png" mode="aspectFit"></image>
+      <view class="brand-copy">
+        <text class="brand-name">Collins Resource Library</text>
+        <text class="brand-desc">科林留学资料库</text>
+      </view>
+    </view>
+
+    <view class="topbar-actions">
+      <view class="service-status desktop-only-inline">
+        <view class="status-dot"></view>
+        <text>资料服务已连接</text>
+      </view>
+      <view class="role-badge {{user.role}}">{{roleText}}</view>
+      <text class="logout-link" bindtap="logout">退出</text>
+    </view>
+  </view>
+
+  <view class="main-content">
+    <view class="hero-section">
+      <text class="eyebrow">COLLINS LEARNING RESOURCES · {{currentCategory.name}}</text>
+
+      <view class="hero-row">
+        <view class="hero-copy">
+          <text class="hero-title">熟能生巧。</text>
+          <text class="hero-summary">集中管理备课文档与学习资源，按分类浏览、关键词检索，并保留每个账号自己的使用标记。</text>
+        </view>
+
+        <view class="hero-actions">
+          <button class="action-button secondary" disabled="{{loading}}" bindtap="refreshFiles">{{loading ? '刷新中' : '刷新资料'}}</button>
+          <button class="action-button secondary" disabled="{{exporting || files.length === 0}}" bindtap="exportCategory">{{exporting ? '导出中' : '导出当前分类'}}</button>
+          <button wx:if="{{isTeacher}}" class="action-button primary" disabled="{{uploading}}" bindtap="chooseFiles">{{uploading ? '正在导入' : '+ 导入文件'}}</button>
+        </view>
+      </view>
+
+    </view>
+
+    <view class="browse-card">
+      <view class="section-heading">
+        <view>
+          <text class="section-kicker">浏览方式</text>
+          <text class="section-title">按分类进入资料库</text>
+        </view>
+        <text class="section-note desktop-only-inline">选择分类后，搜索与标记筛选只作用于当前分类。</text>
+      </view>
+
+      <scroll-view class="category-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
+        <view class="category-track">
+          <view
+            wx:for="{{categories}}"
+            wx:key="code"
+            class="category-tile {{activeCategory === item.code ? 'active' : ''}}"
+            data-code="{{item.code}}"
+            bindtap="selectCategory"
+          >
+            <text class="category-code">{{item.code}}</text>
+            <view class="category-copy">
+              <text class="category-name">{{item.name}}</text>
+              <text class="category-meta">{{item.count}} 个文件</text>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="content-card">
+      <view class="content-heading">
+        <view>
+          <text class="content-title">{{currentCategory.name}}</text>
+          <text class="content-subtitle">浏览、搜索并管理当前分类中的资料</text>
+        </view>
+        <view class="current-code">{{activeCategory}}</view>
+      </view>
+
+      <view class="table-toolbar">
+        <view class="search-box">
+          <text class="search-icon">⌕</text>
+          <input class="search-input" value="{{keyword}}" placeholder="搜索文件名或关键词" bindinput="onKeywordInput" />
+        </view>
+
+        <view class="toolbar-right">
+          <checkbox-group bindchange="onHideMarkedChange">
+            <label class="hide-marked-option {{hideMarked ? 'active' : ''}}">
+              <checkbox
+                class="native-checkbox"
+                value="hideMarked"
+                checked="{{hideMarked}}"
+                color="#9b1f58"
+              />
+              <text>隐藏已标记</text>
+            </label>
+          </checkbox-group>
+          <text class="toolbar-count">显示 {{filteredFiles.length}} / {{files.length}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{uploading}}" class="progress-wrap">
+        <view class="progress-line"><text>正在上传 {{uploadFileCount}} 个文件</text><text class="progress-number">{{uploadProgress}}%</text></view>
+        <view class="progress-track"><view class="progress-bar" style="width: {{uploadProgress}}%;"></view></view>
+      </view>
+
+      <view class="desktop-table desktop-only">
+        <view class="table-head table-grid">
+          <text>标记</text><text>文件</text><text>类型</text><text>大小</text><text>上传者</text><text>导入时间</text><text>操作</text>
+        </view>
+        <view wx:if="{{!loading && filteredFiles.length > 0}}">
+          <view wx:for="{{filteredFiles}}" wx:key="id" class="table-row table-grid">
+            <checkbox-group class="mark-cell" data-id="{{item.id}}" bindchange="onFileMarkChange">
+              <label class="mark-option {{item.marked ? 'active' : ''}}">
+                <checkbox class="native-checkbox" value="marked" checked="{{item.marked}}" disabled="{{item.markSaving}}" color="#9b1f58" />
+                <text>{{item.marked ? '已标记' : '标记'}}</text>
+              </label>
+            </checkbox-group>
+
+            <view class="file-name-cell">
+              <view class="file-icon {{item.iconType}}"><text>{{item.iconText}}</text></view>
+              <view class="file-meta"><text class="file-name">{{item.original_name}}</text></view>
+            </view>
+            <text class="cell-text">{{item.readableType}}</text>
+            <text class="cell-text">{{item.formattedSize}}</text>
+            <text class="cell-text">{{item.uploaderName}}</text>
+            <text class="cell-text time-text">{{item.formattedDate}}</text>
+            <view class="row-actions">
+              <button class="mini-button download" data-index="{{index}}" bindtap="downloadFile">导出</button>
+              <button wx:if="{{isTeacher}}" class="mini-button delete" data-index="{{index}}" bindtap="deleteFile">删除</button>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="mobile-file-list mobile-only" wx:if="{{!loading && filteredFiles.length > 0}}">
+        <view wx:for="{{filteredFiles}}" wx:key="id" class="file-card">
+          <view class="file-card-main">
+            <view class="file-icon {{item.iconType}}"><text>{{item.iconText}}</text></view>
+            <view class="file-card-copy">
+              <text class="file-name">{{item.original_name}}</text>
+              <text class="mobile-meta-line">{{item.readableType}} · {{item.formattedSize}}</text>
+            </view>
+            <checkbox-group class="mobile-mark-cell" data-id="{{item.id}}" bindchange="onFileMarkChange">
+              <label class="mark-option compact {{item.marked ? 'active' : ''}}">
+                <checkbox class="native-checkbox" value="marked" checked="{{item.marked}}" disabled="{{item.markSaving}}" color="#9b1f58" />
+                <text>{{item.marked ? '已标记' : '标记'}}</text>
+              </label>
+            </checkbox-group>
+          </view>
+
+          <view class="file-detail-grid">
+            <view><text class="detail-label">上传者</text><text class="detail-value">{{item.uploaderName}}</text></view>
+            <view><text class="detail-label">导入时间</text><text class="detail-value">{{item.formattedDate}}</text></view>
+          </view>
+
+          <view class="mobile-row-actions">
+            <button class="mini-button download" data-index="{{index}}" bindtap="downloadFile">导出</button>
+            <button wx:if="{{isTeacher}}" class="mini-button delete" data-index="{{index}}" bindtap="deleteFile">删除</button>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{loading}}" class="state-panel">
+        <view class="loading-spinner"></view>
+        <text>正在读取文件列表…</text>
+      </view>
+
+      <view wx:elif="{{filteredFiles.length === 0}}" class="state-panel empty-state">
+        <view class="empty-mark">C</view>
+        <text class="empty-title">{{keyword ? '没有匹配的文件' : hideMarked && files.length > 0 ? '没有未标记的文件' : '当前分类还没有文件'}}</text>
+        <text class="empty-copy">{{keyword ? '请更换搜索关键词或关闭“隐藏已标记”' : hideMarked && files.length > 0 ? '当前分类中的文件都已被你标记，可关闭隐藏选项查看' : isTeacher ? '点击“导入文件”开始上传' : '请等待教师上传文件'}}</text>
+      </view>
+    </view>
+
+    <view class="page-footer">
+      <text>© 2026 COLLINS 科林</text>
+      <text>Learning Resource Library</text>
+    </view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

@@ -1,0 +1,76 @@
+<view class="register-page">
+  <view class="safe-top"></view>
+
+  <view class="register-topbar">
+    <view class="back-button" bindtap="goBack">‹</view>
+    <view class="brand-lockup">
+      <view class="brand-mark"><text>C</text></view>
+      <view>
+        <text class="top-brand-name">Collins Resource Library</text>
+        <text class="top-brand-desc">创建内部账号</text>
+      </view>
+    </view>
+    <view class="top-space"></view>
+  </view>
+
+  <view class="register-shell">
+    <view class="register-intro">
+      <text class="eyebrow">COLLINS ACCOUNT</text>
+      <text class="intro-title">创建账号，</text>
+      <text class="intro-title">进入同一个资料入口。</text>
+      <text class="intro-summary">请选择身份并完成注册。教师账号可上传与管理资料，学生账号可查看、标记与导出。</text>
+    </view>
+
+    <view class="register-card">
+      <text class="card-kicker">CREATE ACCOUNT</text>
+      <text class="card-title">注册账号</text>
+      <text class="card-subtitle">选择账号类型并填写内部注册信息</text>
+
+      <view class="role-selector">
+        <view class="role-option {{role === 'teacher' ? 'active' : ''}}" data-role="teacher" bindtap="selectRole">
+          <view class="role-icon">师</view>
+          <view><text class="role-title">教师账号</text><text class="role-desc">可导入、删除、下载和 ZIP 导出</text></view>
+        </view>
+        <view class="role-option {{role === 'student' ? 'active' : ''}}" data-role="student" bindtap="selectRole">
+          <view class="role-icon">生</view>
+          <view><text class="role-title">学生账号</text><text class="role-desc">可查看、标记、下载和 ZIP 导出</text></view>
+        </view>
+      </view>
+
+      <view class="field-grid">
+        <view class="field-group">
+          <text class="field-label">用户名</text>
+          <input class="field-input" value="{{username}}" placeholder="3–30 位字母、数字或下划线" maxlength="30" data-field="username" bindinput="onInput" />
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">显示名称</text>
+          <input class="field-input" value="{{displayName}}" placeholder="例如：张老师" maxlength="30" data-field="displayName" bindinput="onInput" />
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">密码</text>
+          <input class="field-input" value="{{password}}" password placeholder="至少 6 位" maxlength="72" data-field="password" bindinput="onInput" />
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">确认密码</text>
+          <input class="field-input" value="{{confirmPassword}}" password placeholder="再次输入密码" maxlength="72" data-field="confirmPassword" bindinput="onInput" />
+        </view>
+      </view>
+
+      <view class="field-group">
+        <text class="field-label">{{role === 'teacher' ? '教师' : '学生'}}注册码</text>
+        <input class="field-input" value="{{registerCode}}" password placeholder="请输入内部注册码" maxlength="64" data-field="registerCode" bindinput="onInput" />
+      </view>
+
+      <view wx:if="{{errorMessage}}" class="error-box">{{errorMessage}}</view>
+
+      <button class="submit-button" loading="{{loading}}" disabled="{{loading}}" bindtap="submitRegister">
+        {{loading ? '正在创建' : '创建账号'}}
+      </button>
+    </view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>
