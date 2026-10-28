@@ -7,6 +7,7 @@ const ICON_TEXT = {
 };
 
 Page({
+  openLearning() { wx.navigateTo({ url: "/pages/learning/index" }); },
   data: {
     user: {},
     isTeacher: false,

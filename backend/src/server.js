@@ -61,6 +61,8 @@ app.use('/api/files', fileRoutes);
 
 app.use('/api/marks', markRoutes);
 
+require('./learning/router').install(app);
+
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
@@ -70,18 +72,17 @@ app.use((req, res) => {
 
 
 app.use((error, req, res, next) => {
-  console.error(
-    'Unhandled error:',
-    error,
-  );
+  if (!error.status || error.status >= 500) console.error('Unhandled error:', error);
 
-  return res.status(500).json({
+  return res.status(error.status || (error.code === 'LIMIT_FILE_SIZE' ? 413 : 500)).json({
     success: false,
-    message: '服务器内部错误',
+    message: error.status ? error.message : '服务器内部错误',
   });
 });
 
 
+if (require.main === module) {
+require('./learning/documents').resume().then(() => require('./learning/runs').recover()).then(() => require('./learning/library-agent').recover()).catch(() => console.warn('Learning migrations must be applied before enabling learning features.'));
 app.listen(
   PORT,
   '127.0.0.1',
@@ -91,3 +92,6 @@ app.listen(
     );
   },
 );
+
+}
+module.exports = app;

@@ -6,6 +6,8 @@
 
 **当前交接状态：v0.1 可运行基线。** 后续的题库分类、metadata/tag 搜索、搜索引擎和 AI Chatbot 功能由后续开发者在此版本上继续扩展。
 
+**题库与教学 Agent 规格（2026-10-20）：** 统一入口为 [docs/specs/README.md](docs/specs/README.md)。先完成[一期题库](docs/specs/phase-1-question-bank/03-delivery-and-acceptance.md)，验收后再开展[二期 Agent](docs/specs/phase-2-agent/06-delivery-and-acceptance.md)。当前为待实现规格，不改变上述 v0.1 功能状态。
+
 ## 架构
 
 ```text
@@ -207,7 +209,7 @@ npm install
 npm test
 ```
 
-`npm test` 当前执行静态语法检查，不会连接或修改生产数据库。
+`npm test` 执行语法检查和单元测试；设置 `TEST_MYSQL_PORT` 时还运行独立本地 MySQL/API/Mastra 集成测试。不对生产数据库运行集成测试。Agent 编译使用 `npm run build`，部署迁移与 PM2 启动顺序见 [DEPLOY](docs/DEPLOY.md)。
 
 如果需要本地运行后端：
 
@@ -303,6 +305,7 @@ v0.1 不要求解决，交给后续开发者按需求推进：
 
 ## 文档
 
+- [`docs/specs/README.md`](docs/specs/README.md) — 题库优先的分期规格、数据/API、页面与验收
 - [`docs/AUDIT.md`](docs/AUDIT.md) — 当前功能、服务器与已知技术债审计
 - [`docs/DEPLOY.md`](docs/DEPLOY.md) — 生产部署 / 验证 / 回滚
 - [`docs/GITHUB.md`](docs/GITHUB.md) — 首次发布、v0.1 tag / release、协作者权限
@@ -318,3 +321,5 @@ v0.1
 ```
 
 建议将此版本作为后续分类、搜索和 AI 功能开发的稳定基线。
+
+完整应用开发与联调（题库 + Agent + LiteLLM）：[实施说明](docs/specs/02-complete-implementation.md)。样本题库通过后继续 Agent；正式全量验收在分类交付后执行。

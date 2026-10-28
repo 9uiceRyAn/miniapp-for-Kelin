@@ -1,0 +1,26 @@
+/* Change the visual theme here. Controllers contain no presentation values. */
+page,.workspace-shell {
+ --ws-canvas:#ffffff;
+ --ws-sidebar:#f7f7f8;
+ --ws-muted:#f1f1f2;
+ --ws-selected:#e8e8ea;
+ --ws-text:#202020;
+ --ws-secondary:#777777;
+ --ws-tertiary:#969696;
+ --ws-border:#e9e9e9;
+ --ws-accent:#242424;
+ --ws-on-accent:#ffffff;
+ --ws-danger:#a12540;
+ --ws-sidebar-width:244px;
+ --ws-bottom-height:72px;
+ --ws-header-height:64px;
+ --ws-content-width:1050px;
+ --ws-chat-width:760px;
+ --ws-page-gutter:42px;
+ --ws-radius:10px;
+ --ws-composer-radius:22px;
+ --ws-text-size:14px;
+ --ws-title-size:30px;
+ --ws-font:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+}
+@media(max-width:700px){page,.workspace-shell{--ws-header-height:56px;--ws-page-gutter:22px;--ws-title-size:26px;--ws-text-size:13px}}

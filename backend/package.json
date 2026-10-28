@@ -5,8 +5,15 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/routes/auth.js && node --check src/routes/files.js && node --check src/routes/marks.js && node --check src/middleware/auth.js && node --check src/utils/security.js && node --check src/db.js",
-    "test": "npm run check"
+    "check": "node scripts/check.js",
+    "test": "npm run check && node --test test/*.test.js",
+    "build": "tsc -p tsconfig.agent.json",
+    "migrate": "node scripts/learning.js migrate",
+    "sample": "node scripts/learning.js sample",
+    "import:questions": "node scripts/learning.js import",
+    "grant-admin": "node scripts/learning.js grant-admin",
+    "prestart": "npm run build",
+    "check:mini": "node scripts/compile-mini.js"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +23,22 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.2.0",
-    "mysql2": "^3.23.3"
+    "mysql2": "^3.23.3",
+    "@mastra/core": "1.79.0",
+    "@ai-sdk/openai-compatible": "3.0.80",
+    "zod": "4.1.12",
+    "mammoth": "1.13.0",
+    "pdfjs-dist": "6.4.299",
+    "@napi-rs/canvas": "1.0.13",
+    "mathjs": "15.2.0",
+    "mathjax-full": "3.2.2",
+    "marked": "18.1.2"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "22.19.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }

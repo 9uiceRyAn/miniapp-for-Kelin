@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD:?set a database password}
+    volumes:
+      - litellm-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U litellm"]
+      interval: 5s
+      retries: 10
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.106.0@sha256:2e4c0371f3a8c28e4da131d77abaa8341cd3b0c2fcc4d34d7c5900431af7b9d0
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    ports: ["127.0.0.1:4000:4000"]
+    environment:
+      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@postgres:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set a master key}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set a persistent encryption key}
+      STORE_MODEL_IN_DB: "True"
+      STORE_PROMPTS_IN_SPEND_LOGS: "False"
+    volumes: ["./config.yaml:/app/config.yaml:ro"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  litellm-postgres:

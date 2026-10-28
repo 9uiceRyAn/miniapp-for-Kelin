@@ -2,6 +2,8 @@
 
 本文件用于后续 AI coding agent、IDE agent 或新开发者快速理解项目。**v0.1 是已经人工验证过的稳定交接基线。** 在没有明确需求时，不要为了“重构”而改变现有业务行为。
 
+题库与教学 Agent 的已确认需求、API 和验收见 [docs/specs/README.md](docs/specs/README.md)（2026-10-20）。先完成 `phase-1-question-bank/` 并验收，再执行 `phase-2-agent/`；共用规则见 `01-shared-foundation.md`。实现时保留本文件的既有业务、部署和资源约束，规格落地不表示功能已实现。
+
 ## 1. 项目目标
 
 这是一个可林留学内部资料管理微信小程序。当前版本解决：
@@ -338,3 +340,5 @@ hide marked
 ## 15. Handoff rule
 
 如果需求是“加分类 / 搜索 / AI”，优先扩展数据层和 API，不要破坏当前稳定的文件管理、用户权限、marks 与 UI 基线。
+
+完整应用开发与联调（题库 + Agent + LiteLLM）：[实施说明](docs/specs/02-complete-implementation.md)。样本题库通过后继续 Agent；正式全量验收在分类交付后执行。

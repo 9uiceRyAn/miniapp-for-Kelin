@@ -1,0 +1,6 @@
+@import "../../styles/learning.wxss";
+@import "../../styles/workspace-tokens.wxss";
+@import "../../styles/workspace-layout.wxss";
+@import "../../styles/workspace-content.wxss";
+.workspace-detail-shell{grid-template-columns:minmax(0,1fr)}
+.workspace-detail-shell .learning-page{max-width:1000px;padding:24px var(--ws-page-gutter)}

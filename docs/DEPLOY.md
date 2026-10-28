@@ -67,6 +67,8 @@ ls -lh \
 backend/.env.example
 ```
 
+学习平台需要 Node.js 22.13 或更高版本。模型和网关配置、样本导入见 [完整应用开发与联调](specs/02-complete-implementation.md)。生产部署继续保留原有环境配置与上传文件。
+
 ## 3. Database migrations
 
 现有 marks migration：
@@ -87,6 +89,8 @@ sudo mysql file_manager -e "SHOW CREATE TABLE user_file_marks\G"
 
 以后新增 schema 应创建新的 migration，不要覆盖 `001_user_file_marks.sql`。
 
+学习平台还需要 002_learning_platform.sql。将整个 database/migrations/ 同步到服务器项目根目录，保证它与 backend/ 同级，然后在 backend 目录执行 npm run migrate。该命令按顺序应用并记录迁移；先完成本节的数据库备份。
+
 ## 4. Backend validation before restart
 
 在准备部署的 repository：
@@ -94,6 +98,7 @@ sudo mysql file_manager -e "SHOW CREATE TABLE user_file_marks\G"
 ```bash
 cd backend
 npm ci
+npm run build
 npm test
 ```
 
@@ -115,8 +120,18 @@ uploads/
 rsync -av \
   --exclude '.env' \
   --exclude 'node_modules' \
+  --exclude '.local' \
+  --exclude 'uploads' \
+  --exclude 'sample-data' \
+  --exclude 'dist' \
   backend/ \
   ubuntu@YOUR_SERVER:/var/www/file-manager/backend/
+```
+
+迁移文件也要同步：
+
+```bash
+rsync -av database/migrations/ ubuntu@YOUR_SERVER:/var/www/file-manager/database/migrations/
 ```
 
 如果只更新少数文件，也可以精确 `scp` 对应文件。
@@ -128,11 +143,16 @@ rsync -av \
 ```bash
 cd /var/www/file-manager/backend
 
+npm ci
+npm run migrate
+npm run build
 npm test
 pm2 restart file-manager-api
 pm2 status
 pm2 logs file-manager-api --lines 50 --nostream
 ```
+
+PM2 直接启动 server.js 时不会触发 npm prestart，所以部署时必须显式运行 build，生成 dist/agent/engine.mjs。普通 npm test 执行静态与单元检查；MySQL 集成测试仅在独立本地测试库运行，不在生产指定 TEST_MYSQL_PORT。
 
 正常状态：
 
@@ -193,6 +213,13 @@ database=connected
 - 打开“隐藏已标记”，文件消失
 - 关闭后文件重新出现且 checkbox 保持
 - 取消标记
+
+### Learning workspace
+
+- 题库学科、标签、媒体与修订读取。
+- 教学助手对话、工具调用、费用记录与教师/学生权限。
+- 教学资料管家查询 A–E 文件，准备新增/索引/替换/撤下卡片，确认后检查实际资料状态。
+- 改变默认创建助手模型后，新资料管家会话使用新模型，旧记录仍能读取。
 
 ## 9. API-level marks test (optional)
 

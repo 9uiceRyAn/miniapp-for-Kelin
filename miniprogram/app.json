@@ -2,7 +2,12 @@
   "pages": [
     "pages/login/login",
     "pages/home/home",
-    "pages/register/register"
+    "pages/register/register",
+    "pages/learning/index",
+    "pages/question/detail",
+    "pages/studio/studio",
+    "pages/chat/chat",
+    "pages/admin/admin"
   ],
   "window": {
     "navigationStyle": "custom",

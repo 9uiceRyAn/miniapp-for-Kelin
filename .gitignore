@@ -30,3 +30,8 @@ backend/uploads/
 # Temporary files
 *.tmp
 *.swp
+
+# Learning development data and compiled modules
+backend/.local/
+backend/dist/
+backend/sample-data/

@@ -39,6 +39,7 @@
 
     </view>
 
+    <view class="actions"><button class="action-button primary" bindtap="openLearning">题库 · 教学助手</button></view>
     <view class="browse-card">
       <view class="section-heading">
         <view>
