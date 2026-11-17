@@ -26,8 +26,7 @@
     <view class="form-panel">
       <view class="form-card">
         <text class="form-kicker">WELCOME BACK</text>
-        <text class="form-title">欢迎回来</text>
-        <text class="form-subtitle">登录后进入科林留学资料库</text>
+        <text class="form-title">AI助手</text>
 
         <view wx:if="{{autoLoggingIn}}" class="auto-login-box">
           <view class="small-spinner"></view>
@@ -95,11 +94,6 @@
           <text class="register-link" bindtap="goRegister">立即注册</text>
         </view>
 
-        <view class="login-footer">
-          <text>© 2026 COLLINS 科林</text>
-          <view class="footer-dot"></view>
-          <text>Secure Resource Portal</text>
-        </view>
       </view>
     </view>
   </view>
