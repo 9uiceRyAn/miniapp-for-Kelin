@@ -37,6 +37,7 @@ Page({
     skill: '',
     tag: '',
     qualityStatus: '',
+    usableOnly: false,
     reviewRequired: '',
     subjects: [{ id: '', label: '全部学科' }],
     collections: [{ id: '', label: '全部数据集' }],
@@ -312,7 +313,11 @@ Page({
     await this.load(true);
   },
   review(e) {
-    this.setData({ reviewRequired: e.detail.value ? 'true' : '' });
+    this.setData({ usableOnly: false, reviewRequired: e.detail.value ? 'true' : '' });
+    this.load(true);
+  },
+  usable(e) {
+    this.setData({ usableOnly: e.detail.value, reviewRequired: '' });
     this.load(true);
   },
   async clear() {
@@ -321,6 +326,7 @@ Page({
       collection: '',
       skill: '',
       tag: '',
+      usableOnly: false,
       reviewRequired: '',
       collectionIndex: 0,
       skillIndex: 0,
@@ -353,7 +359,8 @@ Page({
               collection: this.data.collection,
               skill: this.data.skill,
               tag: this.data.tag,
-              reviewRequired: this.data.reviewRequired,
+              qualityStatus: this.data.usableOnly ? 'ready' : '',
+              reviewRequired: this.data.usableOnly ? 'false' : this.data.reviewRequired,
             }),
         );
       else if (section === 'library')
