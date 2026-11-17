@@ -55,6 +55,11 @@ test(
       for await (const chunk of req) raw += chunk;
       const body = raw ? JSON.parse(raw) : {};
       res.setHeader('Content-Type', 'application/json');
+      const key = req.url === '/v1/chat/completions' ? 'test-inference-key' : 'test-model-admin-key';
+      if (req.headers.authorization !== 'Bearer ' + key) {
+        res.statusCode = 403;
+        return res.end('{}');
+      }
       if (req.url === '/model/new') {
         gatewayModels.set(body.model_name, body);
         return res.end(JSON.stringify({ model_info: body.model_info }));
@@ -158,7 +163,8 @@ test(
     });
     await new Promise((resolve) => gateway.listen(0, '127.0.0.1', resolve));
     process.env.LITELLM_BASE_URL = 'http://127.0.0.1:' + gateway.address().port;
-    process.env.LITELLM_MASTER_KEY = 'test-only-gateway-key';
+    process.env.LITELLM_MODEL_ADMIN_KEY = 'test-model-admin-key';
+    process.env.LITELLM_CALL_KEY = 'test-inference-key';
     const app = require('../src/server'),
       server = app.listen(0, '127.0.0.1');
     await new Promise((resolve) => server.on('listening', resolve));

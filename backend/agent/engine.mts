@@ -18,7 +18,7 @@ export async function execute(input: EngineInput) {
   const provider = createOpenAICompatible({
     name: 'litellm',
     baseURL: process.env.LITELLM_BASE_URL!.replace(/\/$/, '') + '/v1',
-    apiKey: process.env.LITELLM_CALL_KEY || process.env.LITELLM_MASTER_KEY,
+    apiKey: process.env.LITELLM_CALL_KEY,
   });
   const read = z.object({
     resourceId: z.string(),

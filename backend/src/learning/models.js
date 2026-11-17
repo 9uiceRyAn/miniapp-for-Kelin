@@ -1,14 +1,18 @@
 const c = require('./core');
 const { bignumber } = require('mathjs');
 async function gateway(endpoint, body, method = 'POST') {
-  if (!process.env.LITELLM_BASE_URL || !process.env.LITELLM_MASTER_KEY)
+  const management = endpoint === '/model/new' || endpoint === '/model/update';
+  const key = management
+    ? process.env.LITELLM_MODEL_ADMIN_KEY
+    : process.env.LITELLM_CALL_KEY;
+  if (!process.env.LITELLM_BASE_URL || !key)
     c.fail(503, '尚未配置 LiteLLM 网关');
   const response = await fetch(
     process.env.LITELLM_BASE_URL.replace(/\/$/, '') + endpoint,
     {
       method,
       headers: {
-        Authorization: 'Bearer ' + process.env.LITELLM_MASTER_KEY,
+        Authorization: 'Bearer ' + key,
         'Content-Type': 'application/json',
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
