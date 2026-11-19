@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { pool } = require('../db');
+const { pool, transaction } = require('../db');
 const {
   hashPassword,
   verifyPassword,
@@ -11,6 +11,14 @@ const {
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+
+async function createSession(db, userId) {
+  const token = randomToken();
+  const expires = addHours(Number(process.env.SESSION_TTL_HOURS || 12));
+  await db.execute('INSERT INTO auth_sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+    [userId, hashToken(token), expires]);
+  return token;
+}
 
 function publicUser(user) {
   return {
@@ -170,128 +178,35 @@ router.post('/login', async (req, res) => {
     const rememberDevice =
       req.body.rememberDevice !== false;
 
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        id,
-        username,
-        password_hash,
-        display_name,
-        role,
-        status
-      FROM users
-      WHERE username = ?
-      LIMIT 1
-      `,
-      [username],
-    );
-
-    const user = rows[0];
-
-    if (
-      !user ||
-      user.status !== 1 ||
-      !verifyPassword(
-        password,
-        user.password_hash,
-      )
-    ) {
-      return res.status(401).json({
-        success: false,
-        message: '用户名或密码错误',
-      });
-    }
-
-    const sessionToken =
-      randomToken();
-
-    const sessionTokenHash =
-      hashToken(sessionToken);
-
-    const sessionHours =
-      Number(
-        process.env.SESSION_TTL_HOURS || 12,
+    const result = await transaction(async db => {
+      // Password resets lock this same user before revoking sessions and devices.
+      const [rows] = await db.execute(
+        'SELECT id, username, password_hash, display_name, role, status FROM users WHERE username = ? FOR UPDATE',
+        [username],
       );
+      const user = rows[0];
+      if (!user || user.status !== 1 || !verifyPassword(password, user.password_hash)) return null;
 
-    const sessionExpiresAt =
-      addHours(sessionHours);
-
-    await pool.execute(
-      `
-      INSERT INTO auth_sessions
-        (
-          user_id,
-          token_hash,
-          expires_at
-        )
-      VALUES (?, ?, ?)
-      `,
-      [
-        user.id,
-        sessionTokenHash,
-        sessionExpiresAt,
-      ],
-    );
-
-    let rememberToken = '';
-
-    if (rememberDevice) {
-      rememberToken = randomToken();
-
-      const rememberTokenHash =
-        hashToken(rememberToken);
-
-      const rememberDays =
-        Number(
-          process.env.REMEMBER_DEVICE_DAYS || 30,
+      const token = await createSession(db, user.id);
+      let rememberToken = '';
+      if (rememberDevice) {
+        rememberToken = randomToken();
+        await db.execute(
+          `INSERT INTO remember_devices
+             (user_id, token_hash, device_name, user_agent, expires_at, last_used_at)
+           VALUES (?, ?, ?, ?, ?, NOW())`,
+          [
+            user.id, hashToken(rememberToken),
+            cleanText(req.body.deviceName, 255) || '微信小程序',
+            cleanText(req.headers['user-agent'], 500),
+            addDays(Number(process.env.REMEMBER_DEVICE_DAYS || 30)),
+          ],
         );
-
-      const rememberExpiresAt =
-        addDays(rememberDays);
-
-      const deviceName =
-        cleanText(
-          req.body.deviceName,
-          255,
-        ) || '微信小程序';
-
-      const userAgent =
-        cleanText(
-          req.headers['user-agent'],
-          500,
-        );
-
-      await pool.execute(
-        `
-        INSERT INTO remember_devices
-          (
-            user_id,
-            token_hash,
-            device_name,
-            user_agent,
-            expires_at,
-            last_used_at
-          )
-        VALUES (?, ?, ?, ?, ?, NOW())
-        `,
-        [
-          user.id,
-          rememberTokenHash,
-          deviceName,
-          userAgent,
-          rememberExpiresAt,
-        ],
-      );
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        token: sessionToken,
-        rememberToken,
-        user: publicUser(user),
-      },
+      }
+      return { token, rememberToken, user: publicUser(user) };
     });
+    if (!result) return res.status(401).json({ success: false, message: '用户名或密码错误' });
+    return res.json({ success: true, data: result });
   } catch (error) {
     console.error('login error:', error);
 
@@ -389,86 +304,33 @@ router.post('/remember-login', async (req, res) => {
     const rememberTokenHash =
       hashToken(rememberToken);
 
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        rd.id AS remember_id,
-        rd.user_id,
-        u.id,
-        u.username,
-        u.display_name,
-        u.role,
-        u.status
-      FROM remember_devices rd
-      JOIN users u
-        ON u.id = rd.user_id
-      WHERE rd.token_hash = ?
-        AND rd.expires_at > NOW()
-        AND rd.revoked_at IS NULL
-        AND u.status = 1
-      LIMIT 1
-      `,
-      [rememberTokenHash],
-    );
-
-    const user = rows[0];
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message:
-          '记住设备凭证已失效，请重新登录',
-      });
-    }
-
-    await pool.execute(
-      `
-      UPDATE remember_devices
-      SET last_used_at = NOW()
-      WHERE id = ?
-      `,
-      [user.remember_id],
-    );
-
-    const sessionToken =
-      randomToken();
-
-    const sessionTokenHash =
-      hashToken(sessionToken);
-
-    const sessionHours =
-      Number(
-        process.env.SESSION_TTL_HOURS || 12,
+    const result = await transaction(async db => {
+      // Identify the owner without locking the device first. Reset locks user, then devices.
+      const [devices] = await db.execute(
+        'SELECT id, user_id FROM remember_devices WHERE token_hash = ? LIMIT 1',
+        [rememberTokenHash],
       );
+      const device = devices[0];
+      if (!device) return null;
+      const [users] = await db.execute(
+        'SELECT id, username, display_name, role, status FROM users WHERE id = ? FOR UPDATE',
+        [device.user_id],
+      );
+      const user = users[0];
+      if (!user || user.status !== 1) return null;
+      const [active] = await db.execute(
+        `SELECT id FROM remember_devices WHERE id = ? AND user_id = ? AND token_hash = ?
+           AND revoked_at IS NULL AND expires_at > NOW() FOR UPDATE`,
+        [device.id, user.id, rememberTokenHash],
+      );
+      if (!active.length) return null;
 
-    const sessionExpiresAt =
-      addHours(sessionHours);
-
-    await pool.execute(
-      `
-      INSERT INTO auth_sessions
-        (
-          user_id,
-          token_hash,
-          expires_at
-        )
-      VALUES (?, ?, ?)
-      `,
-      [
-        user.user_id,
-        sessionTokenHash,
-        sessionExpiresAt,
-      ],
-    );
-
-    return res.json({
-      success: true,
-      data: {
-        token: sessionToken,
-        rememberToken,
-        user: publicUser(user),
-      },
+      await db.execute('UPDATE remember_devices SET last_used_at = NOW() WHERE id = ?', [device.id]);
+      const token = await createSession(db, user.id);
+      return { token, rememberToken, user: publicUser(user) };
     });
+    if (!result) return res.status(401).json({ success: false, message: '记住设备凭证已失效，请重新登录' });
+    return res.json({ success: true, data: result });
   } catch (error) {
     console.error(
       'remember-login error:',

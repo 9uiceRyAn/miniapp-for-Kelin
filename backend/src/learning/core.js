@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { pool } = require('../db');
+const { pool, transaction } = require('../db');
 const id = () => crypto.randomUUID();
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const json = (value) => {
@@ -20,20 +20,6 @@ async function rows(sql, values = [], db = pool) {
 }
 async function one(sql, values = [], db = pool) {
   return (await rows(sql, values, db))[0];
-}
-async function transaction(fn) {
-  const db = await pool.getConnection();
-  try {
-    await db.beginTransaction();
-    const result = await fn(db);
-    await db.commit();
-    return result;
-  } catch (e) {
-    await db.rollback();
-    throw e;
-  } finally {
-    db.release();
-  }
 }
 async function capability(user, name = 'platform_admin') {
   return Boolean(

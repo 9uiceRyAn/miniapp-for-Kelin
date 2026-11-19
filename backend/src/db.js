@@ -23,8 +23,24 @@ async function testConnection() {
   }
 }
 
+async function transaction(action) {
+  const db = await pool.getConnection();
+  try {
+    await db.beginTransaction();
+    const result = await action(db);
+    await db.commit();
+    return result;
+  } catch (error) {
+    await db.rollback();
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
 module.exports = {
   pool,
   testConnection,
+  transaction,
 };
 
