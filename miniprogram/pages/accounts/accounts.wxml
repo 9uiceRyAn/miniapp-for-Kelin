@@ -1,0 +1,66 @@
+<view class="workspace-shell accounts">
+  <text wx:if="{{error && !editingId}}" class="error">{{error}}</text>
+  <text wx:if="{{busy && !authorized}}">加载中…</text>
+  <block wx:if="{{authorized}}">
+    <view class="card account-list">
+      <view class="section-line"><text class="heading">账号</text><text class="meta">共 {{total}} 个</text></view>
+      <text class="field-label">用户名或显示名</text>
+      <view class="field-action">
+        <input aria-label="用户名或显示名" value="{{q}}" data-field="q" bindinput="input" confirm-type="search" bindconfirm="search"/>
+        <button class="primary" disabled="{{busy}}" bindtap="search">搜索</button>
+      </view>
+      <view class="filters">
+        <picker disabled="{{busy}}" range="{{['全部角色','教师','学生']}}" value="{{role==='teacher'?1:role==='student'?2:0}}" bindchange="role" aria-label="筛选角色">
+          <view class="picker-face"><text>角色 · {{role==='teacher'?'教师':role==='student'?'学生':'全部'}}</text><view class="chevron" aria-hidden="true"/></view>
+        </picker>
+        <picker disabled="{{busy}}" range="{{['全部状态','已启用','已停用']}}" value="{{status==='1'?1:status==='0'?2:0}}" bindchange="status" aria-label="筛选状态">
+          <view class="picker-face"><text>状态 · {{status==='1'?'已启用':status==='0'?'已停用':'全部'}}</text><view class="chevron" aria-hidden="true"/></view>
+        </picker>
+      </view>
+      <view wx:for="{{users}}" wx:key="id" class="user">
+        <view class="section-line">
+          <view class="identity">
+            <text class="user-title">{{item.display_name||item.username}}</text>
+            <text wx:if="{{item.display_name && item.display_name!==item.username}}" class="username">{{item.username}}</text>
+            <text class="meta">{{item.role==='teacher'?'教师':'学生'}} · {{item.status===1?'已启用':'已停用'}}{{item.id===selfId?' · 当前账号':''}}</text>
+          </view>
+          <button class="manage" data-index="{{index}}" bindtap="toggleUser" disabled="{{busy}}" aria-expanded="{{editingId===item.id}}" aria-label="{{editingId===item.id?'收起':'管理'}} {{item.username}}">{{editingId===item.id?'收起':'管理'}}</button>
+        </view>
+        <view wx:if="{{editingId===item.id}}" class="editor">
+          <text class="field-label">显示名</text>
+          <view class="field-action">
+            <input aria-label="{{item.username}} 的显示名" value="{{editedName}}" data-field="editedName" bindinput="input" maxlength="30"/>
+            <button data-index="{{index}}" data-action="name" bindtap="update" disabled="{{busy||!editedName}}">保存显示名</button>
+          </view>
+          <text class="field-label">新密码（6–72 位）</text>
+          <view class="field-action">
+            <input aria-label="{{item.username}} 的新密码，6 至 72 位" password="{{true}}" value="{{editedPassword}}" data-field="editedPassword" bindinput="input" maxlength="72"/>
+            <button data-index="{{index}}" data-action="password" bindtap="update" disabled="{{busy||editedPassword.length<6}}">重置密码</button>
+          </view>
+          <button wx:if="{{item.id!==selfId}}" class="status-action {{item.status===1?'danger':''}}" data-index="{{index}}" data-action="status" bindtap="update" disabled="{{busy}}">{{item.status===1?'停用账号':'启用账号'}}</button>
+          <text wx:if="{{error}}" class="error">{{error}}</text>
+        </view>
+      </view>
+      <text wx:if="{{!busy && !users.length && !error}}" class="empty">没有匹配的账号</text>
+      <view wx:if="{{total>20||page>1}}" class="pager">
+        <button disabled="{{busy||page<=1}}" bindtap="prev">上一页</button><text>第 {{page}} 页</text><button disabled="{{busy||page*20>=total}}" bindtap="next">下一页</button>
+      </view>
+    </view>
+    <view class="card">
+      <text class="heading">注册码</text>
+      <text class="sub">永久有效，不限注册人数。保存新码后旧码立即失效。</text>
+      <view class="code-card" wx:for="{{codes}}" wx:key="role">
+        <view class="section-line">
+          <text class="field-label">{{item.role==='teacher'?'教师码':'学生码'}}</text>
+          <button class="copy" data-index="{{index}}" bindtap="copy" aria-label="复制{{item.role==='teacher'?'教师':'学生'}}注册码">复制</button>
+        </view>
+        <text class="code" selectable="true">{{item.code}}</text>
+        <text class="field-label">新注册码（6–72 位）</text>
+        <view class="field-action">
+          <input aria-label="{{item.role==='teacher'?'教师':'学生'}}新注册码，6 至 72 位" maxlength="72" value="{{item.role==='teacher'?code_teacher:code_student}}" data-field="code_{{item.role}}" bindinput="input"/>
+          <button disabled="{{busy}}" data-index="{{index}}" bindtap="saveCode">保存新码</button>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>
