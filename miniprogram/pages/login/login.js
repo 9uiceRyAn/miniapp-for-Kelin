@@ -1,7 +1,10 @@
+const withInputHints = require('../../utils/input-hints');
 const api = require('../../utils/api');
 const storage = require('../../utils/storage');
+const wechat = require('../../utils/wechat.js');
 
-Page({
+Page(withInputHints({
+  ...wechat,
   data: {
     username: '',
     password: '',
@@ -12,9 +15,24 @@ Page({
     autoLoggingIn: false,
     errorMessage: '',
     focusedField: '',
+    wechatEnabled: false,
+    wechatStatus: '正在检查微信登录服务…',
   },
 
   onLoad() {
+    api.request({ path: '/api/auth/wechat/config', auth: false })
+      .then(config => {
+        if (this._left) return;
+        const wechatEnabled = config?.mini === true;
+        this.setData({ wechatEnabled, wechatStatus: wechatEnabled ? '' : '当前服务尚未启用微信登录' });
+      })
+      .catch(error => {
+        if (this._left) return;
+        const wechatStatus = error.statusCode === 404
+          ? '当前服务尚未启用微信登录'
+          : '暂时无法连接微信登录服务';
+        this.setData({ wechatStatus });
+      });
     const savedUsername = storage.getRememberUsername();
     this.setData({
       username: savedUsername,
@@ -24,6 +42,7 @@ Page({
   },
 
   async tryAutoLogin() {
+    if (this.data.loading || this.data.autoLoggingIn) return;
     const token = storage.getToken();
     const rememberToken = storage.getRememberToken();
 
@@ -34,24 +53,31 @@ Page({
     try {
       if (token) {
         const result = await api.me();
+        if (this._left) return;
         storage.saveSession({ token, user: result.user });
-        getApp().globalData.user = result.user;
-        wx.reLaunch({ url: '/pages/home/home' });
+        wx.reLaunch({ url: '/pages/learning/index?section=agents' });
         return;
       }
     } catch (error) {
+      if (this._left) return;
+      if (error.statusCode !== 401) {
+        this.setData({ autoLoggingIn: false, errorMessage: '暂时无法验证登录状态，请稍后重试' });
+        return;
+      }
       storage.clearSession({ keepRememberToken: true });
     }
 
     if (rememberToken) {
       try {
-        const result = await api.rememberLogin(rememberToken);
-        storage.saveSession({ token: result.token, user: result.user });
-        getApp().globalData.user = result.user;
-        wx.reLaunch({ url: '/pages/home/home' });
+        const result = await api.rememberLogin();
+        if (this._left) return;
+        storage.saveSession(result);
+        wx.reLaunch({ url: '/pages/learning/index?section=agents' });
         return;
       } catch (error) {
-        storage.clearSession();
+        if (this._left) return;
+        if (error.statusCode === 401) storage.clearSession();
+        else this.setData({ errorMessage: '暂时无法验证已记住的设备，请稍后重试' });
       }
     }
 
@@ -66,35 +92,42 @@ Page({
     this.setData({ password: event.detail.value, errorMessage: '' });
   },
 
-  onUsernameFocus() {
+  onUsernameFocus(event) {
+    this.onInputHintFocus(event);
     this.setData({ focusedField: 'username' });
   },
 
-  onPasswordFocus() {
+  onPasswordFocus(event) {
+    this.onInputHintFocus(event);
     this.setData({ focusedField: 'password' });
   },
 
-  onInputBlur() {
-    this.setData({ focusedField: '' });
+  onInputBlur(event) {
+    this.onInputHintBlur(event);
+    if (!this.data.inputHintFocus) this.setData({ focusedField: '' });
   },
 
   togglePassword() {
     this.setData({ showPassword: !this.data.showPassword });
   },
 
-  toggleRememberUsername() {
-    this.setData({ rememberUsername: !this.data.rememberUsername });
+  onUnload() {
+    this._left = true;
   },
 
-  toggleRememberDevice() {
-    this.setData({ rememberDevice: !this.data.rememberDevice });
+  changeRememberOptions(event) {
+    const values = event.detail.value;
+    this.setData({
+      rememberUsername: values.includes('username'),
+      rememberDevice: values.includes('device'),
+    });
   },
 
   async submitLogin() {
     if (this.data.loading || this.data.autoLoggingIn) return;
 
-    const username = String(this.data.username || '').trim();
-    const password = String(this.data.password || '');
+    const username = this.data.username.trim();
+    const password = this.data.password;
 
     if (!username) {
       this.setData({ errorMessage: '请输入用户名' });
@@ -113,6 +146,7 @@ Page({
         password,
         rememberDevice: this.data.rememberDevice,
       });
+      if (this._left) return;
 
       if (this.data.rememberUsername) {
         storage.set(storage.KEYS.REMEMBER_USERNAME, username);
@@ -120,26 +154,28 @@ Page({
         storage.remove(storage.KEYS.REMEMBER_USERNAME);
       }
 
-      if (!this.data.rememberDevice) {
+      if (!result.rememberToken) {
         storage.remove(storage.KEYS.REMEMBER_TOKEN);
       }
 
       storage.saveSession(result);
-      getApp().globalData.user = result.user;
 
       wx.showToast({ title: '登录成功', icon: 'success' });
-      setTimeout(() => wx.reLaunch({ url: '/pages/home/home' }), 350);
+      wx.reLaunch({
+        url: '/pages/learning/index?section=agents',
+        fail: () => this.setData({ loading: false }),
+      });
     } catch (error) {
       this.setData({
         password: '',
+        loading: false,
         errorMessage: error.message || '登录失败，请检查后端服务',
       });
-    } finally {
-      this.setData({ loading: false });
     }
   },
 
   goRegister() {
+    if (this.data.loading || this.data.autoLoggingIn) return;
     wx.navigateTo({ url: '/pages/register/register' });
   },
-});
+}));

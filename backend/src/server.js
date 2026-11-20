@@ -55,7 +55,9 @@ app.get('/api/health', async (req, res) => {
 });
 
 
+app.use('/api/teacher-admin', require('./routes/teacher-admin'));
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/wechat', require('./routes/wechat'));
 
 app.use('/api/files', fileRoutes);
 

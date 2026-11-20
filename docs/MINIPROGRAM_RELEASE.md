@@ -4,7 +4,7 @@
 
 ## 1. 确定可以发布的版本
 
-截至 2026-11-20，本地分支 `dev-lagsli-question-bank` 的 `22ac02d` 修复了密码重置与登录的并发问题，`815cd60` 提交了教师管理页面。**仅凭这两个提交不能发布完整功能。** 编写手册时，工作区里仍有未提交的页面入口、公共工具、后端路由和数据库迁移。管理员应取得包含这些依赖的完整发布 SHA，前后端使用同一 SHA。上次线上探测中健康检查返回 200，但教师管理接口返回 404。
+管理员应从同一个发布 SHA 构建小程序和后端，核对该版本包含小程序微信登录、教师管理入口和数据库迁移。
 
 从该 SHA 建立干净的发布目录。在项目根目录运行以下 PowerShell 检查，记录实际 SHA。任何一项失败，都先补齐候选版本再继续。
 
@@ -64,6 +64,8 @@ SELECT role, version FROM registration_codes ORDER BY role;
 | `GET https://api.kelinliuxue.com/api/health` | HTTP 200，响应中 `success=true`、`data.database=connected` |
 | `GET /api/teacher-admin/users`、`GET /api/teacher-admin/codes` | 均返回 401。404 表示该路由尚不可用，应检查部署版本和反向代理；200 表示匿名访问控制异常 |
 | `GET /api/auth/wechat/config` | 发布微信快捷登录时须返回 200 且 `data.mini=true`，随后用真机完成一次授权 |
+
+教师管理入口为小程序「我的 → 教师管理」，API 使用小程序会话的 Bearer 令牌。沿用旧部署目录时，移除原网页静态目录 `backend/public/account/` 及反向代理中直接提供该目录的映射。发布后核对 `/account/`、`/account/admin.html`、`/api/auth/wechat/web/start` 和 `/api/auth/wechat/web/callback` 均返回 404。
 
 ## 3. 上传体验版，真机验收
 

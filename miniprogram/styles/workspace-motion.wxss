@@ -1,0 +1,35 @@
+/* Shared motion: short responses, soft deceleration, no delayed interaction. */
+@keyframes workspace-enter{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes workspace-enter-alt{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes workspace-message{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes workspace-dot{0%,65%,100%{opacity:.35;transform:translateY(0)}32%{opacity:1;transform:translateY(-3px)}}
+@keyframes workspace-breathe{0%,100%{opacity:.55}50%{opacity:1}}
+.workspace-content,.learning-page,.account-body{animation:workspace-enter 220ms cubic-bezier(.22,1,.36,1) both}
+.workspace-content.motion-scene-0{animation-name:workspace-enter}.workspace-content.motion-scene-1{animation-name:workspace-enter-alt}
+.workspace-shell button,.learning-page button,.account-submit,.account-input-wrap,.account-role,.account-check-box,.question-row,.cite{transition:background-color 150ms ease,color 150ms ease,border-color 150ms ease,box-shadow 180ms ease,opacity 150ms ease,transform 150ms cubic-bezier(.2,.8,.2,1)}
+.workspace-shell .motion-pressed,.learning-page .motion-pressed,.account-page .motion-pressed{opacity:.72;transform:scale(.97)}
+.workspace-shell .question-row.motion-pressed,.workspace-shell .cite.motion-pressed{transform:translateY(1px);background:var(--ws-sidebar)}
+.workspace-shell .message,.library-action,.advanced-filters,.agent-conversation-list{animation:workspace-message 200ms cubic-bezier(.22,1,.36,1) both}
+.landing-composer,.composer-input-frame{transition:border-color 180ms ease,box-shadow 180ms ease}
+.landing-composer:focus-within,.composer-input-frame:focus-within{border-color:#c7c7c7;box-shadow:0 2px 12px #00000006}
+.workspace-shell .attachment-button,.workspace-shell .upload-icon-button,.learning-page .upload-icon-button{width:44px;height:44px;min-height:44px;flex-shrink:0;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--ws-muted);color:var(--ws-text);line-height:1;font-size:26px}
+.workspace-shell .attachment-button{background:transparent}.plus-glyph{font-size:27px;font-weight:300;line-height:1;display:block}
+.workspace-shell .composer-input-frame{border:1px solid var(--ws-border);border-radius:var(--ws-composer-radius);padding:7px 10px 9px;background:var(--ws-canvas)}
+.workspace-shell .composer-input-frame textarea{border:0;border-radius:0;min-height:70px;height:70px;margin:0;padding:10px 6px;background:transparent}
+.workspace-shell .composer-input-frame .actions{margin:0;align-items:center;gap:10px}
+.workspace-shell .composer-send,.workspace-shell .composer-stop{width:44px;height:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;padding:0;background:var(--ws-accent);color:var(--ws-on-accent);font-size:22px;line-height:1}
+.workspace-shell .composer-stop{background:var(--ws-muted);color:var(--ws-text)}.stop-symbol{display:block;width:11px;height:11px;border-radius:2px;background:currentColor}
+.thinking-indicator{display:flex;align-items:center;gap:5px;min-height:28px}.thinking-dot{display:block;width:5px;height:5px;border-radius:50%;background:var(--ws-secondary);animation:workspace-dot 1200ms ease-in-out infinite}.thinking-dot:nth-child(2){animation-delay:140ms}.thinking-dot:nth-child(3){animation-delay:280ms}.thinking-label{animation:workspace-breathe 1600ms ease-in-out infinite}.streaming-text{line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(hover:hover){.workspace-shell .attachment-button:hover,.workspace-shell .sidebar-item:hover,.workspace-shell .bottom-item:hover{background:var(--ws-muted)}.workspace-shell .upload-icon-button:hover,.workspace-shell .composer-send:hover,.account-submit:hover{opacity:.86}}
+@media(max-width:700px){
+ .workspace-sidebar{display:flex;visibility:hidden;pointer-events:none;transform:translateX(-100%);transition:transform 260ms cubic-bezier(.22,1,.36,1),visibility 0s linear 260ms;will-change:transform}
+ .workspace-sidebar.is-open{visibility:visible;pointer-events:auto;transform:translateX(0);transition-delay:0s}
+ .workspace-scrim{display:block;visibility:hidden;pointer-events:none;opacity:0;transition:opacity 220ms ease,visibility 0s linear 260ms}
+ .workspace-scrim.is-open{visibility:visible;pointer-events:auto;opacity:1;transition-delay:0s}
+}
+@media(prefers-reduced-motion:reduce){.workspace-content,.learning-page,.account-body,.workspace-shell .message,.library-action,.advanced-filters,.agent-conversation-list,.thinking-dot,.thinking-label{animation:none}.workspace-sidebar,.workspace-scrim,.workspace-shell button,.learning-page button,.account-submit,.account-role,.account-check-box,.account-input-wrap,.landing-composer,.composer-input-frame,.question-row,.cite{transition:none}.workspace-shell .motion-pressed,.learning-page .motion-pressed,.account-page .motion-pressed{transform:none}}
+
+@keyframes stream-fragment{from{opacity:.3}to{opacity:1}}
+@keyframes stream-fragment-alt{from{opacity:.3}to{opacity:1}}
+.stream-fragment{animation:stream-fragment 140ms ease-out both}.stream-fragment-1{animation-name:stream-fragment-alt}
+@media(prefers-reduced-motion:reduce){.stream-fragment{animation:none}}

@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS registration_codes (
+ role VARCHAR(16) PRIMARY KEY,
+ encrypted_code TEXT NOT NULL,
+ version INT NOT NULL DEFAULT 1,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS account_management_lock (id INT PRIMARY KEY);
+INSERT IGNORE INTO account_management_lock(id) VALUES(1);

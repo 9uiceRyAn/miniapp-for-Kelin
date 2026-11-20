@@ -19,8 +19,7 @@ test(
     const local = await fs.mkdtemp(path.join(os.tmpdir(), 'kelin-test-'));
     process.env.UPLOAD_ROOT = path.join(local, 'files');
     process.env.LEARNING_STORAGE_ROOT = path.join(local, 'learning');
-    process.env.TEACHER_REGISTER_CODE = 'test-teacher';
-    process.env.STUDENT_REGISTER_CODE = 'test-student';
+    process.env.REGISTRATION_CODE_KEY = crypto.randomBytes(32).toString('hex');
     const mysql = require('mysql2/promise');
     const connection = await mysql.createConnection({
       host: '127.0.0.1',
@@ -48,6 +47,13 @@ test(
       docs = require('../src/learning/documents'),
       media = require('../src/learning/media');
     await require('../scripts/learning').migrate();
+    const { encrypt } = require('../src/registration-codes');
+    for (const role of ['teacher', 'student']) {
+      await testPool.execute(
+        'INSERT INTO registration_codes(role,encrypted_code) VALUES(?,?)',
+        [role, encrypt('test-' + role)],
+      );
+    }
     let calls = 0;
     const gatewayModels = new Map();
     const gateway = http.createServer(async (req, res) => {

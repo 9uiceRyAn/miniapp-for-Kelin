@@ -60,6 +60,9 @@ Page({
     category: 'A',
     chooseExisting: false,
   },
+  openTeacherManagement() {
+    if (this.data.teacher) l.go('/pages/accounts/accounts');
+  },
   onLoad(options) {
     if (!l.guard()) return;
     this.setData({

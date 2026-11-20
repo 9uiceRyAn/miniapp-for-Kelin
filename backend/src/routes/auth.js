@@ -11,6 +11,7 @@ const {
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+const { validateCode } = require('../registration-codes');
 
 async function createSession(db, userId) {
   const token = randomToken();
@@ -82,15 +83,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const expectedCode =
-      role === 'teacher'
-        ? process.env.TEACHER_REGISTER_CODE
-        : process.env.STUDENT_REGISTER_CODE;
-
-    if (
-      !expectedCode ||
-      registerCode !== expectedCode
-    ) {
+    if (!(await validateCode(role, registerCode))) {
       return res.status(403).json({
         success: false,
         message: '内部注册码不正确',

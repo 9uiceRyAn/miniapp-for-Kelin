@@ -1,102 +1,27 @@
-<view class="login-page">
-  <view class="safe-top"></view>
-
-  <view class="login-topbar">
-    <view class="brand-lockup">
-      <image class="brand-logo" src="/images/collins-logo.png" mode="aspectFit"></image>
-      <view>
-        <text class="top-brand-name">Collins Resource Library</text>
-        <text class="top-brand-desc">科林留学资料库</text>
-      </view>
-    </view>
-    <view class="service-status desktop-only-inline">
-      <view class="status-dot"></view>
-      <text>系统服务正常</text>
-    </view>
+<view class="account-page">
+ <view class="safe-top"/>
+ <view class="account-header"><view class="account-brand"><image class="account-logo" src="/images/collins-logo.png" mode="aspectFit"/><text>COLLINS</text></view><text class="account-caption">学习工作台</text></view>
+ <view class="account-body">
+  <text class="account-title">AI助手</text>
+  <view wx:if="{{autoLoggingIn}}" class="account-notice">正在使用已记住的设备自动登录…</view>
+  <view class="account-group"><text class="account-label">用户名</text><view class="account-input-wrap {{focusedField==='username'?'focused':''}}"><input data-hint-id="hint0" class="account-input" value="{{username}}" placeholder="{{inputHintFocus==='hint0'?'':'请输入用户名'}}" maxlength="30" bindinput="onUsernameInput" bindfocus="onUsernameFocus" bindblur="onInputBlur" confirm-type="next"/></view></view>
+  <view class="account-group"><text class="account-label">密码</text><view class="account-input-wrap {{focusedField==='password'?'focused':''}}"><input data-hint-id="hint1" class="account-input" value="{{password}}" password="{{!showPassword}}" placeholder="{{inputHintFocus==='hint1'?'':'请输入密码'}}" maxlength="72" bindinput="onPasswordInput" bindfocus="onPasswordFocus" bindblur="onInputBlur" confirm-type="done" bindconfirm="submitLogin"/><text class="account-password-toggle" bindtap="togglePassword">{{showPassword?'隐藏':'显示'}}</text></view></view>
+  <checkbox-group class="account-options" bindchange="changeRememberOptions">
+   <label class="account-check"><checkbox value="username" checked="{{rememberUsername}}" color="#242424"/><text>记住用户名</text></label>
+   <label class="account-check"><checkbox value="device" checked="{{rememberDevice}}" color="#242424"/><text>记住这台设备</text></label>
+  </checkbox-group>
+  <view wx:if="{{errorMessage}}" class="account-error">{{errorMessage}}</view>
+  <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" bindtap="submitLogin" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">{{autoLoggingIn?'正在自动登录':loading?'正在验证':'登录'}}</button>
+  <view class="account-wechat">
+   <button class="account-wechat-button" type="primary" plain="{{true}}" bindtap="wechatLogin" loading="{{loading && wechatEnabled}}" disabled="{{!wechatEnabled||loading||autoLoggingIn}}">微信快捷登录</button>
+   <text wx:if="{{wechatStatus}}" class="account-wechat-status">{{wechatStatus}}</text>
+   <block wx:if="{{wechatTicket}}">
+    <view><button data-mode="bind" bindtap="wechatMode">绑定已有账号</button><button data-mode="register" bindtap="wechatMode">凭码注册</button></view>
+    <block wx:if="{{wechatAction==='bind'}}"><input data-hint-id="wxhint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint0'?'':'原账号用户名'}}" value="{{username}}" data-field="username" bindinput="wechatField"/><input data-hint-id="wxhint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint1'?'':'原账号密码'}}" password value="{{password}}" data-field="password" bindinput="wechatField"/></block>
+    <block wx:else><view>注册为教师<switch bindchange="wechatRole"/></view><input data-hint-id="wxhint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint2'?'':'注册码'}}" data-field="wechatRegisterCode" bindinput="wechatField"/></block>
+    <button bindtap="wechatComplete" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">确认</button>
+   </block>
   </view>
-
-  <view class="login-shell">
-    <view class="editorial-panel">
-      <text class="eyebrow">COLLINS LEARNING RESOURCES</text>
-      <text class="editorial-title">归档 · 检索 · 标记</text>
-      <text class="editorial-summary">为教师与学生集中管理备课资料、学习资源与个人使用标记，让查找和整理都更轻松。</text>
-
-    </view>
-
-    <view class="form-panel">
-      <view class="form-card">
-        <text class="form-kicker">WELCOME BACK</text>
-        <text class="form-title">AI助手</text>
-
-        <view wx:if="{{autoLoggingIn}}" class="auto-login-box">
-          <view class="small-spinner"></view>
-          <text>正在使用已记住的设备自动登录…</text>
-        </view>
-
-        <view class="form-group">
-          <text class="field-label">用户名</text>
-          <view class="input-box {{focusedField === 'username' ? 'focused' : ''}}">
-            <input
-              class="field-input"
-              value="{{username}}"
-              placeholder="请输入用户名"
-              maxlength="30"
-              bindinput="onUsernameInput"
-              bindfocus="onUsernameFocus"
-              bindblur="onInputBlur"
-              confirm-type="next"
-            />
-          </view>
-        </view>
-
-        <view class="form-group">
-          <text class="field-label">密码</text>
-          <view class="input-box {{focusedField === 'password' ? 'focused' : ''}}">
-            <input
-              class="field-input password-input"
-              value="{{password}}"
-              password="{{!showPassword}}"
-              placeholder="请输入密码"
-              maxlength="64"
-              bindinput="onPasswordInput"
-              bindfocus="onPasswordFocus"
-              bindblur="onInputBlur"
-              confirm-type="done"
-              bindconfirm="submitLogin"
-            />
-            <text class="password-toggle" bindtap="togglePassword">{{showPassword ? '隐藏' : '显示'}}</text>
-          </view>
-        </view>
-
-        <view class="options-row">
-          <view class="check-option" bindtap="toggleRememberUsername">
-            <view class="custom-check {{rememberUsername ? 'checked' : ''}}">{{rememberUsername ? '✓' : ''}}</view>
-            <text>记住用户名</text>
-          </view>
-          <view class="check-option" bindtap="toggleRememberDevice">
-            <view class="custom-check {{rememberDevice ? 'checked' : ''}}">{{rememberDevice ? '✓' : ''}}</view>
-            <text>记住这台设备</text>
-          </view>
-        </view>
-
-        <view wx:if="{{errorMessage}}" class="message-box error">
-          <view class="message-icon">!</view>
-          <text>{{errorMessage}}</text>
-        </view>
-
-        <button class="login-button" loading="{{loading}}" disabled="{{loading || autoLoggingIn}}" bindtap="submitLogin">
-          <text>{{autoLoggingIn ? '正在自动登录' : loading ? '正在验证' : '登录'}}</text>
-          <text wx:if="{{!loading && !autoLoggingIn}}" class="button-arrow">→</text>
-        </button>
-
-        <view class="register-line">
-          <text>没有账号？</text>
-          <text class="register-link" bindtap="goRegister">立即注册</text>
-        </view>
-
-      </view>
-    </view>
-  </view>
-
-  <view class="safe-bottom"></view>
+  <view class="account-switch"><text>没有账号？</text><text class="account-link" bindtap="goRegister">创建账号</text></view>
+ </view>
 </view>
