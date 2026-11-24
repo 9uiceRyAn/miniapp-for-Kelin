@@ -667,8 +667,8 @@ test(
             purpose: 'parse',
           });
           assert.ok(scanned[0].body.length > 0);
-          const archiver = require('archiver'),
-            zip = archiver('zip'),
+          const { ZipArchive } = require('archiver'),
+            zip = new ZipArchive(),
             parts = [];
           zip.on('data', (d) => parts.push(d));
           const ended = new Promise((resolve, reject) => {
