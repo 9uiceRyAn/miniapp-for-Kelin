@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 const crypto = require('crypto');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -333,8 +333,7 @@ router.get(
       );
 
       const archive =
-        archiver(
-          'zip',
+        new ZipArchive(
           {
             zlib: {
               level: 6,
