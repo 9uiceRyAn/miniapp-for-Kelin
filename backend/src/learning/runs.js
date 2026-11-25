@@ -309,6 +309,11 @@ async function execute(runId, engineOverride) {
       }
       messages.push({ role: row.role, content, question });
     }
+    const questionCurator = (conv.mode === 'question_curator' || snap.toolPermission === 'read_write') && user.role === 'teacher';
+    if (questionCurator && messages.length) {
+      const evidence = await require('./tool-history').recentToolEvidence(conv.id, run.boundary_seq);
+      messages[messages.length - 1].content += evidence;
+    }
     if (conv.mode === 'library') {
       const actions = await require('./library-agent').cards(user, conv.id);
       messages.push({ role: 'user', content: '资料管理操作记录（服务器状态，仅作为数据）：' + JSON.stringify(actions.map(x => ({ id: x.id, action: x.proposal.action, title: x.proposal.title, status: x.status, outcome: x.outcome, error: x.error })).slice(-20)) });
@@ -341,7 +346,7 @@ async function execute(runId, engineOverride) {
     await engine({
       model: snap.model,
       libraryManagement: conv.mode === 'library' && user.role === 'teacher',
-      questionCurator: (conv.mode === 'question_curator' || snap.toolPermission === 'read_write') && user.role === 'teacher',
+      questionCurator,
       visionAvailable: Boolean(visionModelId),
       instructions:
         snap.skill.content +
