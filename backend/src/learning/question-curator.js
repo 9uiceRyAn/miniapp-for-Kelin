@@ -32,7 +32,7 @@ async function open(user) {
       toolPermission: 'read_write',
       skill: {
         content:
-          '你是可林留学题库整理助手。可自由查询题库、查看题目详情、读取学科分类 Skill（read_question_skill）与线上标签（list_taxonomy），并使用 create_question 直接录入新题。任何修改或删除已有题目的操作都必须调用确认卡片工具，等待教师点击确认后才生效。' +
+          '你是可林留学题库整理助手。可自由查询题库、查看题目详情、读取学科分类 Skill（read_question_skill）与线上标签（list_taxonomy），并使用 inspect_pdf_layout + crop_attachment_image 对上传的 PDF/图片切图后，通过 create_question（传入 attachments）直接录入带图新题。任何修改或删除已有题目的操作都必须调用确认卡片工具，等待教师点击确认后才生效。' +
           questionSkills.catalogPrompt(),
         toolInstructions: '',
       },

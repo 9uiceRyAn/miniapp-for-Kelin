@@ -78,6 +78,31 @@ export async function execute(input: EngineInput) {
     schema: z.object({query:z.string().optional(),category:z.enum(['A','B','C','D','E']).optional(),page:z.number().optional()}),
   };
   if (input.questionCurator) {
+    definitions.inspect_pdf_layout = {
+      description: '分析会话中 PDF 附件各页的文字行坐标（归一化 0..1 纵向位置），用于定位每道大题的精确裁切边界。',
+      schema: z.object({
+        resourceId: z.string(),
+        revisionId: z.string(),
+        pages: z.array(z.number().int().min(1)).max(10).optional(),
+      }),
+    };
+    definitions.crop_attachment_image = {
+      description: '从会话 PDF 附件指定页码与归一化区域（top/bottom/left/right in 0..1）或图片附件裁切题目/答案图，跨页多区域自动纵向拼接为一张 PNG，返回可直接传给 create_question 的 attachment token。',
+      schema: z.object({
+        resourceId: z.string(),
+        revisionId: z.string(),
+        regions: z.array(z.object({
+          page: z.number().int().min(1).optional(),
+          top: z.number().min(0).max(1),
+          bottom: z.number().min(0).max(1),
+          left: z.number().min(0).max(1).optional(),
+          right: z.number().min(0).max(1).optional(),
+        })).min(1).max(6),
+        kind: z.enum(['question', 'answer', 'ms', 'sm', 'source']).optional(),
+        label: z.string().optional(),
+        fileName: z.string().optional(),
+      }),
+    };
     definitions.read_question_skill = {
       description: '读取题库学科分类 Skill 与官方 taxonomy；不传 skillId 或传 list 时返回可用 Skill 列表。',
       schema: z.object({
@@ -106,6 +131,11 @@ export async function execute(input: EngineInput) {
         answerText: z.string().optional(),
         tags: z.array(z.string()).optional(),
         tagNames: z.record(z.string(), z.string()).optional(),
+        attachments: z.array(z.object({
+          token: z.string(),
+          kind: z.enum(['question', 'answer', 'ms', 'sm', 'source']),
+          label: z.string().optional(),
+        })).optional(),
       }),
     };
     definitions.propose_question_update = {
@@ -118,6 +148,12 @@ export async function execute(input: EngineInput) {
         answerText: z.string().optional(),
         tags: z.array(z.string()).optional(),
         tagNames: z.record(z.string(), z.string()).optional(),
+        attachments: z.array(z.object({
+          id: z.string().optional(),
+          token: z.string().optional(),
+          kind: z.enum(['question', 'answer', 'ms', 'sm', 'source']),
+          label: z.string().optional(),
+        })).optional(),
         summary: z.string().optional(),
       }),
     };

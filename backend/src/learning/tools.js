@@ -70,6 +70,8 @@ async function call(name, args, context) {
     let result;
     if (name === 'search_existing_files') result = await require('./library-agent').searchFiles(args, context);
     else if (name === 'propose_library_change') result = await require('./library-agent').propose(args, context);
+    else if (name === 'inspect_pdf_layout') result = await require('./question-crop').inspectPdfLayout(args, context);
+    else if (name === 'crop_attachment_image') result = await require('./question-crop').cropAttachmentImage(args, context);
     else if (name === 'read_question_skill') {
       const qs = require('./question-skills');
       result = !args?.skillId || args.skillId === 'list'

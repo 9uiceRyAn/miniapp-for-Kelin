@@ -10,6 +10,8 @@ function renderInstant(message) {
 const toolNames = {
   propose_library_change: '准备资料操作',
   search_existing_files: '查找已有 A–E 资料',
+  inspect_pdf_layout: '分析 PDF 题目边界',
+  crop_attachment_image: '裁切题目图片',
   read_question_skill: '读取学科分类规范',
   list_taxonomy: '读取题库分类标签',
   get_question_detail: '读取题目详情',
