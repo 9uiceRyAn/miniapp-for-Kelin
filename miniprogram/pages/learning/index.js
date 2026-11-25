@@ -21,6 +21,7 @@ Page(withInputHints({
     recentHasMore: false,
     recentLoading: false,
     landingText: '',
+    landingFiles: [],
     agentIndex: 0,
     startingChat: false,
     user: {},
@@ -209,14 +210,64 @@ Page(withInputHints({
     finally { this.setData({ startingChat: false }); }
   },
   chooseAgent(e) { this.setData({ agentIndex: Number(e.detail.value) }); },
+  async attachLandingFiles() {
+    if (this.data.startingChat) return;
+    try {
+      const picked = l.pickFiles ? await l.pickFiles(true) : [await l.pickFile(true)];
+      if (!picked || !picked.length) return;
+      const existing = this.data.landingFiles || [];
+      const remaining = Math.max(0, 9 - existing.length);
+      if (!remaining) {
+        wx.showToast({ title: '最多附带 9 个文件', icon: 'none' });
+        return;
+      }
+      const next = picked.slice(0, remaining).map((f) => ({
+        id: l.id(),
+        path: f.path,
+        name: f.name || '未命名文件',
+      }));
+      this.setData({ landingFiles: existing.concat(next) });
+    } catch (e) {
+      if (!String(e?.errMsg || '').includes('cancel')) l.error(e);
+    }
+  },
+  removeLandingFile(e) {
+    if (this.data.startingChat) return;
+    const index = Number(e.currentTarget.dataset.index);
+    const files = (this.data.landingFiles || []).filter((_, i) => i !== index);
+    this.setData({ landingFiles: files });
+  },
   async startChat() {
     const agent = this.data.items[this.data.agentIndex];
     if (!agent || this.data.startingChat) return;
     this.setData({ startingChat: true });
     try {
       const conv = await l.request('/api/ai/conversations', 'POST', { agentId: agent.id });
-      l.go('/pages/chat/chat?id=' + encodeURIComponent(conv.id) + '&initialText=' + encodeURIComponent(this.data.landingText));
-      this.setData({ landingText: '' });
+      const pendingFiles = this.data.landingFiles || [];
+      const uploadedIds = [];
+      const failedNames = [];
+      for (const file of pendingFiles) {
+        try {
+          const uploaded = await l.upload('/api/ai/conversations/' + conv.id + '/assets', file);
+          if (uploaded && uploaded.resourceId) uploadedIds.push(uploaded.resourceId);
+        } catch {
+          failedNames.push(file.name || '未命名文件');
+        }
+      }
+      if (failedNames.length) {
+        wx.showToast({ title: '部分文件上传失败：' + failedNames.join('、'), icon: 'none' });
+      }
+      if (!uploadedIds.length && !String(this.data.landingText || '').trim() && pendingFiles.length) {
+        return;
+      }
+      const url =
+        '/pages/chat/chat?id=' +
+        encodeURIComponent(conv.id) +
+        '&initialText=' +
+        encodeURIComponent(this.data.landingText) +
+        (uploadedIds.length ? '&initialAssets=' + encodeURIComponent(uploadedIds.join(',')) : '');
+      l.go(url);
+      this.setData({ landingText: '', landingFiles: [] });
     } catch (e) { l.error(e); }
     finally { this.setData({ startingChat: false }); }
   },

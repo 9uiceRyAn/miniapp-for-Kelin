@@ -84,7 +84,36 @@ function go(path) {
 function id() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 }
-function pickFile(images = false) {
+function isDesktop() {
+  try {
+    const info = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo() : {};
+    const platform = String(info.platform || '').toLowerCase();
+    return platform.includes('windows') || platform.includes('mac');
+  } catch {
+    return false;
+  }
+}
+function imageExtension(filePath) {
+  const match = String(filePath || '').match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+  return match ? '.' + match[1].toLowerCase() : '.jpg';
+}
+function pickFiles(images = false) {
+  if (isDesktop()) {
+    return new Promise((resolve, reject) => {
+      wx.chooseMessageFile({
+        count: 9,
+        type: 'all',
+        success: (r) =>
+          resolve(
+            (r.tempFiles || []).map((f) => ({
+              path: f.path,
+              name: f.name || '未命名文件',
+            })),
+          ),
+        fail: reject,
+      });
+    });
+  }
   return new Promise((resolve, reject) => {
     wx.showActionSheet({
       itemList: images
@@ -94,24 +123,39 @@ function pickFile(images = false) {
         const photo = images ? result.tapIndex === 0 : result.tapIndex === 1;
         if (photo)
           wx.chooseMedia({
-            count: 1,
+            count: 9,
             mediaType: ['image'],
             success: (r) =>
-              resolve({ path: r.tempFiles[0].tempFilePath, name: '图片.jpg' }),
+              resolve(
+                (r.tempFiles || []).map((f, i) => ({
+                  path: f.tempFilePath,
+                  name: '图片_' + (i + 1) + imageExtension(f.tempFilePath),
+                })),
+              ),
             fail: reject,
           });
         else
           wx.chooseMessageFile({
-            count: 1,
-            type: 'file',
+            count: 9,
+            type: 'all',
             success: (r) =>
-              resolve({ path: r.tempFiles[0].path, name: r.tempFiles[0].name }),
+              resolve(
+                (r.tempFiles || []).map((f) => ({
+                  path: f.path,
+                  name: f.name || '未命名文件',
+                })),
+              ),
             fail: reject,
           });
       },
       fail: reject,
     });
   });
+}
+async function pickFile(images = false) {
+  const files = await pickFiles(images);
+  if (!files || !files.length) throw new Error('未选择文件');
+  return files[0];
 }
 function upload(path, file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -247,6 +291,7 @@ module.exports = {
   go,
   id,
   pickFile,
+  pickFiles,
   upload,
   renderMessage,
   subscribe,

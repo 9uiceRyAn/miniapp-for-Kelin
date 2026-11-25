@@ -136,7 +136,7 @@ function install(app) {
       return docs.upload({
         user: req.user,
         bytes: req.file.buffer,
-        name: decodeUploadName(req.file.originalname),
+        name: uploadName(req.file, req.body.fileName),
       });
     }),
   );
@@ -350,7 +350,7 @@ function install(app) {
       return docs.upload({
         user: req.user,
         bytes: req.file.buffer,
-        name: decodeUploadName(req.file.originalname),
+        name: uploadName(req.file, req.body.fileName),
         conversationId: req.params.id,
       });
     }),
