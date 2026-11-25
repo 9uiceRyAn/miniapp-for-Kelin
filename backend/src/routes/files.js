@@ -117,7 +117,7 @@ async function findFileById(id) {
     FROM files f
     LEFT JOIN users u
       ON u.id = f.uploader_id
-    WHERE f.id = ?
+    WHERE f.id = ? AND f.deleted_at IS NULL
     LIMIT 1
     `,
     [id],
@@ -154,6 +154,7 @@ router.get(
             category,
             COUNT(*) AS total
           FROM files
+          WHERE deleted_at IS NULL
           GROUP BY category
           `,
         );
@@ -227,7 +228,7 @@ router.get(
             original_name,
             storage_path
           FROM files
-          WHERE category = ?
+          WHERE category = ? AND deleted_at IS NULL
           ORDER BY created_at DESC
           `,
           [category],
@@ -421,7 +422,7 @@ router.get(
           LEFT JOIN users u
             ON u.id =
                f.uploader_id
-          WHERE f.category = ?
+          WHERE f.category = ? AND f.deleted_at IS NULL
           ORDER BY
             f.created_at DESC,
             f.id DESC

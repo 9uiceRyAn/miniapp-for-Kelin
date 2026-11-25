@@ -333,6 +333,7 @@ async function execute(runId, engineOverride) {
     await engine({
       model: snap.model,
       libraryManagement: conv.mode === 'library' && user.role === 'teacher',
+      questionCurator: (conv.mode === 'question_curator' || snap.toolPermission === 'read_write') && user.role === 'teacher',
       visionAvailable: Boolean(visionModelId),
       instructions:
         snap.skill.content +

@@ -16,16 +16,55 @@
    <button class="account-wechat-button" type="primary" plain="{{true}}" bindtap="wechatLogin" loading="{{loading && wechatEnabled}}" disabled="{{!wechatEnabled||loading||autoLoggingIn}}">微信快捷登录</button>
    <text wx:if="{{wechatStatus}}" class="account-wechat-status">{{wechatStatus}}</text>
    <block wx:if="{{wechatTicket}}">
-    <view><button data-mode="bind" bindtap="wechatMode">绑定已有账号</button><button data-mode="register" bindtap="wechatMode">凭码注册</button></view>
-    <form bindsubmit="wechatComplete">
-    <block wx:if="{{wechatAction==='bind'}}"><input data-hint-id="wxhint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint0'?'':'原账号用户名'}}" value="{{username}}" data-field="username" bindinput="wechatField"/><input data-hint-id="wxhint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint1'?'':'原账号密码'}}" password value="{{password}}" data-field="password" bindinput="wechatField"/></block>
-    <block wx:else><view>注册为教师<switch bindchange="wechatRole"/></view><input data-hint-id="wxhint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint2'?'':'注册码'}}" data-field="wechatRegisterCode" bindinput="wechatField"/></block>
-    <view wx:if="{{wechatAction==='register'}}" class="account-group">
-     <text class="account-label">显示名称（选填）</text>
-     <input class="account-input" type="nickname" name="displayName" maxlength="30" data-hint-id="wxNickname" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxNickname'?'':'选择微信昵称或手动输入'}}"/>
+    <view class="account-wechat-panel">
+     <view class="account-wechat-tabs">
+      <button class="account-wechat-tab {{wechatAction==='register'?'active':''}}" data-mode="register" bindtap="wechatMode">凭码注册</button>
+      <button class="account-wechat-tab {{wechatAction==='bind'?'active':''}}" data-mode="bind" bindtap="wechatMode">绑定已有账号</button>
+     </view>
+     <form bindsubmit="wechatComplete">
+      <block wx:if="{{wechatAction==='bind'}}">
+       <view class="account-group">
+        <text class="account-label">原账号用户名</text>
+        <view class="account-input-wrap"><input class="account-input" data-hint-id="wxhint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint0'?'':'请输入原账号用户名'}}" value="{{username}}" data-field="username" bindinput="wechatField"/></view>
+       </view>
+       <view class="account-group">
+        <text class="account-label">原账号密码</text>
+        <view class="account-input-wrap"><input class="account-input" data-hint-id="wxhint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint1'?'':'请输入原账号密码'}}" password="{{true}}" value="{{password}}" data-field="password" bindinput="wechatField"/></view>
+       </view>
+      </block>
+      <block wx:else>
+       <view class="account-roles">
+        <view class="account-role {{wechatRole==='student'?'selected':''}}" data-role="student" bindtap="wechatRole">
+         <text class="account-role-title">学生</text>
+         <text class="account-role-desc">练习题目与获取作业辅导</text>
+        </view>
+        <view class="account-role {{wechatRole==='teacher'?'selected':''}}" data-role="teacher" bindtap="wechatRole">
+         <text class="account-role-title">教师</text>
+         <text class="account-role-desc">管理资料与教学助手</text>
+        </view>
+       </view>
+       <view class="account-wechat-avatar-row">
+        <button class="account-wechat-avatar-btn" open-type="chooseAvatar" bind:chooseavatar="wechatChooseAvatar" aria-label="选择微信头像">
+         <image wx:if="{{wechatAvatarPath}}" class="account-wechat-avatar-img" src="{{wechatAvatarPath}}" mode="aspectFill"/>
+         <text wx:else class="account-wechat-avatar-placeholder">+</text>
+        </button>
+        <view class="account-wechat-avatar-copy">
+         <text class="account-wechat-avatar-title">微信头像（选填）</text>
+         <text class="account-wechat-avatar-hint">{{wechatAvatarPath?'已选择，点击可更换':'点击左侧圆框使用微信头像'}}</text>
+        </view>
+       </view>
+       <view class="account-group">
+        <text class="account-label">微信昵称 / 用户名（选填）</text>
+        <view class="account-input-wrap"><input class="account-input" type="nickname" name="displayName" value="{{wechatDisplayName}}" maxlength="30" data-hint-id="wxNickname" bindinput="wechatNicknameInput" bindfocus="onInputHintFocus" bindblur="onWechatNicknameBlur" placeholder="{{inputHintFocus==='wxNickname'?'':'点击使用微信昵称或手动输入'}}"/></view>
+       </view>
+       <view class="account-group">
+        <text class="account-label">{{wechatRole==='teacher'?'教师':'学生'}}注册码</text>
+        <view class="account-input-wrap"><input class="account-input" password="{{true}}" data-hint-id="wxhint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint2'?'':'请输入内部注册码'}}" value="{{wechatRegisterCode}}" data-field="wechatRegisterCode" bindinput="wechatField"/></view>
+       </view>
+      </block>
+      <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" form-type="submit" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">{{wechatAction==='register'?'完成注册':'确认绑定'}}</button>
+     </form>
     </view>
-    <button form-type="submit" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">确认</button>
-    </form>
    </block>
   </view>
   <view class="account-switch"><text>没有账号？</text><text class="account-link" bindtap="goRegister">创建账号</text></view>

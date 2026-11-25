@@ -11,6 +11,13 @@ page,.workspace-shell {
  --ws-accent:#242424;
  --ws-on-accent:#ffffff;
  --ws-danger:#a12540;
+ --ws-brand:#9B1F58;
+ --ws-draft-bg:#f5f1e6;
+ --ws-draft-text:#79714f;
+ --ws-success-bg:#edf6f0;
+ --ws-success-text:#256842;
+ --ws-error-bg:#fdf7f8;
+ --ws-error-border:#efd5da;
  --ws-sidebar-width:244px;
  --ws-bottom-height:72px;
  --ws-header-height:64px;
@@ -18,6 +25,9 @@ page,.workspace-shell {
  --ws-chat-width:760px;
  --ws-page-gutter:42px;
  --ws-radius:10px;
+ --ws-radius-sm:8px;
+ --ws-radius-xs:5px;
+ --ws-sheet-radius:20px;
  --ws-composer-radius:22px;
  --ws-text-size:14px;
  --ws-title-size:30px;

@@ -30,6 +30,7 @@ test('password and device logins honor the committed credential reset', {
   await db.changeUser({ database });
   const baseline = await readFile(path.join(__dirname, 'fixtures/base.sql'), 'utf8');
   for (const sql of baseline.split(';').filter(value => value.trim())) await db.query(sql);
+  await db.query(await readFile(path.join(__dirname, '../../database/migrations/009_user_avatar.sql'), 'utf8'));
   const [user] = await db.execute(
     'INSERT INTO users(username,password_hash,role,status) VALUES(?,?,?,1)',
     ['learner', hashPassword('first-password'), 'student'],

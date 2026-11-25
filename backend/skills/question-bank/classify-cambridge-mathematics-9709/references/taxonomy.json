@@ -1,0 +1,195 @@
+{
+  "schema_version": "2.0",
+  "syllabus_code": "9709",
+  "subject": "Mathematics",
+  "components": [
+    {
+      "code": "1",
+      "name": "Pure Mathematics 1",
+      "topics": [
+        {
+          "code": "1.1",
+          "name": "Quadratics"
+        },
+        {
+          "code": "1.2",
+          "name": "Functions"
+        },
+        {
+          "code": "1.3",
+          "name": "Coordinate geometry"
+        },
+        {
+          "code": "1.4",
+          "name": "Circular measure"
+        },
+        {
+          "code": "1.5",
+          "name": "Trigonometry"
+        },
+        {
+          "code": "1.6",
+          "name": "Series"
+        },
+        {
+          "code": "1.7",
+          "name": "Differentiation"
+        },
+        {
+          "code": "1.8",
+          "name": "Integration"
+        }
+      ]
+    },
+    {
+      "code": "2",
+      "name": "Pure Mathematics 2",
+      "topics": [
+        {
+          "code": "2.1",
+          "name": "Algebra"
+        },
+        {
+          "code": "2.2",
+          "name": "Logarithmic and exponential functions"
+        },
+        {
+          "code": "2.3",
+          "name": "Trigonometry"
+        },
+        {
+          "code": "2.4",
+          "name": "Differentiation"
+        },
+        {
+          "code": "2.5",
+          "name": "Integration"
+        },
+        {
+          "code": "2.6",
+          "name": "Numerical solution of equations"
+        }
+      ]
+    },
+    {
+      "code": "3",
+      "name": "Pure Mathematics 3",
+      "topics": [
+        {
+          "code": "3.1",
+          "name": "Algebra"
+        },
+        {
+          "code": "3.2",
+          "name": "Logarithmic and exponential functions"
+        },
+        {
+          "code": "3.3",
+          "name": "Trigonometry"
+        },
+        {
+          "code": "3.4",
+          "name": "Differentiation"
+        },
+        {
+          "code": "3.5",
+          "name": "Integration"
+        },
+        {
+          "code": "3.6",
+          "name": "Numerical solution of equations"
+        },
+        {
+          "code": "3.7",
+          "name": "Vectors"
+        },
+        {
+          "code": "3.8",
+          "name": "Differential equations"
+        },
+        {
+          "code": "3.9",
+          "name": "Complex numbers"
+        }
+      ]
+    },
+    {
+      "code": "4",
+      "name": "Mechanics",
+      "topics": [
+        {
+          "code": "4.1",
+          "name": "Forces and equilibrium"
+        },
+        {
+          "code": "4.2",
+          "name": "Kinematics of motion in a straight line"
+        },
+        {
+          "code": "4.3",
+          "name": "Momentum"
+        },
+        {
+          "code": "4.4",
+          "name": "Newton's laws of motion"
+        },
+        {
+          "code": "4.5",
+          "name": "Energy, work and power"
+        }
+      ]
+    },
+    {
+      "code": "5",
+      "name": "Probability and Statistics 1",
+      "topics": [
+        {
+          "code": "5.1",
+          "name": "Representation of data"
+        },
+        {
+          "code": "5.2",
+          "name": "Permutations and combinations"
+        },
+        {
+          "code": "5.3",
+          "name": "Probability"
+        },
+        {
+          "code": "5.4",
+          "name": "Discrete random variables"
+        },
+        {
+          "code": "5.5",
+          "name": "The normal distribution"
+        }
+      ]
+    },
+    {
+      "code": "6",
+      "name": "Probability and Statistics 2",
+      "topics": [
+        {
+          "code": "6.1",
+          "name": "The Poisson distribution"
+        },
+        {
+          "code": "6.2",
+          "name": "Linear combinations of random variables"
+        },
+        {
+          "code": "6.3",
+          "name": "Continuous random variables"
+        },
+        {
+          "code": "6.4",
+          "name": "Sampling and estimation"
+        },
+        {
+          "code": "6.5",
+          "name": "Hypothesis tests"
+        }
+      ]
+    }
+  ]
+}

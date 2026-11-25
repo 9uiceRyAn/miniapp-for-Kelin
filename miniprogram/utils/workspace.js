@@ -68,4 +68,32 @@ function navigationStyle(api) {
   const right = valid ? info.windowWidth - capsule.left + 8 : 16;
   return '--ws-safe-top:' + top + ';--nav-height:' + height + 'px;--nav-right:' + right + 'px';
 }
-module.exports = { navigationStyle, groupConversations, drawer, recentMethods, returnToWorkspace };
+const profileNav = {
+  selectMain(e) {
+    const id = e.currentTarget.dataset.id;
+    const section = id === 'chat' ? 'agents' : id;
+    this.setData({ drawerOpen: false });
+    wx.redirectTo({ url: '/pages/learning/index?section=' + section });
+  },
+  selectSection(e) {
+    this.setData({ drawerOpen: false });
+    wx.redirectTo({ url: '/pages/learning/index?section=' + e.currentTarget.dataset.id });
+  },
+  openAgentPresets() {
+    this.setData({ drawerOpen: false });
+    if (this.data.section !== 'agents-manage') wx.redirectTo({ url: '/pages/studio/studio' });
+  },
+  openTeacherManagement() {
+    this.setData({ drawerOpen: false });
+    if (this.data.section !== 'accounts') wx.redirectTo({ url: '/pages/accounts/accounts' });
+  },
+  home() {
+    this.setData({ drawerOpen: false });
+    if (this.data.section !== 'question-management') wx.redirectTo({ url: '/pages/home/home' });
+  },
+  openAdmin() {
+    this.setData({ drawerOpen: false });
+    if (this.data.section !== 'admin') wx.redirectTo({ url: '/pages/admin/admin' });
+  },
+};
+module.exports = { navigationStyle, groupConversations, drawer, profileNav, recentMethods, returnToWorkspace };

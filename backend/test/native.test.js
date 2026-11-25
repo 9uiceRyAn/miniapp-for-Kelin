@@ -204,43 +204,40 @@ test('text-only question answers remain available without answer images', async 
   assert.equal(page.data.item.answer_text, '4');
 });
 
-test('teacher workspace saves valid edits for the builder and keeps incomplete edits on return', async () => {
-  let savedContent = 'Original instructions';
-  let navigation;
+test('studio agent preset manager loads list, validates prompt, and saves minimal preset edits', async () => {
+  let savedPayload = null;
   const page = loadPage('studio/studio.js', {
+    guard: () => true,
+    query: obj => new URLSearchParams(Object.entries(obj).filter(([, v]) => v !== '' && v !== undefined)).toString(),
     request: async (url, method, body) => {
-      if (method === 'PUT') { savedContent = body.content; return; }
-      if (method === 'POST') return { id: 'builder-session' };
-      if (url.endsWith('/models')) return [];
-      return { name: 'Tutor', skill: { content: savedContent } };
+      if (method === 'PUT') { savedPayload = body; return { id: 'tutor' }; }
+      if (url.startsWith('/api/ai/agents?')) return { items: [{ id: 'tutor', name: 'Tutor', tool_permission: 'read_only', audience: 'all', enabled: 1 }] };
+      return { id: 'tutor', name: 'Tutor', description: 'Desc', tool_permission: 'read_only', audience: 'all', enabled: 1, skill: { content: 'Original prompt' } };
     },
     error: error => { throw error; },
   }, {
-    navigateTo(options) { navigation = options; options.success(); },
     showToast() {},
   });
 
-  page.data.id = 'tutor';
   await page.load();
-  page.setData({ content: 'Local instructions' });
-  await page.builder();
-  page.onShow();
-  await new Promise(setImmediate);
-  assert.equal(savedContent, 'Local instructions');
-  assert.equal(page.data.content, 'Local instructions');
+  assert.equal(page.data.items.length, 1);
+  await page.openEdit({ currentTarget: { dataset: { id: 'tutor' } } });
+  assert.equal(page.data.sheetOpen, true);
+  assert.equal(page.data.form.content, 'Original prompt');
 
-  page.setData({ content: '', name: 'Unsaved name' });
-  await page.builder();
-  page.onShow();
-  await new Promise(setImmediate);
-  assert.equal(page.data.name, 'Unsaved name');
-  assert.equal(page.data.content, '');
+  page.formInput({ currentTarget: { dataset: { field: 'content' } }, detail: { value: '' } });
+  await page.save();
+  assert.equal(savedPayload, null);
+  assert.equal(page.data.formError, '请输入 Prompt');
 
-  savedContent = 'New builder instructions';
-  navigation.events.draftApplied();
-  page.onShow();
-  await new Promise(setImmediate);
-  assert.equal(page.data.content, 'New builder instructions');
+  page.formInput({ currentTarget: { dataset: { field: 'content' } }, detail: { value: 'Updated prompt' } });
+  page.formSelect({ currentTarget: { dataset: { field: 'toolPermission', value: 'read_write' } } });
+  page.formSelect({ currentTarget: { dataset: { field: 'audience', value: 'teacher_only' } } });
+  await page.save();
+  assert.equal(savedPayload.content, 'Updated prompt');
+  assert.equal(savedPayload.toolPermission, 'read_write');
+  assert.equal(savedPayload.audience, 'teacher_only');
+  assert.equal(page.data.sheetOpen, false);
 });
 
 test('native chat preserves text typed during a send and ignores a second tap', async () => {

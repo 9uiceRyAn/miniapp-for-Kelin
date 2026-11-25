@@ -70,6 +70,26 @@ async function call(name, args, context) {
     let result;
     if (name === 'search_existing_files') result = await require('./library-agent').searchFiles(args, context);
     else if (name === 'propose_library_change') result = await require('./library-agent').propose(args, context);
+    else if (name === 'read_question_skill') {
+      const qs = require('./question-skills');
+      result = !args?.skillId || args.skillId === 'list'
+        ? { skills: qs.listSkills() }
+        : qs.readSkill(args.skillId, { includeTaxonomy: args.includeTaxonomy !== false });
+    }
+    else if (name === 'list_taxonomy') result = await require('./question-management').taxonomyTree();
+    else if (name === 'get_question_detail') {
+      c.teacher(context.user);
+      result = await require('./question-management').detail(args.resourceId, null);
+    } else if (name === 'create_question' || name === 'create_question_draft') {
+      c.teacher(context.user);
+      result = await require('./question-management').save(context.user, null, args);
+    } else if (name === 'propose_question_update') {
+      result = await require('./question-curator').propose('update_question', args, context);
+    } else if (name === 'propose_question_batch_update') {
+      result = await require('./question-curator').propose('batch_update', args, context);
+    } else if (name === 'propose_taxonomy_change') {
+      result = await require('./question-curator').propose('taxonomy_change', args, context);
+    }
     else if (name === 'calculate') result = { value: calculate(args.expression) };
     else if (name === 'search_questions') {
       const found = await questions.list({

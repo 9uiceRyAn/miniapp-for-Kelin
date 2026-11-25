@@ -15,16 +15,17 @@ module.exports = async function questionManagementTests({ t, api, origin, teache
   };
   const asInput = item => ({ ...input, title: item.title, releaseStatus: item.release_status, reviewRequired: item.review_required, attachments: item.attachments.map(a => ({ id: a.id, kind: a.kind, label: a.label })), expectedRevisionId: item.revisionId });
   const importItem = (id, extra = {}) => ({ id, subject: 'math', collection: 'managed-import', title: id, tags: ['1.1'], tag_names: { '1.1': '基础运算' }, question_text: 'How much is 2 + 2?', gallery: [], audio: [], release_status: 'published', ...extra });
-  await t.test('question management is administrator-only and drafts are absent from public lists and details', async () => {
+  await t.test('question management is administrator-only and newly created items are immediately active', async () => {
     await api('GET', base + '/items', null, student.token, 403);
     await api('POST', base + '/items', input, student.token, 403);
     await upload('/uploads', 'bytes', 'q.png', student.token, 403);
     current = await api('POST', base + '/items', input, teacher.token);
-    assert.equal(current.release_status, 'draft');
+    assert.equal(current.release_status, 'published');
+    assert.equal(current.review_required, false);
     const publicList = await api('GET', '/api/question-bank/items?collection=managed-test', null, student.token);
-    assert.equal(publicList.total, 0);
-    await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token, 403);
-    const managed = await api('GET', base + '/items?state=draft&collection=managed-test', null, teacher.token);
+    assert.equal(publicList.total, 1);
+    await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token, 200);
+    const managed = await api('GET', base + '/items?collection=managed-test', null, teacher.token);
     assert.equal(managed.total, 1);
     await api('POST', base + '/items', input, teacher.token, 409);
     await api('POST', base + '/items', { ...input, sourceId: 'bad-tags', tags: 'bad' }, teacher.token, 400);

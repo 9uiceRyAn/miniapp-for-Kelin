@@ -17,8 +17,8 @@ const upload = multer({
 });
 const wrap = c.route;
 const { decodeUploadName } = require('../utils/upload-name');
-async function requireAdmin(req, res, next) {
-  await c.admin(req.user);
+async function requireTeacherAccess(req, res, next) {
+  c.teacher(req.user);
   next();
 }
 function uploadName(file, preferred) {
@@ -36,8 +36,23 @@ function install(app) {
   });
   bank.use(requireAuth);
   const management = require('./question-management');
-  bank.use('/admin', requireAdmin);
+  bank.use('/admin', requireTeacherAccess);
   bank.get('/admin/facets', wrap(req => management.facets()));
+  bank.get('/admin/taxonomy', wrap(() => management.taxonomyTree()));
+  bank.post('/admin/subjects', wrap(req => management.saveSubject(req.body)));
+  bank.patch('/admin/subjects/:code', wrap(req => management.saveSubject({ ...req.body, code: req.params.code })));
+  bank.delete('/admin/subjects/:code', wrap(req => management.deleteSubject(req.params.code)));
+  bank.post('/admin/collections', wrap(req => management.saveCollection(req.body)));
+  bank.patch('/admin/collections/:code', wrap(req => management.saveCollection({ ...req.body, code: req.params.code })));
+  bank.delete('/admin/collections/:code', wrap(req => management.deleteCollection(req.params.code)));
+  bank.post('/admin/tags', wrap(req => management.saveTag(req.body)));
+  bank.patch('/admin/tags/:id', wrap(req => management.saveTag({ ...req.body, id: req.params.id })));
+  bank.delete('/admin/tags/:id', wrap(req => management.deleteTag(req.params.id)));
+  bank.post('/admin/items/batch', wrap(req => management.batchUpdate(req.user, req.body)));
+  bank.post('/admin/ai-ingest', upload.single('file'), wrap(req => {
+    if (!req.file) c.fail(400, '请选择题目图片或 PDF');
+    return management.aiIngest(req.user, req.file.buffer, uploadName(req.file, req.body.fileName), req.body);
+  }));
   bank.get('/admin/items', wrap(req => management.list({ ...req.query, sessionHash: req.authTokenHash })));
   bank.get('/admin/items/:id', wrap(req => management.detail(req.params.id, req.authTokenHash)));
   bank.post('/admin/uploads', upload.single('file'), wrap(req => {
@@ -215,7 +230,7 @@ function install(app) {
     '/me',
     wrap(async (req) => ({
       user: req.user,
-      admin: await c.capability(req.user),
+      admin: req.user.role === 'teacher',
       settings: await models.settings(),
     })),
   );
@@ -236,8 +251,20 @@ function install(app) {
     wrap((req) => agents.detail(req.user, req.params.id)),
   );
   ai.put(
+    '/agents/:id',
+    wrap((req) => agents.saveAgent(req.user, req.params.id, req.body)),
+  );
+  ai.put(
     '/agents/:id/draft',
     wrap((req) => agents.draft(req.user, req.params.id, req.body)),
+  );
+  ai.patch(
+    '/agents/:id/meta',
+    wrap((req) => agents.updateMeta(req.user, req.params.id, req.body)),
+  );
+  ai.delete(
+    '/agents/:id',
+    wrap((req) => agents.remove(req.user, req.params.id)),
   );
   ai.post(
     '/agents/:id/publish',
@@ -263,6 +290,9 @@ function install(app) {
   );
   ai.post('/library-manager/conversation', wrap(req => require('./library-agent').open(req.user)));
   ai.post('/conversations/:id/library-actions/:actionId/confirm', wrap(req => require('./library-agent').confirm(req.user, req.params.id, req.params.actionId)));
+  ai.post('/question-curator/conversation', wrap(req => require('./question-curator').open(req.user)));
+  ai.post('/conversations/:id/question-actions/:actionId/confirm', wrap(req => require('./question-curator').confirm(req.user, req.params.id, req.params.actionId)));
+  ai.post('/conversations/:id/question-actions/:actionId/reject', wrap(req => require('./question-curator').reject(req.user, req.params.id, req.params.actionId)));
   ai.post(
     '/conversations',
     wrap((req) => agents.conversation(req.user, req.body.agentId, 'student')),
@@ -292,6 +322,10 @@ function install(app) {
       return {
         conversation,
         libraryActions: conversation.mode === 'library' ? await require('./library-agent').cards(req.user, conversation.id) : [],
+        questionActions:
+          req.user.role === 'teacher' && (conversation.mode === 'question_curator' || conversation.snapshot?.toolPermission === 'read_write')
+            ? await require('./question-curator').cards(req.user, conversation.id)
+            : [],
         hasOlder: messages.length > 0 && messages[0].seq > 1,
         messages: messages.map((x) => ({ ...x, data: c.json(x.data) })),
         assets: assets.map((x) => ({ ...x, data: c.json(x.data) })),
@@ -406,12 +440,16 @@ function install(app) {
     }),
   );
   const access = require('./connection-access');
-  ai.post('/connections/unlock', wrap(access.unlock));
+  ai.post(['/admin/unlock', '/connections/unlock'], wrap(access.unlock));
   ai.use('/connections', access.authorize);
-  ai.use('/admin', requireAdmin);
+  ai.use('/admin', requireTeacherAccess, access.authorize);
   ai.get(
     ['/admin/models', '/connections/models'],
     wrap(() => models.list(true)),
+  );
+  ai.get(
+    ['/admin/storage', '/connections/storage'],
+    wrap(() => require('../utils/server-storage').getStorageSummary(require('../utils/file-storage').UPLOAD_ROOT)),
   );
   ai.post(
     ['/admin/models', '/connections/models'],
@@ -424,15 +462,15 @@ function install(app) {
   ai.post(
     ['/admin/models/:id/test', '/connections/models/:id/test'],
     wrap((req) =>
-      models.probe(req.user, req.params.id, req.body.kind || 'text'),
+      models.probe(req.user, req.params.id, req.body.kind || 'all'),
     ),
   );
   ai.post(
-    '/admin/prices',
+    ['/admin/prices', '/connections/prices'],
     wrap((req) => models.addPrice(req.body.modelId, req.body)),
   );
   ai.get(
-    '/admin/prices',
+    ['/admin/prices', '/connections/prices'],
     wrap(async () => {
       const rows = await c.rows(
         'SELECT p.*,m.name modelName FROM kl_prices p LEFT JOIN kl_models m ON m.id=p.model_id ORDER BY p.effective_at DESC LIMIT 100',
@@ -443,16 +481,18 @@ function install(app) {
   ai.put(
     ['/admin/settings', '/connections/settings'],
     wrap(async (req) => {
-      for (const key of ['builderModelId', 'visionModelId'])
+      if (req.body.defaultModelId !== undefined) {
+        await models.resolve(req.body.defaultModelId);
+        for (const key of ['defaultChatModelId', 'builderModelId', 'visionModelId']) {
+          await c.rows(
+            'INSERT INTO kl_settings(name,data) VALUES(?,?) ON DUPLICATE KEY UPDATE data=VALUES(data)',
+            [key, JSON.stringify(req.body.defaultModelId)],
+          );
+        }
+      }
+      for (const key of ['defaultChatModelId', 'builderModelId', 'visionModelId'])
         if (req.body[key] !== undefined) {
-          const model = await models.resolve(req.body[key]);
-          if (key === 'builderModelId' && !model.capabilities.verified?.tools)
-            c.fail(400, '请先验证创建助手模型的工具调用能力');
-          if (
-            key === 'visionModelId' &&
-            (!model.capabilities.vision || !model.capabilities.verified?.vision)
-          )
-            c.fail(400, '此模型未启用视觉能力');
+          await models.resolve(req.body[key]);
           await c.rows(
             'INSERT INTO kl_settings(name,data) VALUES(?,?) ON DUPLICATE KEY UPDATE data=VALUES(data)',
             [key, JSON.stringify(req.body[key])],

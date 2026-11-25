@@ -1,0 +1,1369 @@
+{
+  "schema_version": "1.0",
+  "subject": "IELTS",
+  "exam": "Cambridge IELTS",
+  "scope": "Academic",
+  "primary_tags": [
+    {
+      "code": "L.NOTE_COMPLETION",
+      "slug": "listening-note-completion",
+      "name_zh": "笔记填空",
+      "name_en": "Note completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.TABLE_COMPLETION",
+      "slug": "listening-table-completion",
+      "name_zh": "表格填空",
+      "name_en": "Table completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.SENTENCE_COMPLETION",
+      "slug": "listening-sentence-completion",
+      "name_zh": "句子填空",
+      "name_en": "Sentence completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.SUMMARY_COMPLETION",
+      "slug": "listening-summary-completion",
+      "name_zh": "摘要填空",
+      "name_en": "Summary completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.MAP_COMPLETION",
+      "slug": "listening-map-completion",
+      "name_zh": "地图填空",
+      "name_en": "Map completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.SINGLE_CHOICE",
+      "slug": "listening-single-choice",
+      "name_zh": "单选题",
+      "name_en": "Single choice",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.MULTIPLE_CHOICE",
+      "slug": "listening-multiple-choice",
+      "name_zh": "多选题",
+      "name_en": "Multiple choice",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.INFORMATION_MATCHING",
+      "slug": "listening-information-matching",
+      "name_zh": "信息匹配",
+      "name_en": "Information matching",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.MAP_ORIENTATION",
+      "slug": "listening-map-orientation",
+      "name_zh": "地图方位",
+      "name_en": "Map orientation",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.FLOW_CHART_COMPLETION",
+      "slug": "listening-flow-chart-completion",
+      "name_zh": "流程图填空",
+      "name_en": "Flow-chart completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.TRUE_FALSE_NOT_GIVEN",
+      "slug": "reading-true-false-not-given",
+      "name_zh": "判断题（对/错/未提及）",
+      "name_en": "True/False/Not Given",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.YES_NO_NOT_GIVEN",
+      "slug": "reading-yes-no-not-given",
+      "name_zh": "观点判断（是/否/未提及）",
+      "name_en": "Yes/No/Not Given",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SUMMARY_COMPLETION",
+      "slug": "reading-summary-completion",
+      "name_zh": "摘要填空",
+      "name_en": "Summary completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SENTENCE_COMPLETION",
+      "slug": "reading-sentence-completion",
+      "name_zh": "句子填空",
+      "name_en": "Sentence completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.DIAGRAM_COMPLETION",
+      "slug": "reading-diagram-completion",
+      "name_zh": "图示填空",
+      "name_en": "Diagram completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.TABLE_COMPLETION",
+      "slug": "reading-table-completion",
+      "name_zh": "表格填空",
+      "name_en": "Table completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.WORD_BANK_COMPLETION",
+      "slug": "reading-word-bank-completion",
+      "name_zh": "词库填空",
+      "name_en": "Word-bank completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SHORT_ANSWER",
+      "slug": "reading-short-answer",
+      "name_zh": "简答题",
+      "name_en": "Short answer",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.PARAGRAPH_INFORMATION_MATCHING",
+      "slug": "reading-paragraph-information-matching",
+      "name_zh": "段落信息匹配",
+      "name_en": "Paragraph-information matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SENTENCE_ENDING_MATCHING",
+      "slug": "reading-sentence-ending-matching",
+      "name_zh": "句子结尾匹配",
+      "name_en": "Sentence-ending matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.PERSON_VIEW_MATCHING",
+      "slug": "reading-person-view-matching",
+      "name_zh": "人物观点匹配",
+      "name_en": "Person-view matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.DETAIL_INFORMATION_MATCHING",
+      "slug": "reading-detailed-information-matching",
+      "name_zh": "细节信息匹配",
+      "name_en": "Detailed-information matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SINGLE_CHOICE",
+      "slug": "reading-single-choice",
+      "name_zh": "单选题",
+      "name_en": "Single choice",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.MULTIPLE_CHOICE",
+      "slug": "reading-multiple-choice",
+      "name_zh": "多选题",
+      "name_en": "Multiple choice",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.MATCHING_HEADINGS",
+      "slug": "reading-matching-headings",
+      "name_zh": "段落标题匹配",
+      "name_en": "Matching headings",
+      "skill": "reading",
+      "dimension": "primary"
+    }
+  ],
+  "auxiliary_tags": [
+    {
+      "code": "skill:listening",
+      "slug": "skill-listening",
+      "name_zh": "听力",
+      "name_en": "Listening",
+      "skill": "listening",
+      "dimension": "skill"
+    },
+    {
+      "code": "skill:reading",
+      "slug": "skill-reading",
+      "name_zh": "阅读",
+      "name_en": "Reading",
+      "skill": "reading",
+      "dimension": "skill"
+    },
+    {
+      "code": "scene:housing",
+      "slug": "scene-housing",
+      "name_zh": "住宿",
+      "name_en": "Housing",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:travel",
+      "slug": "scene-travel",
+      "name_zh": "旅行",
+      "name_en": "Travel",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:daily_service",
+      "slug": "scene-daily-service",
+      "name_zh": "日常服务",
+      "name_en": "Daily service",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:campus",
+      "slug": "scene-campus",
+      "name_zh": "校园",
+      "name_en": "Campus",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:academic_course",
+      "slug": "scene-academic-course",
+      "name_zh": "学术课程",
+      "name_en": "Academic course",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:group_discussion",
+      "slug": "scene-group-discussion",
+      "name_zh": "小组讨论",
+      "name_en": "Group discussion",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:research_lecture",
+      "slug": "scene-research-lecture",
+      "name_zh": "研究讲座",
+      "name_en": "Research lecture",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:other",
+      "slug": "scene-other",
+      "name_zh": "其他场景",
+      "name_en": "Other scene",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "topic:humanities_history",
+      "slug": "topic-humanities-history",
+      "name_zh": "人文与历史",
+      "name_en": "Humanities and history",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:social_science",
+      "slug": "topic-social-science",
+      "name_zh": "社会科学",
+      "name_en": "Social science",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:technology",
+      "slug": "topic-technology",
+      "name_zh": "科技",
+      "name_en": "Technology",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:biology",
+      "slug": "topic-biology",
+      "name_zh": "生物学",
+      "name_en": "Biology",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:geography",
+      "slug": "topic-geography",
+      "name_zh": "地理",
+      "name_en": "Geography",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:environment",
+      "slug": "topic-environment",
+      "name_zh": "环境",
+      "name_en": "Environment",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:education",
+      "slug": "topic-education",
+      "name_zh": "教育",
+      "name_en": "Education",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:health",
+      "slug": "topic-health",
+      "name_zh": "健康",
+      "name_en": "Health",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:archaeology",
+      "slug": "topic-archaeology",
+      "name_zh": "考古学",
+      "name_en": "Archaeology",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:society",
+      "slug": "topic-society",
+      "name_zh": "社会",
+      "name_en": "Society",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:government_policy",
+      "slug": "topic-government-policy",
+      "name_zh": "政府与政策",
+      "name_en": "Government and policy",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:culture",
+      "slug": "topic-culture",
+      "name_zh": "文化",
+      "name_en": "Culture",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:globalisation",
+      "slug": "topic-globalisation",
+      "name_zh": "全球化",
+      "name_en": "Globalisation",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:other",
+      "slug": "topic-other",
+      "name_zh": "其他主题",
+      "name_en": "Other topic",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "book:cambridge_ielts_08",
+      "slug": "book-cambridge-ielts-08",
+      "name_zh": "剑桥雅思8",
+      "name_en": "Cambridge IELTS 8",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_09",
+      "slug": "book-cambridge-ielts-09",
+      "name_zh": "剑桥雅思9",
+      "name_en": "Cambridge IELTS 9",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_10",
+      "slug": "book-cambridge-ielts-10",
+      "name_zh": "剑桥雅思10",
+      "name_en": "Cambridge IELTS 10",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_11",
+      "slug": "book-cambridge-ielts-11",
+      "name_zh": "剑桥雅思11",
+      "name_en": "Cambridge IELTS 11",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_12",
+      "slug": "book-cambridge-ielts-12",
+      "name_zh": "剑桥雅思12",
+      "name_en": "Cambridge IELTS 12",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_13",
+      "slug": "book-cambridge-ielts-13",
+      "name_zh": "剑桥雅思13",
+      "name_en": "Cambridge IELTS 13",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_14",
+      "slug": "book-cambridge-ielts-14",
+      "name_zh": "剑桥雅思14",
+      "name_en": "Cambridge IELTS 14",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_15",
+      "slug": "book-cambridge-ielts-15",
+      "name_zh": "剑桥雅思15",
+      "name_en": "Cambridge IELTS 15",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_16",
+      "slug": "book-cambridge-ielts-16",
+      "name_zh": "剑桥雅思16",
+      "name_en": "Cambridge IELTS 16",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_17",
+      "slug": "book-cambridge-ielts-17",
+      "name_zh": "剑桥雅思17",
+      "name_en": "Cambridge IELTS 17",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_18",
+      "slug": "book-cambridge-ielts-18",
+      "name_zh": "剑桥雅思18",
+      "name_en": "Cambridge IELTS 18",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_19",
+      "slug": "book-cambridge-ielts-19",
+      "name_zh": "剑桥雅思19",
+      "name_en": "Cambridge IELTS 19",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_20",
+      "slug": "book-cambridge-ielts-20",
+      "name_zh": "剑桥雅思20",
+      "name_en": "Cambridge IELTS 20",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_21",
+      "slug": "book-cambridge-ielts-21",
+      "name_zh": "剑桥雅思21",
+      "name_en": "Cambridge IELTS 21",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "test:01",
+      "slug": "test-01",
+      "name_zh": "第1套试题",
+      "name_en": "Test 1",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:02",
+      "slug": "test-02",
+      "name_zh": "第2套试题",
+      "name_en": "Test 2",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:03",
+      "slug": "test-03",
+      "name_zh": "第3套试题",
+      "name_en": "Test 3",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:04",
+      "slug": "test-04",
+      "name_zh": "第4套试题",
+      "name_en": "Test 4",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:05",
+      "slug": "test-05",
+      "name_zh": "第5套试题",
+      "name_en": "Test 5",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:06",
+      "slug": "test-06",
+      "name_zh": "第6套试题",
+      "name_en": "Test 6",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:07",
+      "slug": "test-07",
+      "name_zh": "第7套试题",
+      "name_en": "Test 7",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:08",
+      "slug": "test-08",
+      "name_zh": "第8套试题",
+      "name_en": "Test 8",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "section:01",
+      "slug": "section-01",
+      "name_zh": "听力第1部分",
+      "name_en": "Listening section 1",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "section:02",
+      "slug": "section-02",
+      "name_zh": "听力第2部分",
+      "name_en": "Listening section 2",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "section:03",
+      "slug": "section-03",
+      "name_zh": "听力第3部分",
+      "name_en": "Listening section 3",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "section:04",
+      "slug": "section-04",
+      "name_zh": "听力第4部分",
+      "name_en": "Listening section 4",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "passage:01",
+      "slug": "passage-01",
+      "name_zh": "阅读文章1",
+      "name_en": "Reading passage 1",
+      "skill": "reading",
+      "dimension": "passage"
+    },
+    {
+      "code": "passage:02",
+      "slug": "passage-02",
+      "name_zh": "阅读文章2",
+      "name_en": "Reading passage 2",
+      "skill": "reading",
+      "dimension": "passage"
+    },
+    {
+      "code": "passage:03",
+      "slug": "passage-03",
+      "name_zh": "阅读文章3",
+      "name_en": "Reading passage 3",
+      "skill": "reading",
+      "dimension": "passage"
+    }
+  ],
+  "tags": [
+    {
+      "code": "L.NOTE_COMPLETION",
+      "slug": "listening-note-completion",
+      "name_zh": "笔记填空",
+      "name_en": "Note completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.TABLE_COMPLETION",
+      "slug": "listening-table-completion",
+      "name_zh": "表格填空",
+      "name_en": "Table completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.SENTENCE_COMPLETION",
+      "slug": "listening-sentence-completion",
+      "name_zh": "句子填空",
+      "name_en": "Sentence completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.SUMMARY_COMPLETION",
+      "slug": "listening-summary-completion",
+      "name_zh": "摘要填空",
+      "name_en": "Summary completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.MAP_COMPLETION",
+      "slug": "listening-map-completion",
+      "name_zh": "地图填空",
+      "name_en": "Map completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.SINGLE_CHOICE",
+      "slug": "listening-single-choice",
+      "name_zh": "单选题",
+      "name_en": "Single choice",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.MULTIPLE_CHOICE",
+      "slug": "listening-multiple-choice",
+      "name_zh": "多选题",
+      "name_en": "Multiple choice",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.INFORMATION_MATCHING",
+      "slug": "listening-information-matching",
+      "name_zh": "信息匹配",
+      "name_en": "Information matching",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.MAP_ORIENTATION",
+      "slug": "listening-map-orientation",
+      "name_zh": "地图方位",
+      "name_en": "Map orientation",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "L.FLOW_CHART_COMPLETION",
+      "slug": "listening-flow-chart-completion",
+      "name_zh": "流程图填空",
+      "name_en": "Flow-chart completion",
+      "skill": "listening",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.TRUE_FALSE_NOT_GIVEN",
+      "slug": "reading-true-false-not-given",
+      "name_zh": "判断题（对/错/未提及）",
+      "name_en": "True/False/Not Given",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.YES_NO_NOT_GIVEN",
+      "slug": "reading-yes-no-not-given",
+      "name_zh": "观点判断（是/否/未提及）",
+      "name_en": "Yes/No/Not Given",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SUMMARY_COMPLETION",
+      "slug": "reading-summary-completion",
+      "name_zh": "摘要填空",
+      "name_en": "Summary completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SENTENCE_COMPLETION",
+      "slug": "reading-sentence-completion",
+      "name_zh": "句子填空",
+      "name_en": "Sentence completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.DIAGRAM_COMPLETION",
+      "slug": "reading-diagram-completion",
+      "name_zh": "图示填空",
+      "name_en": "Diagram completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.TABLE_COMPLETION",
+      "slug": "reading-table-completion",
+      "name_zh": "表格填空",
+      "name_en": "Table completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.WORD_BANK_COMPLETION",
+      "slug": "reading-word-bank-completion",
+      "name_zh": "词库填空",
+      "name_en": "Word-bank completion",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SHORT_ANSWER",
+      "slug": "reading-short-answer",
+      "name_zh": "简答题",
+      "name_en": "Short answer",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.PARAGRAPH_INFORMATION_MATCHING",
+      "slug": "reading-paragraph-information-matching",
+      "name_zh": "段落信息匹配",
+      "name_en": "Paragraph-information matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SENTENCE_ENDING_MATCHING",
+      "slug": "reading-sentence-ending-matching",
+      "name_zh": "句子结尾匹配",
+      "name_en": "Sentence-ending matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.PERSON_VIEW_MATCHING",
+      "slug": "reading-person-view-matching",
+      "name_zh": "人物观点匹配",
+      "name_en": "Person-view matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.DETAIL_INFORMATION_MATCHING",
+      "slug": "reading-detailed-information-matching",
+      "name_zh": "细节信息匹配",
+      "name_en": "Detailed-information matching",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.SINGLE_CHOICE",
+      "slug": "reading-single-choice",
+      "name_zh": "单选题",
+      "name_en": "Single choice",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.MULTIPLE_CHOICE",
+      "slug": "reading-multiple-choice",
+      "name_zh": "多选题",
+      "name_en": "Multiple choice",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "R.MATCHING_HEADINGS",
+      "slug": "reading-matching-headings",
+      "name_zh": "段落标题匹配",
+      "name_en": "Matching headings",
+      "skill": "reading",
+      "dimension": "primary"
+    },
+    {
+      "code": "skill:listening",
+      "slug": "skill-listening",
+      "name_zh": "听力",
+      "name_en": "Listening",
+      "skill": "listening",
+      "dimension": "skill"
+    },
+    {
+      "code": "skill:reading",
+      "slug": "skill-reading",
+      "name_zh": "阅读",
+      "name_en": "Reading",
+      "skill": "reading",
+      "dimension": "skill"
+    },
+    {
+      "code": "scene:housing",
+      "slug": "scene-housing",
+      "name_zh": "住宿",
+      "name_en": "Housing",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:travel",
+      "slug": "scene-travel",
+      "name_zh": "旅行",
+      "name_en": "Travel",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:daily_service",
+      "slug": "scene-daily-service",
+      "name_zh": "日常服务",
+      "name_en": "Daily service",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:campus",
+      "slug": "scene-campus",
+      "name_zh": "校园",
+      "name_en": "Campus",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:academic_course",
+      "slug": "scene-academic-course",
+      "name_zh": "学术课程",
+      "name_en": "Academic course",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:group_discussion",
+      "slug": "scene-group-discussion",
+      "name_zh": "小组讨论",
+      "name_en": "Group discussion",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:research_lecture",
+      "slug": "scene-research-lecture",
+      "name_zh": "研究讲座",
+      "name_en": "Research lecture",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "scene:other",
+      "slug": "scene-other",
+      "name_zh": "其他场景",
+      "name_en": "Other scene",
+      "skill": "listening",
+      "dimension": "scene"
+    },
+    {
+      "code": "topic:humanities_history",
+      "slug": "topic-humanities-history",
+      "name_zh": "人文与历史",
+      "name_en": "Humanities and history",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:social_science",
+      "slug": "topic-social-science",
+      "name_zh": "社会科学",
+      "name_en": "Social science",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:technology",
+      "slug": "topic-technology",
+      "name_zh": "科技",
+      "name_en": "Technology",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:biology",
+      "slug": "topic-biology",
+      "name_zh": "生物学",
+      "name_en": "Biology",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:geography",
+      "slug": "topic-geography",
+      "name_zh": "地理",
+      "name_en": "Geography",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:environment",
+      "slug": "topic-environment",
+      "name_zh": "环境",
+      "name_en": "Environment",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:education",
+      "slug": "topic-education",
+      "name_zh": "教育",
+      "name_en": "Education",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:health",
+      "slug": "topic-health",
+      "name_zh": "健康",
+      "name_en": "Health",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:archaeology",
+      "slug": "topic-archaeology",
+      "name_zh": "考古学",
+      "name_en": "Archaeology",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:society",
+      "slug": "topic-society",
+      "name_zh": "社会",
+      "name_en": "Society",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:government_policy",
+      "slug": "topic-government-policy",
+      "name_zh": "政府与政策",
+      "name_en": "Government and policy",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:culture",
+      "slug": "topic-culture",
+      "name_zh": "文化",
+      "name_en": "Culture",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:globalisation",
+      "slug": "topic-globalisation",
+      "name_zh": "全球化",
+      "name_en": "Globalisation",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "topic:other",
+      "slug": "topic-other",
+      "name_zh": "其他主题",
+      "name_en": "Other topic",
+      "skill": "reading",
+      "dimension": "topic"
+    },
+    {
+      "code": "book:cambridge_ielts_08",
+      "slug": "book-cambridge-ielts-08",
+      "name_zh": "剑桥雅思8",
+      "name_en": "Cambridge IELTS 8",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_09",
+      "slug": "book-cambridge-ielts-09",
+      "name_zh": "剑桥雅思9",
+      "name_en": "Cambridge IELTS 9",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_10",
+      "slug": "book-cambridge-ielts-10",
+      "name_zh": "剑桥雅思10",
+      "name_en": "Cambridge IELTS 10",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_11",
+      "slug": "book-cambridge-ielts-11",
+      "name_zh": "剑桥雅思11",
+      "name_en": "Cambridge IELTS 11",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_12",
+      "slug": "book-cambridge-ielts-12",
+      "name_zh": "剑桥雅思12",
+      "name_en": "Cambridge IELTS 12",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_13",
+      "slug": "book-cambridge-ielts-13",
+      "name_zh": "剑桥雅思13",
+      "name_en": "Cambridge IELTS 13",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_14",
+      "slug": "book-cambridge-ielts-14",
+      "name_zh": "剑桥雅思14",
+      "name_en": "Cambridge IELTS 14",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_15",
+      "slug": "book-cambridge-ielts-15",
+      "name_zh": "剑桥雅思15",
+      "name_en": "Cambridge IELTS 15",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_16",
+      "slug": "book-cambridge-ielts-16",
+      "name_zh": "剑桥雅思16",
+      "name_en": "Cambridge IELTS 16",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_17",
+      "slug": "book-cambridge-ielts-17",
+      "name_zh": "剑桥雅思17",
+      "name_en": "Cambridge IELTS 17",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_18",
+      "slug": "book-cambridge-ielts-18",
+      "name_zh": "剑桥雅思18",
+      "name_en": "Cambridge IELTS 18",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_19",
+      "slug": "book-cambridge-ielts-19",
+      "name_zh": "剑桥雅思19",
+      "name_en": "Cambridge IELTS 19",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_20",
+      "slug": "book-cambridge-ielts-20",
+      "name_zh": "剑桥雅思20",
+      "name_en": "Cambridge IELTS 20",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "book:cambridge_ielts_21",
+      "slug": "book-cambridge-ielts-21",
+      "name_zh": "剑桥雅思21",
+      "name_en": "Cambridge IELTS 21",
+      "skill": "listening|reading",
+      "dimension": "book"
+    },
+    {
+      "code": "test:01",
+      "slug": "test-01",
+      "name_zh": "第1套试题",
+      "name_en": "Test 1",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:02",
+      "slug": "test-02",
+      "name_zh": "第2套试题",
+      "name_en": "Test 2",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:03",
+      "slug": "test-03",
+      "name_zh": "第3套试题",
+      "name_en": "Test 3",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:04",
+      "slug": "test-04",
+      "name_zh": "第4套试题",
+      "name_en": "Test 4",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:05",
+      "slug": "test-05",
+      "name_zh": "第5套试题",
+      "name_en": "Test 5",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:06",
+      "slug": "test-06",
+      "name_zh": "第6套试题",
+      "name_en": "Test 6",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:07",
+      "slug": "test-07",
+      "name_zh": "第7套试题",
+      "name_en": "Test 7",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "test:08",
+      "slug": "test-08",
+      "name_zh": "第8套试题",
+      "name_en": "Test 8",
+      "skill": "all",
+      "dimension": "test"
+    },
+    {
+      "code": "section:01",
+      "slug": "section-01",
+      "name_zh": "听力第1部分",
+      "name_en": "Listening section 1",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "section:02",
+      "slug": "section-02",
+      "name_zh": "听力第2部分",
+      "name_en": "Listening section 2",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "section:03",
+      "slug": "section-03",
+      "name_zh": "听力第3部分",
+      "name_en": "Listening section 3",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "section:04",
+      "slug": "section-04",
+      "name_zh": "听力第4部分",
+      "name_en": "Listening section 4",
+      "skill": "listening",
+      "dimension": "section"
+    },
+    {
+      "code": "passage:01",
+      "slug": "passage-01",
+      "name_zh": "阅读文章1",
+      "name_en": "Reading passage 1",
+      "skill": "reading",
+      "dimension": "passage"
+    },
+    {
+      "code": "passage:02",
+      "slug": "passage-02",
+      "name_zh": "阅读文章2",
+      "name_en": "Reading passage 2",
+      "skill": "reading",
+      "dimension": "passage"
+    },
+    {
+      "code": "passage:03",
+      "slug": "passage-03",
+      "name_zh": "阅读文章3",
+      "name_en": "Reading passage 3",
+      "skill": "reading",
+      "dimension": "passage"
+    }
+  ],
+  "primary_tag_codes": [
+    "L.NOTE_COMPLETION",
+    "L.TABLE_COMPLETION",
+    "L.SENTENCE_COMPLETION",
+    "L.SUMMARY_COMPLETION",
+    "L.MAP_COMPLETION",
+    "L.SINGLE_CHOICE",
+    "L.MULTIPLE_CHOICE",
+    "L.INFORMATION_MATCHING",
+    "L.MAP_ORIENTATION",
+    "L.FLOW_CHART_COMPLETION",
+    "R.TRUE_FALSE_NOT_GIVEN",
+    "R.YES_NO_NOT_GIVEN",
+    "R.SUMMARY_COMPLETION",
+    "R.SENTENCE_COMPLETION",
+    "R.DIAGRAM_COMPLETION",
+    "R.TABLE_COMPLETION",
+    "R.WORD_BANK_COMPLETION",
+    "R.SHORT_ANSWER",
+    "R.PARAGRAPH_INFORMATION_MATCHING",
+    "R.SENTENCE_ENDING_MATCHING",
+    "R.PERSON_VIEW_MATCHING",
+    "R.DETAIL_INFORMATION_MATCHING",
+    "R.SINGLE_CHOICE",
+    "R.MULTIPLE_CHOICE",
+    "R.MATCHING_HEADINGS"
+  ],
+  "auxiliary_tag_codes": [
+    "skill:listening",
+    "skill:reading",
+    "scene:housing",
+    "scene:travel",
+    "scene:daily_service",
+    "scene:campus",
+    "scene:academic_course",
+    "scene:group_discussion",
+    "scene:research_lecture",
+    "scene:other",
+    "topic:humanities_history",
+    "topic:social_science",
+    "topic:technology",
+    "topic:biology",
+    "topic:geography",
+    "topic:environment",
+    "topic:education",
+    "topic:health",
+    "topic:archaeology",
+    "topic:society",
+    "topic:government_policy",
+    "topic:culture",
+    "topic:globalisation",
+    "topic:other",
+    "book:cambridge_ielts_08",
+    "book:cambridge_ielts_09",
+    "book:cambridge_ielts_10",
+    "book:cambridge_ielts_11",
+    "book:cambridge_ielts_12",
+    "book:cambridge_ielts_13",
+    "book:cambridge_ielts_14",
+    "book:cambridge_ielts_15",
+    "book:cambridge_ielts_16",
+    "book:cambridge_ielts_17",
+    "book:cambridge_ielts_18",
+    "book:cambridge_ielts_19",
+    "book:cambridge_ielts_20",
+    "book:cambridge_ielts_21",
+    "test:01",
+    "test:02",
+    "test:03",
+    "test:04",
+    "test:05",
+    "test:06",
+    "test:07",
+    "test:08",
+    "section:01",
+    "section:02",
+    "section:03",
+    "section:04",
+    "passage:01",
+    "passage:02",
+    "passage:03"
+  ],
+  "tag_rules": {
+    "primary_per_item": 1,
+    "primary_must_be_in_tags": true,
+    "dynamic_patterns": [
+      "book:cambridge_ielts_{NN}",
+      "test:{NN}",
+      "section:{NN}",
+      "passage:{NN}"
+    ]
+  },
+  "record_contract": {
+    "item_required": [
+      "id",
+      "skill",
+      "primary_tag",
+      "tags",
+      "review_required"
+    ],
+    "answer_required": [
+      "item_id"
+    ],
+    "review_required_rules": [
+      "scene:other or topic:other",
+      "classification confidence below configured threshold",
+      "OCR or page-boundary diagnostics present"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "1": {"code": "1", "name": "Information representation", "evidence": "AS data representation, multimedia graphics/sound and compression"},
+  "2": {"code": "2", "name": "Communication", "evidence": "AS networks, internet structure, transmission and network hardware"},
+  "3": {"code": "3", "name": "Hardware", "evidence": "AS computer components, input/output/storage and logic gates/circuits"},
+  "4": {"code": "4", "name": "Processor Fundamentals", "evidence": "CPU architecture, fetch-execute cycle, assembly language and bit manipulation"},
+  "5": {"code": "5", "name": "System Software", "evidence": "AS operating systems and language translators"},
+  "6": {"code": "6", "name": "Security, privacy and data integrity", "evidence": "AS data security, threats, protection, validation and verification"},
+  "7": {"code": "7", "name": "Ethics and Ownership", "evidence": "ethics, copyright, ownership, privacy and social impact"},
+  "8": {"code": "8", "name": "Databases", "evidence": "database concepts, DBMS, normalisation, DDL, DML and SQL"},
+  "9": {"code": "9", "name": "Algorithm Design and Problem-solving", "evidence": "AS computational thinking, decomposition, algorithms, flowcharts and pseudocode"},
+  "10": {"code": "10", "name": "Data Types and Structures", "evidence": "AS data types, records, arrays, files, stacks, queues and linked lists"},
+  "11": {"code": "11", "name": "Programming", "evidence": "AS variables, constructs, procedures/functions and structured programming"},
+  "12": {"code": "12", "name": "Software Development", "evidence": "program development lifecycle, requirements, design, testing and maintenance"},
+  "13": {"code": "13", "name": "Data Representation", "evidence": "user-defined types, file organisation/access and floating-point representation"},
+  "14": {"code": "14", "name": "Communication and internet technologies", "evidence": "advanced protocols, circuit switching and packet switching"},
+  "15": {"code": "15", "name": "Hardware and Virtual Machines", "evidence": "parallel processing, virtual machines, Boolean algebra and advanced logic circuits"},
+  "16": {"code": "16", "name": "System Software", "evidence": "advanced OS purposes, scheduling/memory management and translation software"},
+  "17": {"code": "17", "name": "Security", "evidence": "encryption, encryption protocols, digital certificates and authentication"},
+  "18": {"code": "18", "name": "Artificial Intelligence (AI)", "evidence": "AI, machine learning, expert systems and neural networks"},
+  "19": {"code": "19", "name": "Computational thinking and Problem-solving", "evidence": "advanced algorithms, abstraction, decomposition and recursion"},
+  "20": {"code": "20", "name": "Further Programming", "evidence": "programming paradigms, file processing and exception handling"}
+}

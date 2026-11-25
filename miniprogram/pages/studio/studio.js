@@ -1,185 +1,153 @@
 const workspace = require('../../utils/workspace');
+const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
-Page({
+
+function emptyForm() {
+  return { name: '', description: '', content: '', toolPermission: 'read_only', audience: 'all', enabled: true };
+}
+
+Page(withInputHints({
   data: {
-    id: '',
-    name: '',
-    description: '',
-    content: '',
-    toolInstructions: '',
-    models: [],
-    modelIndex: 0,
-    references: [],
-    status: 'draft',
+    mainTab: 'profile',
+    section: 'agents-manage',
+    drawerOpen: false,
+    teacher: true,
+    items: [],
+    onlyMine: false,
+    loading: false,
+    sheetOpen: false,
+    editingId: '',
+    form: emptyForm(),
+    formError: '',
     saving: false,
-    openingBuilder: false,
-    editorReady: false,
   },
-  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
-  async onLoad(options) {
+  onResize() {
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
+  },
+  async onLoad(options = {}) {
     this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
-    try {
-      const id =
-        options.id || (await l.request('/api/ai/agents', 'POST', {})).id;
-      this.setData({ id });
-      await this.load();
-    } catch (e) {
-      l.error(e);
+    await this.load();
+    if (options.id) {
+      await this.openEdit({ currentTarget: { dataset: { id: options.id } } });
     }
   },
-  onShow() {
-    if (this._refreshOnReturn) {
-      this._refreshOnReturn = false;
-      this.load();
-    }
-  },
+  ...workspace.drawer,
+  ...workspace.profileNav,
   back() {
     wx.navigateBack();
   },
-  input(e) {
-    this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
-  },
-  model(e) {
-    this.setData({ modelIndex: Number(e.detail.value) });
+  switchScope(e) {
+    const onlyMine = e.currentTarget.dataset.mine === '1';
+    this.setData({ onlyMine });
+    this.load();
   },
   async load() {
+    this.setData({ loading: true });
     try {
-      const [agent, models] = await Promise.all([
-        l.request('/api/ai/agents/' + this.data.id),
-        l.request('/api/ai/models'),
-      ]);
-      this.setData({
-        name: agent.name,
-        description: agent.description,
-        content: agent.skill?.content || '',
-        toolInstructions: agent.skill?.toolInstructions || '',
-        references: agent.skill?.references || [],
-        models,
-        modelIndex: Math.max(
-          0,
-          models.findIndex((x) => x.id === agent.draft_model_id),
-        ),
-        status: agent.status,
-        editorReady: true,
-      });
-      this._parameters = agent.draft_parameters;
-      this._savedDraft = JSON.stringify(this.draftInput());
+      const res = await l.request('/api/ai/agents?' + l.query({
+        scope: 'manage',
+        onlyMine: this.data.onlyMine ? 'true' : '',
+        pageSize: 50,
+      }));
+      this.setData({ items: res.items || [] });
     } catch (e) {
       l.error(e);
+    } finally {
+      this.setData({ loading: false });
     }
   },
-  draftInput() {
-    return {
-      name: this.data.name,
-      description: this.data.description,
-      content: this.data.content,
-      toolInstructions: this.data.toolInstructions,
-      references: this.data.references,
-      modelId: this.data.models[this.data.modelIndex]?.id,
-      parameters: this._parameters,
-    };
+  openCreate() {
+    this.setData({ sheetOpen: true, editingId: '', form: emptyForm(), formError: '' });
+  },
+  async openEdit(e) {
+    const id = e.currentTarget.dataset.id;
+    try {
+      const agent = await l.request('/api/ai/agents/' + id);
+      this.setData({
+        sheetOpen: true,
+        editingId: id,
+        formError: '',
+        form: {
+          name: agent.name || '',
+          description: agent.description || '',
+          content: agent.skill?.content || '',
+          toolPermission: agent.tool_permission === 'read_write' ? 'read_write' : 'read_only',
+          audience: agent.audience === 'teacher_only' ? 'teacher_only' : 'all',
+          enabled: agent.enabled !== 0 && agent.enabled !== false,
+        },
+      });
+    } catch (err) {
+      l.error(err);
+    }
+  },
+  closeSheet() {
+    if (!this.data.saving) this.setData({ sheetOpen: false, formError: '' });
+  },
+  formInput(e) {
+    this.setData({ [`form.${e.currentTarget.dataset.field}`]: e.detail.value });
+  },
+  formSelect(e) {
+    const { field, value } = e.currentTarget.dataset;
+    this.setData({ [`form.${field}`]: value });
   },
   async save() {
-    if (!this.data.editorReady || this.data.saving) return false;
-    const draft = this.draftInput();
-    this.setData({ saving: true });
+    const { form, editingId, saving } = this.data;
+    if (saving) return;
+    if (!String(form.name || '').trim()) return this.setData({ formError: '请输入名称' });
+    if (!String(form.content || '').trim()) return this.setData({ formError: '请输入 Prompt' });
+    this.setData({ saving: true, formError: '' });
     try {
-      await l.request('/api/ai/agents/' + this.data.id + '/draft', 'PUT', draft);
-      this._savedDraft = JSON.stringify(draft);
-      wx.showToast({ title: '草稿已保存' });
-      return true;
-    } catch (e) {
-      l.error(e);
-      return false;
+      if (editingId) {
+        await l.request('/api/ai/agents/' + editingId, 'PUT', form);
+      } else {
+        await l.request('/api/ai/agents', 'POST', form);
+      }
+      this.setData({ sheetOpen: false });
+      wx.showToast({ title: '已保存' });
+      await this.load();
+    } catch (err) {
+      this.setData({ formError: err.message || '保存失败' });
     } finally {
       this.setData({ saving: false });
     }
   },
-  async builder() {
-    if (!this.data.editorReady || this.data.saving || this.data.openingBuilder) return;
-    this.setData({ openingBuilder: true });
-    try {
-      if (this.data.content.trim() && JSON.stringify(this.draftInput()) !== this._savedDraft && !(await this.save())) return;
-      const conv = await l.request(
-        '/api/ai/agents/' + this.data.id + '/builder-sessions',
-        'POST',
-      );
-      await new Promise((resolve, reject) => {
-        wx.navigateTo({
-          url: '/pages/chat/chat?id=' + encodeURIComponent(conv.id),
-          events: { draftApplied: () => { this._refreshOnReturn = true; } },
-          success: resolve,
-          fail: reject,
-        });
-      });
-    } catch (e) {
-      l.error(e);
-    } finally {
-      this.setData({ openingBuilder: false });
-    }
-  },
-  async trial() {
-    if (!(await this.save())) return;
-    try {
-      const conv = await l.request(
-        '/api/ai/agents/' + this.data.id + '/test-conversations',
-        'POST',
-      );
-      l.go('/pages/chat/chat?id=' + conv.id);
-    } catch (e) {
-      l.error(e);
-    }
-  },
-  async publish() {
-    if (!(await this.save())) return;
-    try {
-      await l.request('/api/ai/agents/' + this.data.id + '/publish', 'POST');
-      this.setData({ status: 'published' });
-      wx.showToast({ title: '已发布' });
-    } catch (e) {
-      l.error(e);
-    }
-  },
-  async unpublish() {
-    try {
-      await l.request('/api/ai/agents/' + this.data.id + '/unpublish', 'POST');
-      this.setData({ status: 'unlisted' });
-      wx.showToast({ title: '已下架' });
-    } catch (e) {
-      l.error(e);
-    }
-  },
-  records() {
-    l.go('/pages/learning/index?section=history&agentId=' + this.data.id);
-  },
-  costs() {
-    l.go(
-      '/pages/learning/index?section=usage&scope=teacher&agentId=' +
-        this.data.id,
-    );
-  },
-  async material() {
-    try {
-      const file = await l.pickFile();
-      const doc = await l.upload('/api/library/upload', file);
-      this.setData({
-        references: this.data.references.concat({
-          resourceId: doc.resourceId,
-          revisionId: doc.revisionId,
-          title: file.name,
-        }),
-      });
-      l.openDocument(doc);
-    } catch (e) {
-      if (!String(e.errMsg || '').includes('cancel')) l.error(e);
-    }
-  },
-  removeReference(e) {
-    this.setData({
-      references: this.data.references.filter(
-        (x, i) => i !== Number(e.currentTarget.dataset.index),
-      ),
+  openMenu(e) {
+    const item = this.data.items[e.currentTarget.dataset.index];
+    if (!item) return;
+    wx.showActionSheet({
+      itemList: [
+        item.enabled ? '停用助手' : '启用助手',
+        item.pinned ? '取消置顶' : '置顶助手',
+        '删除助手',
+      ],
+      success: async ({ tapIndex }) => {
+        try {
+          if (tapIndex === 0) {
+            await l.request('/api/ai/agents/' + item.id + '/meta', 'PATCH', { enabled: !item.enabled });
+            await this.load();
+          } else if (tapIndex === 1) {
+            await l.request('/api/ai/agents/' + item.id + '/meta', 'PATCH', { pinned: !item.pinned });
+            await this.load();
+          } else if (tapIndex === 2) {
+            wx.showModal({
+              title: '确认删除',
+              content: `确定删除「${item.name}」？`,
+              confirmColor: '#a12540',
+              success: async res => {
+                if (!res.confirm) return;
+                try {
+                  await l.request('/api/ai/agents/' + item.id, 'DELETE', {});
+                  wx.showToast({ title: '已删除' });
+                  await this.load();
+                } catch (err) { l.error(err); }
+              },
+            });
+          }
+        } catch (err) {
+          l.error(err);
+        }
+      },
     });
   },
-});
+}));

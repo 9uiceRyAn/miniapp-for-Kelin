@@ -4,7 +4,7 @@ const path = require('node:path');
 const c = require('./core');
 const media = require('./media');
 const models = require('./models');
-const busy = new Set();
+const busy = new Map();
 async function insertRevision(db, resourceId, revisionId, stored, data) {
   const name = data.title;
   await c.rows(
@@ -36,7 +36,7 @@ async function insertRevision(db, resourceId, revisionId, stored, data) {
 }
 function documentExtension(name, message) {
   const extension = path.extname(name).toLowerCase();
-  if (!['.pdf', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp'].includes(extension))
+  if (!['.pdf', '.docx', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp'].includes(extension))
     c.fail(400, message);
   return extension;
 }
@@ -46,6 +46,7 @@ async function upload({
   name,
   conversationId = null,
   fileId = null,
+  waitForParse = false,
 }) {
   const extension = documentExtension(name, '支持文字、图片、PDF、DOCX');
   const stored = await media.blob(bytes, extension),
@@ -74,7 +75,7 @@ async function upload({
         db,
       );
   });
-  parse(revisionId, {
+  const processing = parse(revisionId, {
     user,
     agentId: conversationId
       ? (
@@ -84,7 +85,12 @@ async function upload({
         ).agent_id
       : null,
     purpose: 'parse',
-  }).catch(() => {});
+  });
+  if (waitForParse) {
+    await processing;
+    return { resourceId, revisionId, status: 'ready' };
+  }
+  processing.catch(() => {});
   return { resourceId, revisionId, status: 'queued' };
 }
 async function vision(bytes, mime, context, selectedModelId) {
@@ -116,7 +122,7 @@ async function vision(bytes, mime, context, selectedModelId) {
   );
 }
 async function extract(bytes, extension, context) {
-  if (extension === '.txt')
+  if (extension === '.txt' || extension === '.md')
     return [{ label: '正文', body: bytes.toString('utf8') }];
   if (extension === '.docx') {
     const result = await require('mammoth').extractRawText({ buffer: bytes });
@@ -175,9 +181,14 @@ async function extract(bytes, extension, context) {
     },
   ];
 }
-async function parse(revisionId, context) {
-  if (busy.has(revisionId)) return;
-  busy.add(revisionId);
+function parse(revisionId, context) {
+  if (!busy.has(revisionId)) {
+    const task = parseRevision(revisionId, context).finally(() => busy.delete(revisionId));
+    busy.set(revisionId, task);
+  }
+  return busy.get(revisionId);
+}
+async function parseRevision(revisionId, context) {
   try {
     const revision = await c.one('SELECT * FROM kl_revisions WHERE id=?', [
       revisionId,
@@ -233,8 +244,6 @@ async function parse(revisionId, context) {
         ],
       );
     throw e;
-  } finally {
-    busy.delete(revisionId);
   }
 }
 async function search(q = {}, user) {
@@ -243,6 +252,7 @@ async function search(q = {}, user) {
     where = [
       "r.visibility='public'",
       "r.type='document'",
+      '(r.source_file_id IS NULL OR EXISTS (SELECT 1 FROM files f WHERE f.id=r.source_file_id AND f.deleted_at IS NULL))',
       pending ? "(v.status='ready' OR r.owner_id=?)" : "v.status='ready'",
     ];
   if (q.q) {
@@ -319,13 +329,21 @@ async function replace(resource, user, bytes, name, options = {}) {
   return { resourceId: resource.id, revisionId, status: 'queued' };
 }
 
-async function indexFile(user, fileId) {
-  c.teacher(user);
-  const file = await c.one('SELECT * FROM files WHERE id=?', [fileId]);
+async function indexFile(user, fileId, { driveUpload = false } = {}) {
+  if (!driveUpload) c.teacher(user);
+  const file = await c.one('SELECT * FROM files WHERE id=? AND deleted_at IS NULL', [fileId]);
   if (!file) c.fail(404, '文件不存在');
+  if (user.role !== 'teacher' && String(file.uploader_id) !== String(user.id)) c.fail(403, '只能索引自己上传的文件');
   const existing = await c.one('SELECT id,current_revision FROM kl_resources WHERE namespace=? AND source_id=?', ['kelin-files', String(file.id)]);
-  if (existing) return { resourceId: existing.id, revisionId: existing.current_revision };
+  if (existing) {
+    if (driveUpload) {
+      await parse(existing.current_revision, { user, purpose: 'parse' });
+      const revision = await c.one('SELECT status FROM kl_revisions WHERE id=?', [existing.current_revision]);
+      return { resourceId: existing.id, revisionId: existing.current_revision, status: revision.status };
+    }
+    return { resourceId: existing.id, revisionId: existing.current_revision };
+  }
   const absolute = storedFilePath(file.storage_path);
-  return upload({user, bytes: await fs.readFile(absolute), name: file.original_name, fileId: file.id});
+  return upload({user, bytes: await fs.readFile(absolute), name: file.original_name, fileId: file.id, waitForParse: driveUpload});
 }
-module.exports = { replace, upload, vision, parse, search, resume, indexFile };
+module.exports = { replace, upload, vision, parse, search, resume, indexFile, extract };

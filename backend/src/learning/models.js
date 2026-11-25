@@ -25,10 +25,16 @@ async function gateway(endpoint, body, method = 'POST') {
   return result;
 }
 function publicModel(row) {
+  const caps = c.json(row.capabilities) || {};
   return {
     ...row,
     enabled: Boolean(row.enabled),
-    capabilities: c.json(row.capabilities),
+    capabilities: {
+      text: true,
+      tools: caps.tools !== false,
+      vision: true,
+      verified: caps.verified || {},
+    },
     parameters: c.json(row.parameters),
   };
 }
@@ -72,8 +78,8 @@ async function create(input) {
       remoteId,
       JSON.stringify({
         text: true,
-        tools: Boolean(input.capabilities?.tools),
-        vision: Boolean(input.capabilities?.vision),
+        tools: input.capabilities?.tools !== false,
+        vision: true,
         verified: {},
       }),
       JSON.stringify(c.parameters(input.parameters || {})),
@@ -104,8 +110,8 @@ async function update(id, input) {
         input.capabilities
           ? {
               text: true,
-              tools: Boolean(input.capabilities.tools),
-              vision: Boolean(input.capabilities.vision),
+              tools: input.capabilities.tools !== false,
+              vision: true,
               verified: model.capabilities.verified || {},
             }
           : model.capabilities,
@@ -234,7 +240,7 @@ async function usage(user, query = {}, scope = 'self') {
   } else if (scope === 'self') {
     conditions.push('u.user_id=?');
     args.push(user.id);
-  } else await c.admin(user);
+  } else c.teacher(user);
   for (const [key, col] of [
     ['agentId', 'agent_id'],
     ['userId', 'user_id'],
@@ -279,17 +285,22 @@ async function settings() {
       c.json(x.data),
     ]),
   );
+  const fallback =
+    values.defaultChatModelId ||
+    values.builderModelId ||
+    values.visionModelId ||
+    process.env.BUILDER_MODEL_ID ||
+    null;
   return {
-    builderModelId:
-      values.builderModelId || process.env.BUILDER_MODEL_ID || null,
-    visionModelId: values.visionModelId || process.env.VISION_MODEL_ID || null,
+    defaultChatModelId: fallback,
+    builderModelId: values.builderModelId || fallback,
+    visionModelId:
+      values.visionModelId || process.env.VISION_MODEL_ID || fallback,
   };
 }
-async function probe(user, id, kind = 'text') {
-  const model = await resolve(id),
-    operation = c.id(),
-    pricing = await price(id);
-  if (!['text', 'tools', 'vision'].includes(kind)) c.fail(400, '未知能力测试');
+async function probeSingle(user, model, kind) {
+  const operation = c.id(),
+    pricing = await price(model.id);
   const messages = [
     {
       role: 'user',
@@ -343,7 +354,7 @@ async function probe(user, id, kind = 'text') {
     await record(
       { user, purpose: 'admin_test' },
       operation,
-      id,
+      model.id,
       null,
       pricing,
       { incomplete: true },
@@ -353,7 +364,7 @@ async function probe(user, id, kind = 'text') {
   await record(
     { user, purpose: 'admin_test' },
     operation,
-    id,
+    model.id,
     tokenUsage(result.usage),
     pricing,
     { requestId: result.id },
@@ -366,6 +377,48 @@ async function probe(user, id, kind = 'text') {
     c.fail(422, '模型未返回所需工具调用');
   if (kind !== 'tools' && !String(answer?.content || '').trim())
     c.fail(422, '模型没有返回有效内容');
+}
+async function probe(user, id, kind = 'all') {
+  const model = await resolve(id);
+  if (kind === 'all') {
+    const results = {};
+    const verified = { ...(model.capabilities.verified || {}) };
+    const passed = [];
+    const failed = [];
+    for (const k of ['text', 'tools', 'vision']) {
+      try {
+        await probeSingle(user, model, k);
+        verified[k] = new Date().toISOString();
+        results[k] = { ok: true };
+        passed.push(k);
+      } catch (e) {
+        results[k] = { ok: false, message: e.message };
+        failed.push(k);
+        delete verified[k];
+      }
+    }
+    const capabilities = {
+      ...model.capabilities,
+      text: true,
+      tools: true,
+      vision: true,
+      verified,
+    };
+    await c.rows('UPDATE kl_models SET capabilities=? WHERE id=?', [
+      JSON.stringify(capabilities),
+      id,
+    ]);
+    if (!passed.length) c.fail(422, results.text?.message || '模型连接测试失败');
+    return {
+      kind: 'all',
+      results,
+      message: failed.length
+        ? `文字/工具/视觉部分通过 (${passed.length}/3)`
+        : '全部能力验证通过',
+    };
+  }
+  if (!['text', 'tools', 'vision'].includes(kind)) c.fail(400, '未知能力测试');
+  await probeSingle(user, model, kind);
   const capabilities = {
     ...model.capabilities,
     [kind]: true,

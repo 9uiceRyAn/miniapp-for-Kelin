@@ -11,6 +11,14 @@ async function renderOrOriginal(message) {
 const toolNames = {
   propose_library_change: '准备资料操作',
   search_existing_files: '查找已有 A–E 资料',
+  read_question_skill: '读取学科分类规范',
+  list_taxonomy: '读取题库分类标签',
+  get_question_detail: '读取题目详情',
+  create_question: '录入新题到题库',
+  create_question_draft: '录入新题到题库',
+  propose_question_update: '准备改题确认卡片',
+  propose_question_batch_update: '准备批量改题确认卡片',
+  propose_taxonomy_change: '准备标签变更确认卡片',
   search_questions: '检索题库',
   search_library: '检索教学资料',
   get_question_image: '读取题图',
@@ -34,6 +42,7 @@ Page(withInputHints({
     conversation: null,
     teacher: false,
     libraryActions: [],
+    questionActions: [],
     confirmingAction: '',
     applyingDraft: false,
     messages: [],
@@ -165,6 +174,12 @@ Page(withInputHints({
         teacher: user.role === 'teacher',
         libraryError: '',
         libraryActions: result.libraryActions || [],
+        questionActions: (result.questionActions || []).map(action => ({
+          ...action,
+          statusLabel: action.status === 'partial_failure'
+            ? '成功 ' + action.result.succeeded.length + ' 道，失败 ' + action.result.failed.length + ' 道'
+            : ({ applying: '正在执行', confirmed: '已确认并写入题库', rejected: '已取消', failed: '执行失败' })[action.status] || '等待确认 · 确认后将修改题库',
+        })),
         assets: result.assets.map((x) => ({
           ...x,
           selected:
@@ -205,6 +220,27 @@ Page(withInputHints({
       await l.request('/api/ai/conversations/' + this.data.id + '/library-actions/' + id + '/confirm', 'POST', {});
       await this.load();
     } catch (e) { l.error(e); await this.load(); }
+    finally { this.setData({ confirmingAction: '' }); }
+  },
+  async confirmQuestionAction(e) {
+    if (this.data.confirmingAction || this.data.readOnly) return;
+    const id = e.currentTarget.dataset.id;
+    this.setData({ confirmingAction: id });
+    try {
+      const outcome = await l.request('/api/ai/conversations/' + this.data.id + '/question-actions/' + id + '/confirm', 'POST', {});
+      wx.showToast({ title: outcome.status === 'confirmed' ? '已确认执行' : '部分操作失败', icon: 'none' });
+      await this.load();
+    } catch (e) { l.error(e); await this.load(); }
+    finally { this.setData({ confirmingAction: '' }); }
+  },
+  async rejectQuestionAction(e) {
+    if (this.data.confirmingAction || this.data.readOnly) return;
+    const id = e.currentTarget.dataset.id;
+    this.setData({ confirmingAction: id });
+    try {
+      await l.request('/api/ai/conversations/' + this.data.id + '/question-actions/' + id + '/reject', 'POST', {});
+      await this.load();
+    } catch (e) { l.error(e); }
     finally { this.setData({ confirmingAction: '' }); }
   },
   async retryAnswer() {

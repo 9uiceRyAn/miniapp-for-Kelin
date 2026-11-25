@@ -11,8 +11,10 @@ function prune(map, now) {
 
 function unlock(req) {
   c.teacher(req.user);
-  const hash = process.env.MODEL_MANAGEMENT_PASSWORD_HASH;
-  if (!hash) c.fail(503, '尚未配置 API 管理密码');
+  const hash =
+    process.env.ADMIN_MANAGEMENT_PASSWORD_HASH ||
+    process.env.MODEL_MANAGEMENT_PASSWORD_HASH;
+  if (!hash) c.fail(503, '尚未配置管理员密码');
   const now = Date.now();
   prune(attempts, now);
   prune(grants, now);
@@ -21,7 +23,7 @@ function unlock(req) {
   if (typeof req.body.password !== 'string' || !verifyPassword(req.body.password, hash)) {
     entry.count++;
     attempts.set(req.user.id, entry);
-    c.fail(403, '管理密码错误');
+    c.fail(403, '管理员密码错误');
   }
   attempts.delete(req.user.id);
   const token = randomToken();
@@ -32,8 +34,12 @@ function unlock(req) {
 function authorize(req, res, next) {
   c.teacher(req.user);
   const grant = grants.get(req.authTokenHash);
-  if (!grant || grant.expires <= Date.now() || grant.hash !== hashToken(req.get('X-Management-Token')))
-    c.fail(403, '请重新输入 API 管理密码');
+  if (!grant || grant.expires <= Date.now() || grant.hash !== hashToken(req.get('X-Management-Token'))) {
+    const err = new Error('请输入管理员密码');
+    err.status = 403;
+    err.code = 'MANAGEMENT_LOCKED';
+    throw err;
+  }
   next();
 }
 module.exports = { unlock, authorize };

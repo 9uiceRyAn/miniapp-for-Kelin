@@ -1,1 +1,119 @@
-<view class="device-nav learning-page" style="{{navigationStyle}}"><view class="nav"><text class="back" bindtap="back">‹ 返回</text><text>教师工作台</text></view><text class="title">创建与管理教学助手</text><text class="sub">草稿修改不影响已发布版本和已有会话。</text><view class="actions"><button hover-class="motion-pressed" hover-stay-time="70" class="primary" bindtap="builder" loading="{{openingBuilder}}" disabled="{{openingBuilder||saving||!editorReady}}">与创建助手一起编写</button><button hover-class="motion-pressed" hover-stay-time="70" bindtap="material" disabled="{{!editorReady}}">添加公共教学资料</button></view><view class="card" wx:if="{{editorReady}}"><text class="label">名称</text><input value="{{name}}" data-field="name" bindinput="input"/><text class="label">教学用途</text><textarea value="{{description}}" data-field="description" bindinput="input"/><text class="label">教学指令</text><textarea value="{{content}}" data-field="content" bindinput="input" maxlength="-1"/><text class="label">工具使用说明</text><textarea value="{{toolInstructions}}" data-field="toolInstructions" bindinput="input"/><text class="label">教学模型</text><picker range="{{models}}" range-key="name" value="{{modelIndex}}" bindchange="model"><view class="picker">{{models[modelIndex].name||'请先由管理员配置模型'}}</view></picker><view wx:for="{{references}}" wx:key="resourceId" class="row"><text class="grow">{{item.title||item.resourceId}}</text><button hover-class="motion-pressed" hover-stay-time="70" data-index="{{index}}" bindtap="removeReference">移除引用</button></view><view class="actions"><button hover-class="motion-pressed" hover-stay-time="70" bindtap="save" loading="{{saving}}" disabled="{{saving||openingBuilder}}">保存草稿</button><button hover-class="motion-pressed" hover-stay-time="70" bindtap="trial" disabled="{{saving||openingBuilder}}">试聊当前草稿</button><button hover-class="motion-pressed" hover-stay-time="70" class="primary" bindtap="publish" disabled="{{saving||openingBuilder}}">发布新版本</button><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{status==='published'}}" bindtap="unpublish">下架</button></view><text class="sub">当前状态：{{status}}。试聊固定启动时的草稿；发布后所有已登录学生均可使用。</text></view><view class="actions"><button hover-class="motion-pressed" hover-stay-time="70" bindtap="records">学生会话与作业</button><button hover-class="motion-pressed" hover-stay-time="70" bindtap="costs">使用与费用</button></view></view>
+<view class="device-nav workspace-shell" style="{{navigationStyle}}">
+  <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
+  <include src="../../templates/workspace-sidebar.wxml"/>
+  <view class="workspace-main">
+    <view class="workspace-header">
+      <view class="header-start"><text>AI Agent 预设管理</text></view>
+    </view>
+    <view class="workspace-content">
+      <view class="ws-toolbar-primary">
+        <button class="ws-btn ws-btn-primary" bindtap="openCreate">＋ 新建助手</button>
+      </view>
+    <text class="subpage-subtitle">只需填写名称、简介、一段话 Prompt、工具权限与可用范围；保存即对选定范围生效。</text>
+
+    <view class="ws-segment" style="margin-bottom: 16px;">
+      <button class="ws-segment-item {{onlyMine?'':'is-selected'}}" data-mine="0" bindtap="switchScope">全部助手</button>
+      <button class="ws-segment-item {{onlyMine?'is-selected':''}}" data-mine="1" bindtap="switchScope">我创建的</button>
+    </view>
+
+    <view class="ws-list" wx:if="{{items.length}}">
+      <view wx:for="{{items}}" wx:key="id" class="ws-list-row">
+        <view class="ws-list-main">
+          <view class="ws-list-title-row">
+            <text class="ws-list-title">{{item.name}}</text>
+            <text wx:if="{{item.pinned}}" class="ws-badge ws-badge-success">置顶</text>
+            <text class="ws-badge {{item.enabled?'ws-badge-default':'ws-badge-danger'}}">{{item.enabled?'已启用':'已停用'}}</text>
+          </view>
+          <text wx:if="{{item.description}}" class="ws-list-meta">{{item.description}}</text>
+          <view class="ws-badge-row">
+            <text class="ws-badge ws-badge-default">{{item.tool_permission==='read_write'?'可改':'只读'}}</text>
+            <text class="ws-badge {{item.audience==='teacher_only'?'ws-badge-draft':'ws-badge-default'}}">{{item.audience==='teacher_only'?'仅教师可用':'所有人可用'}}</text>
+            <text wx:if="{{item.teacherName}}" class="ws-badge ws-badge-default">{{item.teacherName}}</text>
+          </view>
+        </view>
+        <view class="ws-list-actions">
+          <button class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.id}}" bindtap="openEdit">编辑</button>
+          <button class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="openMenu" aria-label="更多操作">⋯</button>
+        </view>
+      </view>
+    </view>
+    <view wx:elif="{{loading}}" class="ws-empty">正在读取助手列表…</view>
+    <view wx:else class="ws-empty">暂无助手，点击上方「＋ 新建助手」创建</view>
+    </view>
+  </view>
+  <include src="../../templates/workspace-bottom.wxml"/>
+
+  <!-- 5 项极简编辑抽屉 -->
+  <block wx:if="{{sheetOpen}}">
+    <view class="ws-overlay" bindtap="closeSheet"/>
+    <view class="ws-sheet" role="dialog" aria-label="{{editingId?'编辑助手':'新建助手'}}">
+      <view class="ws-sheet-header">
+        <view>
+          <text class="ws-sheet-title">{{editingId?'编辑教学助手':'新建教学助手'}}</text>
+          <text class="ws-sheet-subtitle">配置助手角色、工具权限与可见范围</text>
+        </view>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭">×</button>
+      </view>
+      <scroll-view scroll-y class="ws-sheet-body">
+        <text class="ws-field-label">名称</text>
+        <input
+          class="ws-input"
+          value="{{form.name}}"
+          data-field="name"
+          bindinput="formInput"
+          maxlength="191"
+          data-hint-id="agentName"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='agentName'?'':'例如：数学答疑助教'}}"
+        />
+
+        <text class="ws-field-label">简介（选填）</text>
+        <input
+          class="ws-input"
+          value="{{form.description}}"
+          data-field="description"
+          bindinput="formInput"
+          maxlength="300"
+          data-hint-id="agentDesc"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='agentDesc'?'':'一句话说明助手用途'}}"
+        />
+
+        <text class="ws-field-label">Prompt（一段话指令）</text>
+        <textarea
+          class="ws-textarea"
+          style="min-height: 160px;"
+          value="{{form.content}}"
+          data-field="content"
+          bindinput="formInput"
+          maxlength="-1"
+          data-hint-id="agentPrompt"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='agentPrompt'?'':'描述助手的角色定位、回答风格和注意事项…'}}"
+        />
+
+        <text class="ws-field-label">工具权限</text>
+        <view class="ws-segment">
+          <button class="ws-segment-item {{form.toolPermission==='read_only'?'is-selected':''}}" data-field="toolPermission" data-value="read_only" bindtap="formSelect">只读（仅查资料与题库）</button>
+          <button class="ws-segment-item {{form.toolPermission==='read_write'?'is-selected':''}}" data-field="toolPermission" data-value="read_write" bindtap="formSelect">可改（仅对教师生效）</button>
+        </view>
+
+        <text class="ws-field-label">可用范围</text>
+        <view class="ws-segment">
+          <button class="ws-segment-item {{form.audience==='all'?'is-selected':''}}" data-field="audience" data-value="all" bindtap="formSelect">所有人可用</button>
+          <button class="ws-segment-item {{form.audience==='teacher_only'?'is-selected':''}}" data-field="audience" data-value="teacher_only" bindtap="formSelect">仅教师可用</button>
+        </view>
+
+        <view wx:if="{{formError}}" class="ws-error-box">{{formError}}</view>
+        <view class="ws-sheet-spacer"/>
+      </scroll-view>
+      <view class="ws-sheet-footer">
+        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
+        <button class="ws-btn ws-btn-primary" bindtap="save" loading="{{saving}}" disabled="{{saving||!form.name||!form.content}}">保存</button>
+      </view>
+    </view>
+  </block>
+</view>

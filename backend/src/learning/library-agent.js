@@ -65,7 +65,7 @@ async function validate(user, conversationId, input) {
   let resource, source;
   if (input.action === 'index_file') {
     if (!/^\d+$/.test(String(input.fileId))) c.fail(400, '请选择有效的已有资料');
-    const file = await c.one('SELECT id,original_name FROM files WHERE id=?', [input.fileId]);
+    const file = await c.one('SELECT id,original_name FROM files WHERE id=? AND deleted_at IS NULL', [input.fileId]);
     if (!file) c.fail(404, '原资料已不存在');
     proposal.fileId = file.id;
     proposal.title = file.original_name;
@@ -102,7 +102,7 @@ async function propose(input, context) {
 async function searchFiles(input, context) {
   await authorize(context.user, context.conversationId);
   const pagination = c.page({page:input.page,pageSize:10});
-  const where = ['original_name LIKE ?'];
+  const where = ['deleted_at IS NULL', 'original_name LIKE ?'];
   const values = [c.containsPattern(input.query || '')];
   if (input.category) {
     if (!/^[A-E]$/.test(input.category)) c.fail(400, '资料分类应为 A–E');

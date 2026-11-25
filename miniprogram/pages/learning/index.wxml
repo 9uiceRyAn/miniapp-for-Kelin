@@ -3,33 +3,37 @@
  <include src="../../templates/workspace-sidebar.wxml"/>
  <view class="workspace-main"><view class="workspace-header"><view class="header-start"><text>{{sectionTitle}}</text><text wx:if="{{section==='bank'}}" class="breadcrumb">/ {{subjectLabel}}</text></view><text wx:if="{{section!=='profile'}}" class="header-account" data-id="profile" bindtap="selectMain">{{user.display_name||user.name||'个人'}}</text></view>
  <view class="workspace-content {{section==='agents'?'chat-landing':section==='profile'?'profile-content':''}} motion-scene-{{motionRevision%2}}">
-  <block wx:if="{{section==='bank'}}"><view class="heading-row"><text class="workspace-title">{{subjectLabel}}</text><button hover-class="motion-pressed" hover-stay-time="70" class="subtle-button" bindtap="toggleFilters">筛选 {{filtersOpen?'−':'＋'}}</button></view>
+  <block wx:if="{{section==='bank'}}"><view class="heading-row"><text class="workspace-title">{{subjectLabel}}</text><view style="display:flex;align-items:center;gap:10px;"><button wx:if="{{teacher}}" hover-class="motion-pressed" hover-stay-time="70" class="subtle-button" bindtap="openAddQuestionMenu">＋ 添加题</button><button hover-class="motion-pressed" hover-stay-time="70" class="subtle-button" bindtap="toggleFilters">筛选 {{filtersOpen?'−':'＋'}}</button></view></view>
    <view class="workspace-search"><input data-hint-id="hint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" placeholder="{{inputHintFocus==='hint0'?'':'搜索题目、知识点或试卷编号'}}" data-field="q" bindinput="input" bindconfirm="search"/><button hover-class="motion-pressed" hover-stay-time="70" bindtap="search" aria-label="搜索题目">搜索</button></view>
-   <view class="advanced-filters" wx:if="{{filtersOpen}}"><picker range="{{collections}}" range-key="label" value="{{collectionIndex}}" data-field="collection" bindchange="filter"><view class="picker">{{collections[collectionIndex].label}}</view></picker><picker range="{{skills}}" range-key="label" value="{{skillIndex}}" data-field="skill" bindchange="filter"><view class="picker">{{skills[skillIndex].label}}</view></picker><view class="row"><text>仅显示可用题</text><switch checked="{{usableOnly}}" bindchange="usable" color="#242424"/></view><view class="row"><text>仅显示待审核</text><switch checked="{{reviewRequired==='true'}}" bindchange="review" color="#242424"/></view><button hover-class="motion-pressed" hover-stay-time="70" bindtap="clear">重置筛选</button></view>
+   <view class="advanced-filters" wx:if="{{filtersOpen}}"><picker range="{{collections}}" range-key="label" value="{{collectionIndex}}" data-field="collection" bindchange="filter"><view class="picker">{{collections[collectionIndex].label}}</view></picker><picker range="{{skills}}" range-key="label" value="{{skillIndex}}" data-field="skill" bindchange="filter"><view class="picker">{{skills[skillIndex].label}}</view></picker><button hover-class="motion-pressed" hover-stay-time="70" bindtap="clear">重置筛选</button></view>
    <text class="workspace-label">知识点</text><view class="knowledge-tags"><button hover-class="motion-pressed" hover-stay-time="70" wx:for="{{tags}}" wx:key="key" class="knowledge-tag {{tagIndex===index?'selected':''}}" data-index="{{index}}" bindtap="selectTag">{{item.displayLabel||item.label}}</button></view>
    <view class="results-summary"><text>共 {{total}} 道题目</text><text wx:if="{{tag}}">{{tags[tagIndex].label}}</text></view>
-   <view class="question-group" wx:for="{{questionGroups}}" wx:key="key" wx:for-item="group"><view class="group-heading"><text>{{group.label}}</text><text class="group-count">已载入 {{group.items.length}} 题</text></view><view class="question-row" wx:for="{{group.items}}" wx:key="id" data-id="{{item.resourceId}}" data-revision="{{item.revisionId}}" bindtap="openItem"><image wx:if="{{item.thumbnailUrl}}" class="question-thumb" src="{{item.thumbnailUrl}}" mode="aspectFit"/><view class="question-copy"><text class="question-title">{{item.title}}</text><text class="question-meta">{{item.collection_label}} · {{item.skill_label}}</text><text class="question-meta" wx:if="{{item.review_required||item.release_status==='provisional'}}">{{item.review_required?'待审核':''}} {{item.release_status==='provisional'?'暂定发布':''}}</text></view><text class="question-arrow">→</text></view></view>
+   <view class="question-group" wx:for="{{questionGroups}}" wx:key="key" wx:for-item="group"><view class="group-heading"><text>{{group.label}}</text><text class="group-count">已载入 {{group.items.length}} 题</text></view><view class="question-row" wx:for="{{group.items}}" wx:key="id" data-id="{{item.resourceId}}" data-revision="{{item.revisionId}}" bindtap="openItem"><image wx:if="{{item.thumbnailUrl}}" class="question-thumb" src="{{item.thumbnailUrl}}" mode="aspectFit"/><view class="question-copy"><text class="question-title">{{item.title}}</text><text class="question-meta">{{item.collection_label}} · {{item.skill_label}}</text></view><text class="question-arrow">→</text></view></view>
   </block>
   <block wx:elif="{{section==='agents'}}"><view class="chat-welcome"><text class="workspace-title">今天想弄懂什么？</text></view><view class="landing-composer"><textarea data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{landingText}}" data-field="landingText" bindinput="input" maxlength="-1" placeholder="{{inputHintFocus==='hint1'?'':'提出问题，或从题库带入一道题…'}}"/><view class="composer-tools"><picker class="agent-picker" wx:if="{{items.length}}" range="{{items}}" range-key="name" value="{{agentIndex}}" bindchange="chooseAgent" aria-label="选择教学助手"><view class="agent-choice" hover-class="agent-choice-pressed" hover-stay-time="70"><text class="agent-choice-name">{{items[agentIndex].name}}</text><view class="agent-choice-chevron" aria-hidden="true"/></view></picker><text wx:else class="workspace-subtitle">暂无可用教学助手</text><button hover-class="motion-pressed" hover-stay-time="70" class="send-button" disabled="{{!items.length||startingChat}}" loading="{{startingChat}}" bindtap="startChat" aria-label="开始聊天">↑</button></view></view><view class="chat-suggestions"><button hover-class="motion-pressed" hover-stay-time="70" data-id="bank" bindtap="selectMain">从题库选一道题</button></view><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{total > items.length}}" class="agent-more" bindtap="more" loading="{{loading}}">加载更多教学助手</button></block>
   <block wx:elif="{{section==='profile'}}">
    <view class="profile-hub">
     <view class="profile-identity">
-     <view class="profile-avatar" aria-hidden="true">{{profileInitial}}</view>
-     <view class="profile-user"><text class="profile-name">{{user.display_name||user.name||user.username||'我的空间'}}</text><view class="profile-roles"><text class="profile-role">{{teacher?'教师账号':'学生账号'}}</text><text wx:if="{{admin}}" class="profile-admin-role">平台管理员</text></view></view>
+     <button class="profile-avatar" open-type="chooseAvatar" bind:chooseavatar="onChooseProfileAvatar" aria-label="更换头像"><image wx:if="{{profileAvatarUrl}}" class="profile-avatar-img" src="{{profileAvatarUrl}}" mode="aspectFill"/><text wx:else>{{profileInitial}}</text></button>
+     <view class="profile-user"><text class="profile-name">{{user.display_name||user.name||user.username||'我的空间'}}</text><view class="profile-roles"><text class="profile-role">{{teacher?'教师账号':'学生账号'}}</text></view></view>
     </view>
     <view class="profile-hub-grid">
      <view class="profile-section">
-      <view class="profile-section-heading"><text>{{teacher||admin?'管理与用量':'账户与用量'}}</text><text>工作台</text></view>
+      <view class="profile-section-heading"><text>{{teacher?'管理与用量':'账户与用量'}}</text><text>工作台</text></view>
       <view class="profile-link-group">
-       <button wx:if="{{teacher}}" class="profile-link" bindtap="openConnections"><view class="profile-link-copy"><text class="profile-link-title">API 管理</text><text class="profile-link-description">模型连接、密钥与能力验证</text></view><text class="profile-link-arrow">›</text></button>
+       <button wx:if="{{teacher}}" class="profile-link" hover-class="motion-pressed" hover-stay-time="70" bindtap="openAgentPresets">
+        <view class="profile-link-icon"><view class="profile-glyph profile-icon-agent"/></view>
+        <view class="profile-link-copy"><text class="profile-link-title">AI Agent 预设管理</text><text class="profile-link-description">管理助手名称、Prompt 与权限</text></view>
+        <text class="profile-link-arrow" aria-hidden="true">›</text>
+       </button>
        <button wx:if="{{teacher}}" class="profile-link" hover-class="motion-pressed" hover-stay-time="70" bindtap="openTeacherManagement">
         <view class="profile-link-icon"><view class="profile-glyph profile-icon-agent"/></view>
-        <view class="profile-link-copy"><text class="profile-link-title">教师管理</text><text class="profile-link-description">管理师生账号与注册码</text></view>
+        <view class="profile-link-copy"><text class="profile-link-title">账号管理</text><text class="profile-link-description">管理师生账号与注册码（需密码）</text></view>
         <text class="profile-link-arrow" aria-hidden="true">›</text>
        </button>
        <button hover-class="motion-pressed" hover-stay-time="70" class="profile-link" data-id="usage" bindtap="selectSection"><view class="profile-link-icon"><view class="profile-glyph profile-icon-usage"/></view><view class="profile-link-copy"><text class="profile-link-title">用量与费用</text><text class="profile-link-description">调用记录与费用估算</text></view><text class="profile-link-arrow" aria-hidden="true">›</text></button>
-       <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{admin}}" class="profile-link profile-question-management" bindtap="home"><view class="profile-link-icon"><view class="profile-glyph profile-icon-bank"/></view><view class="profile-link-copy"><text class="profile-link-title">题库管理</text><text class="profile-link-description">题目上传、标签与发布</text></view><text class="profile-link-arrow" aria-hidden="true">›</text></button>
-       <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{admin}}" class="profile-link" bindtap="openAdmin"><view class="profile-link-icon"><view class="profile-glyph profile-icon-platform"><view/><view/><view/><view/></view></view><view class="profile-link-copy"><text class="profile-link-title">平台管理</text><text class="profile-link-description">模型连接与价格配置</text></view><text class="profile-link-arrow" aria-hidden="true">›</text></button>
+       <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{teacher}}" class="profile-link profile-question-management" bindtap="home"><view class="profile-link-icon"><view class="profile-glyph profile-icon-bank"/></view><view class="profile-link-copy"><text class="profile-link-title">题库管理</text><text class="profile-link-description">题目维护、分类标签与 AI 整理</text></view><text class="profile-link-arrow" aria-hidden="true">›</text></button>
+       <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{teacher}}" class="profile-link" bindtap="openAdmin"><view class="profile-link-icon"><view class="profile-glyph profile-icon-platform"><view/><view/><view/><view/></view></view><view class="profile-link-copy"><text class="profile-link-title">平台与 API 管理</text><text class="profile-link-description">模型连接、密钥与价格（需密码）</text></view><text class="profile-link-arrow" aria-hidden="true">›</text></button>
       </view>
      </view>
     </view>
@@ -37,14 +41,62 @@
    </view>
   </block>
   <block wx:else><text class="workspace-title">{{sectionTitle}}</text></block>
-  <view wx:if="{{section==='library'&&!teacher}}" class="workspace-search"><input data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" placeholder="{{inputHintFocus==='hint2'?'':'搜索资料正文'}}" data-field="q" bindinput="input" bindconfirm="search"/><button hover-class="motion-pressed" hover-stay-time="70" bindtap="search">搜索</button></view>
-  <view wx:if="{{section==='library'&&teacher}}" class="empty"><text>{{libraryError}}</text><button class="primary" bindtap="openLibraryManager" loading="{{startingChat}}" disabled="{{startingChat}}">{{libraryError?'重试':'进入教学资料管家'}}</button><button wx:if="{{libraryError}}" bindtap="openConnections">API 管理</button></view>
-  <block wx:if="{{section!=='agents' && section!=='profile' && !(section==='library'&&teacher)}}">
+  <block wx:if="{{section==='library'}}">
+   <view class="drive-breadcrumbs">
+    <text class="drive-crumb" bindtap="openDriveFolder" data-id="">根目录</text>
+    <block wx:for="{{driveBreadcrumbs}}" wx:key="id">
+     <text class="drive-crumb-sep">/</text>
+     <text class="drive-crumb" bindtap="openDriveFolder" data-id="{{item.id}}">{{item.name}}</text>
+    </block>
+   </view>
+   <view class="workspace-search">
+    <input data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" placeholder="{{inputHintFocus==='hint2'?'':'搜索全网盘文件或文件夹'}}" data-field="q" bindinput="input" bindconfirm="search"/>
+    <button hover-class="motion-pressed" hover-stay-time="70" bindtap="search">搜索</button>
+   </view>
+   <view class="drive-toolbar">
+    <view class="drive-toolbar-actions">
+     <button class="ws-btn ws-btn-primary ws-btn-sm" bindtap="driveUpload" loading="{{driveUploading}}" disabled="{{driveUploading}}">上传文件</button>
+     <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="openDriveNewFolder">＋ 新建文件夹</button>
+     <button wx:if="{{driveFolderId}}" class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="exportDriveFolder">导出目录</button>
+     <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="openDriveTrash">回收站</button>
+     <button wx:if="{{teacher}}" class="ws-btn ws-btn-ghost ws-btn-sm" bindtap="openLibraryManager">AI 管家</button>
+    </view>
+    <view class="drive-mark-toggle"><text>隐藏已标记</text><switch checked="{{driveHideMarked}}" bindchange="toggleDriveHideMarked" color="#242424"/></view>
+   </view>
+   <view class="ws-list" wx:if="{{driveFolders.length || driveFiles.length}}">
+    <view wx:for="{{driveFolders}}" wx:key="id" class="ws-list-row">
+     <view class="ws-list-main" data-id="{{item.id}}" bindtap="openDriveFolder">
+      <view class="ws-list-title-row"><text class="ws-list-title">📁 {{item.name}}</text></view>
+      <text class="ws-list-meta">文件夹 · {{item.owner_name||'系统'}}</text>
+     </view>
+     <view class="ws-list-actions" wx:if="{{item.canEdit}}">
+      <button class="ws-btn ws-btn-secondary ws-btn-sm" data-type="folder" data-index="{{index}}" bindtap="openDriveMenu">⋯</button>
+     </view>
+    </view>
+    <view wx:for="{{driveFiles}}" wx:key="id" class="ws-list-row">
+     <view class="drive-mark-box {{item.marked?'is-marked':''}}" data-id="{{item.id}}" data-marked="{{item.marked}}" bindtap="toggleDriveMark">{{item.marked?'✓':''}}</view>
+     <view class="ws-list-main" data-index="{{index}}" bindtap="previewDriveFile">
+      <view class="ws-list-title-row">
+       <text class="ws-list-title">{{item.original_name}}</text>
+       <text wx:if="{{item.ai_index_status==='ready'}}" class="ws-badge ws-badge-success">AI已索引</text>
+       <text wx:elif="{{item.ai_index_status==='queued'}}" class="ws-badge ws-badge-draft">索引中</text>
+      </view>
+      <text class="ws-list-meta">{{item.sizeLabel}} · {{item.uploader_name||'成员'}} · {{item.timeLabel}}</text>
+     </view>
+     <view class="ws-list-actions">
+      <button class="ws-btn ws-btn-secondary ws-btn-sm" data-type="file" data-index="{{index}}" bindtap="openDriveMenu">⋯</button>
+     </view>
+    </view>
+   </view>
+   <view wx:elif="{{loading}}" class="ws-empty">正在读取网盘…</view>
+   <view wx:else class="ws-empty">当前目录暂无资料</view>
+  </block>
+  <block wx:if="{{section!=='agents' && section!=='profile' && section!=='library'}}">
  <view wx:if="{{section==='teacher'}}" class="actions"><button hover-class="motion-pressed" hover-stay-time="70" class="primary" bindtap="create">＋ 创建教学助手</button></view>
 
  <view wx:if="{{section==='usage'}}" class="usage-dashboard">
   <text class="usage-subtitle">查看调用记录与费用估算。</text>
-  <view class="usage-scopes" aria-label="统计范围"><button hover-class="motion-pressed" hover-stay-time="70" class="usage-scope {{scope==='self'?'is-selected':''}}" data-id="self" bindtap="scope">我的使用</button><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{teacher}}" class="usage-scope {{scope==='teacher'?'is-selected':''}}" data-id="teacher" bindtap="scope">我的助手</button><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{admin}}" class="usage-scope {{scope==='admin'?'is-selected':''}}" data-id="admin" bindtap="scope">全平台</button></view>
+  <view class="usage-scopes" aria-label="统计范围"><button hover-class="motion-pressed" hover-stay-time="70" class="usage-scope {{scope==='self'?'is-selected':''}}" data-id="self" bindtap="scope">我的使用</button><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{teacher}}" class="usage-scope {{scope==='teacher'?'is-selected':''}}" data-id="teacher" bindtap="scope">我的助手</button><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{teacher}}" class="usage-scope {{scope==='admin'?'is-selected':''}}" data-id="admin" bindtap="scope">全平台</button></view>
   <view class="usage-period-row"><text>{{usagePeriod}}</text><button hover-class="motion-pressed" hover-stay-time="70" class="usage-filter-toggle" bindtap="toggleUsageFilters" aria-expanded="{{usageFiltersOpen}}">筛选 {{usageFiltersOpen?'−':'＋'}}</button></view>
   <view wx:if="{{usageFiltersOpen}}" class="usage-filter-panel"><view class="usage-date-fields"><view><text class="usage-field-label">开始日期</text><picker mode="date" value="{{from}}" data-field="from" bindchange="date"><view class="usage-date-value">{{from||'不限'}}</view></picker></view><view><text class="usage-field-label">结束日期</text><picker mode="date" value="{{to}}" data-field="to" bindchange="date"><view class="usage-date-value">{{to||'不限'}}</view></picker></view></view><view wx:if="{{scope!=='self'}}"><text class="usage-field-label">使用人</text><input data-hint-id="hint5" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="usage-user-filter" data-field="userId" value="{{userId}}" bindinput="input" placeholder="{{inputHintFocus==='hint5'?'':'账号 ID，可留空'}}"/></view><text class="usage-time-note">日期按北京时间筛选</text><text wx:if="{{usageFilterError}}" class="error">{{usageFilterError}}</text><view class="usage-filter-actions"><button hover-class="motion-pressed" hover-stay-time="70" bindtap="resetUsageFilters">重置</button><button hover-class="motion-pressed" hover-stay-time="70" class="primary" bindtap="applyUsageFilters">应用筛选</button></view></view>
   <view class="usage-overview"><view class="usage-overview-heading"><text>预估费用</text><text>人民币参考折算</text></view><view wx:if="{{usageOverview.cnyAmount!==null}}" class="usage-cny-total"><text class="usage-cny-label">约合人民币</text><view class="usage-amount-line"><text class="usage-amount">¥ {{usageOverview.cnyAmount}}</text><text class="usage-currency-code">CNY</text></view><text wx:if="{{usageOverview.cnyExcludedCalls}}" class="usage-cny-excluded">另有 {{usageOverview.cnyExcludedCalls}} 次已估算调用缺少参考汇率，未计入折算</text></view><view wx:if="{{usageOverview.currencies.length}}" class="usage-currencies"><view wx:for="{{usageOverview.currencies}}" wx:key="currency" class="usage-currency"><view class="usage-amount-line"><text class="usage-amount">{{item.amount===null?'待核实':item.amount}}</text><text class="usage-currency-code">{{item.currency}}</text></view><text wx:if="{{item.cnyAmount!==null&&item.currency!=='CNY'}}" class="usage-cny-equivalent">≈ ¥ {{item.cnyAmount}}</text><text class="usage-estimated-calls">{{item.calls}} 次调用可估算</text></view></view><view wx:else class="usage-no-estimate"><text>{{usageOverview.totalCalls?'暂无法估算':'暂无使用记录'}}</text></view><text class="usage-exchange-note">{{usageOverview.exchangeNote}} · 国家外汇管理局中间价</text><text wx:if="{{usageOverview.cnyAmount===null&&usageOverview.cnyExcludedCalls}}" class="usage-cny-excluded">{{usageOverview.cnyExcludedCalls}} 次已估算调用缺少参考汇率，暂无法折算人民币</text><view class="usage-total-line"><text>共 {{usageOverview.totalCalls}} 次调用</text><text>不含待核实金额</text></view></view>
@@ -63,4 +115,53 @@
  <view wx:if="{{loading}}" class="empty">正在读取…</view><view wx:elif="{{items.length===0&&section!=='usage'}}" class="empty">暂无匹配内容</view><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{items.length<total}}" loading="{{loading}}" bindtap="more">加载更多</button>
 </block>
  </view></view><include src="../../templates/workspace-bottom.wxml"/>
+
+ <!-- 网盘：新建/重命名抽屉 -->
+ <block wx:if="{{driveSheet==='name'}}">
+  <view class="ws-overlay" bindtap="closeDriveSheet"/>
+  <view class="ws-sheet" role="dialog" aria-label="{{driveEditTitle}}">
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">{{driveEditTitle}}</text></view><button class="ws-sheet-close" bindtap="closeDriveSheet" aria-label="关闭">×</button></view>
+   <scroll-view scroll-y class="ws-sheet-body">
+    <text class="ws-field-label">名称</text>
+    <input class="ws-input" value="{{driveEditName}}" data-field="driveEditName" bindinput="input" data-hint-id="driveName" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='driveName'?'':'输入名称'}}"/>
+    <view class="ws-sheet-spacer"/>
+   </scroll-view>
+   <view class="ws-sheet-footer"><button class="ws-btn ws-btn-secondary" bindtap="closeDriveSheet">取消</button><button class="ws-btn ws-btn-primary" bindtap="submitDriveName" disabled="{{!driveEditName}}">确认</button></view>
+  </view>
+ </block>
+
+ <!-- 网盘：移动目录树抽屉 -->
+ <block wx:if="{{driveSheet==='move'}}">
+  <view class="ws-overlay" bindtap="closeDriveSheet"/>
+  <view class="ws-sheet" role="dialog" aria-label="移动到目录">
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">移动到目录</text></view><button class="ws-sheet-close" bindtap="closeDriveSheet" aria-label="关闭">×</button></view>
+   <scroll-view scroll-y class="ws-sheet-body">
+    <view class="drive-tree-item {{driveMoveTarget===''?'is-selected':''}}" data-id="" bindtap="pickMoveTarget"><text>根目录</text></view>
+    <view wx:for="{{driveTree}}" wx:key="id" class="drive-tree-item {{driveMoveTarget===item.id?'is-selected':''}}" data-id="{{item.id}}" bindtap="pickMoveTarget"><text>{{item.indent}}{{item.name}}</text></view>
+    <view class="ws-sheet-spacer"/>
+   </scroll-view>
+   <view class="ws-sheet-footer"><button class="ws-btn ws-btn-secondary" bindtap="closeDriveSheet">取消</button><button class="ws-btn ws-btn-primary" bindtap="submitDriveMove">移动到此处</button></view>
+  </view>
+ </block>
+
+ <!-- 网盘：回收站抽屉 -->
+ <block wx:if="{{driveSheet==='trash'}}">
+  <view class="ws-overlay" bindtap="closeDriveSheet"/>
+  <view class="ws-sheet" role="dialog" aria-label="回收站">
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">回收站</text><text class="ws-sheet-subtitle">学生仅可恢复自己的资料；教师可彻底清理</text></view><button class="ws-sheet-close" bindtap="closeDriveSheet" aria-label="关闭">×</button></view>
+   <scroll-view scroll-y class="ws-sheet-body">
+    <view wx:for="{{driveTrashFolders}}" wx:key="id" class="ws-list-row">
+     <view class="ws-list-main"><text class="ws-list-title">📁 {{item.name}}</text><text class="ws-list-meta">{{item.owner_name||'成员'}}</text></view>
+     <view class="ws-list-actions"><button class="ws-btn ws-btn-secondary ws-btn-sm" data-type="folder" data-id="{{item.id}}" bindtap="restoreDriveTrash">恢复</button><button wx:if="{{teacher}}" class="ws-btn ws-btn-danger ws-btn-sm" data-type="folder" data-id="{{item.id}}" bindtap="purgeDriveTrash">彻底删除</button></view>
+    </view>
+    <view wx:for="{{driveTrashFiles}}" wx:key="id" class="ws-list-row">
+     <view class="ws-list-main"><text class="ws-list-title">{{item.original_name}}</text><text class="ws-list-meta">{{item.uploader_name||'成员'}}</text></view>
+     <view class="ws-list-actions"><button class="ws-btn ws-btn-secondary ws-btn-sm" data-type="file" data-id="{{item.id}}" bindtap="restoreDriveTrash">恢复</button><button wx:if="{{teacher}}" class="ws-btn ws-btn-danger ws-btn-sm" data-type="file" data-id="{{item.id}}" bindtap="purgeDriveTrash">彻底删除</button></view>
+    </view>
+    <view wx:if="{{!driveTrashFolders.length && !driveTrashFiles.length}}" class="ws-empty">回收站为空</view>
+    <view class="ws-sheet-spacer"/>
+   </scroll-view>
+   <view class="ws-sheet-footer"><button class="ws-btn ws-btn-secondary" bindtap="closeDriveSheet">关闭</button></view>
+  </view>
+ </block>
 </view>

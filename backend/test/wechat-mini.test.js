@@ -32,7 +32,7 @@ test('mini login, registration, binding and teacher access survive web retiremen
   });
   await connection.changeUser({ database: dbName });
   for (const file of ['fixtures/base.sql', '../../database/migrations/003_wechat_identity.sql',
-    '../../database/migrations/004_teacher_accounts.sql']) {
+    '../../database/migrations/004_teacher_accounts.sql', '../../database/migrations/009_user_avatar.sql']) {
     const sql = await fs.readFile(path.join(__dirname, file), 'utf8');
     for (const statement of sql.split(';').filter(s => s.trim())) await connection.query(statement);
   }

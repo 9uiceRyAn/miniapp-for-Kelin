@@ -3,16 +3,8 @@ const withInputHints = require('../../utils/input-hints');
 // 题库管理：筛选题目、编辑修订、上传媒体、预览导入和删除恢复。
 const l = require('../../utils/learning');
 const states = [
-  { value: 'all', label: '全部题目' },
-  { value: 'published', label: '已发布' },
-  { value: 'provisional', label: '暂定发布' },
-  { value: 'draft', label: '草稿' },
+  { value: 'active', label: '正常题目' },
   { value: 'deleted', label: '已删除' },
-];
-const releases = [
-  { value: 'draft', label: '草稿' },
-  { value: 'published', label: '已发布' },
-  { value: 'provisional', label: '暂定发布' },
 ];
 const kindNames = { question: '题目', answer: '答案', ms: '评分标准', sm: '参考解答', audio: '音频', source: '附件' };
 const endpoint = '/api/question-bank/admin';
@@ -20,24 +12,31 @@ Page(withInputHints({
   data: {
     mainTab: 'profile', section: 'question-management', drawerOpen: false, safeTop: 0,
     teacher: false, admin: false, checking: true,
-    items: [], total: 0, page: 1, loading: false, error: '', q: '', reviewRequired: false,
+    items: [], total: 0, page: 1, loading: false, error: '', q: '',
     states, stateIndex: 0, subjects: [{ value: '', label: '全部学科' }], subjectIndex: 0,
     collections: [{ value: '', label: '全部数据集' }], collectionIndex: 0,
     formOpen: false, editingId: '', editingRevision: '', form: {}, formError: '', saving: false, uploading: false,
-    releases, releaseIndex: 0, formSubjects: [], formSubjectIndex: 0, formCollections: [], formCollectionIndex: 0,
+    formSubjects: [], formSubjectIndex: 0, formCollections: [], formCollectionIndex: 0,
     importPreview: null, importBusy: false, importResult: '',
+    batchMode: false, selectedCount: 0,
+    taxonomyOpen: false, taxSubjects: [], taxCollections: [], taxTags: [], collectionTagOptions: [],
+    newSubjectCode: '', newSubjectLabel: '', newColSubject: '', newColCode: '', newColLabel: '', newTagCol: '', newTagCode: '', newTagLabel: '',
+    aiBusy: false, aiDrafts: [], aiAttachment: null,
   },
   onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
-  async onLoad() {
+  async onLoad(options = {}) {
     this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     try {
       const me = await l.request('/api/ai/me');
-      this.setData({ teacher: me.user.role === 'teacher', admin: me.admin, checking: false });
-      if (!me.admin) return;
+      const isTeacher = me.user.role === 'teacher';
+      this.setData({ teacher: isTeacher, admin: isTeacher, checking: false });
+      if (!isTeacher) return;
       await this.readFacets();
       await this.load(true);
       this._ready = true;
+      if (options.action === 'new') this.newQuestion();
+      else if (options.action === 'taxonomy') this.openTaxonomy();
     } catch (error) { this.setData({ checking: false, error: error.message }); l.error(error); }
   },
   onShow() { if (this._ready) this.load(true); },
@@ -46,17 +45,11 @@ Page(withInputHints({
     return refresh.finally(() => wx.stopPullDownRefresh());
   },
   ...workspace.drawer,
-  home() { this.closeDrawer(); },
+  ...workspace.profileNav,
   back() {
     if (getCurrentPages().length > 1) wx.navigateBack();
     else wx.redirectTo({ url: '/pages/learning/index?section=profile' });
   },
-  selectMain(event) {
-    const section = { chat: 'agents', bank: 'bank', library: 'library', profile: 'profile' }[event.currentTarget.dataset.id];
-    if (section) wx.redirectTo({ url: '/pages/learning/index?section=' + section });
-  },
-  selectSection(event) { wx.redirectTo({ url: '/pages/learning/index?section=' + event.currentTarget.dataset.id }); },
-  openAdmin() { l.go('/pages/admin/admin'); },
   async readFacets() {
     const rows = await l.request(endpoint + '/facets');
     this._facets = rows;
@@ -83,10 +76,10 @@ Page(withInputHints({
       const result = await l.request(endpoint + '/items?' + l.query({
         q: this.data.q, subject: this.data.subjects[this.data.subjectIndex]?.value,
         collection: this.data.collections[this.data.collectionIndex]?.value,
-        state: states[this.data.stateIndex].value, reviewRequired: this.data.reviewRequired ? 'true' : '', page,
+        state: states[this.data.stateIndex].value, page,
       }));
       if (request !== this._request) return;
-      const items = result.items.map(item => ({ ...item, thumbnailUrl: item.thumbnail ? l.url(item.thumbnail.path) : '', stateLabel: item.visibility === 'withdrawn' ? '已删除' : states.find(x => x.value === item.release_status)?.label || '已发布' }));
+      const items = result.items.map(item => ({ ...item, thumbnailUrl: item.thumbnail ? l.url(item.thumbnail.path) : '', stateLabel: item.visibility === 'withdrawn' ? '已删除' : '' }));
       this.setData({ items: reset ? items : this.data.items.concat(items), total: result.total, page });
     } catch (error) { if (request === this._request) { this.setData({ error: error.message }); l.error(error); } }
     finally { if (request === this._request) this.setData({ loading: false }); }
@@ -99,7 +92,6 @@ Page(withInputHints({
     if (field === 'subjectIndex') this.setCollections();
     return this.load(true);
   },
-  review(event) { this.setData({ reviewRequired: event.detail.value }); return this.load(true); },
   more() { return this.load(false); },
   async openQuestion(event) {
     const item = this.data.items.find(x => x.resourceId === event.currentTarget.dataset.id);
@@ -120,28 +112,36 @@ Page(withInputHints({
     const formCollectionIndex = collection ? Math.max(0, formCollections.findIndex(x => x.value === collection)) : formCollections.findIndex(x => x.value === manual);
     this.setData({ formSubjects, formSubjectIndex, formCollections, formCollectionIndex });
   },
+  openAddQuestionMenu() {
+    if (!this.data.admin) return;
+    wx.showActionSheet({
+      itemList: ['AI 导入', '人工导入（单题）'],
+      success: (res) => {
+        if (res.tapIndex === 0) this.openCurator();
+        else if (res.tapIndex === 1) this.newQuestion();
+      },
+    });
+  },
   newQuestion() {
     if (!this.data.admin) return;
     this.formOptions(this.data.subjects[this.data.subjectIndex]?.value, '');
-    this.setData({ inputHintFocus: '', formOpen: true, drawerOpen: false, editingId: '', editingRevision: '', formError: '', releaseIndex: 0,
-      form: { title: '', sourceId: '', questionText: '', answerText: '', tagsText: '', reviewRequired: true, attachments: [] } });
+    this.setData({ inputHintFocus: '', formOpen: true, drawerOpen: false, editingId: '', editingRevision: '', formError: '',
+      form: { title: '', sourceId: '', questionText: '', answerText: '', tagsText: '', attachments: [] } });
   },
   async editQuestion(event) {
     if (this.data.saving || this.data.uploading) return;
     try {
       const item = await l.request(endpoint + '/items/' + event.currentTarget.dataset.id);
       this.formOptions(item.subject, item.collection, item);
-      this.setData({ inputHintFocus: '', formOpen: true, drawerOpen: false, editingId: item.resourceId, editingRevision: item.revisionId, formError: '', releaseIndex: Math.max(0, releases.findIndex(x => x.value === (item.release_status || 'published'))),
-        form: { title: item.title, sourceId: item.id, questionText: item.question_text || '', answerText: item.answer_text || '', tagsText: (item.tags || []).map(code => code + ' | ' + (item.tag_names?.[code] || code)).join('\n'), reviewRequired: Boolean(item.review_required), attachments: item.attachments.map(a => ({ ...a, key: a.id, name: a.label, kindLabel: kindNames[a.kind] || '附件', previewUrl: a.path ? l.url(a.path) : '' })) } });
+      this.setData({ inputHintFocus: '', formOpen: true, drawerOpen: false, editingId: item.resourceId, editingRevision: item.revisionId, formError: '',
+        form: { title: item.title, sourceId: item.id, questionText: item.question_text || '', answerText: item.answer_text || '', tagsText: (item.tags || []).map(code => code + ' | ' + (item.tag_names?.[code] || code)).join('\n'), attachments: item.attachments.map(a => ({ ...a, key: a.id, name: a.label, kindLabel: kindNames[a.kind] || '附件', previewUrl: a.path ? l.url(a.path) : '' })) } });
     } catch (error) { l.error(error); }
   },
   closeForm() { if (!this.data.saving && !this.data.uploading) { this.resetInputHints(); this.setData({ formOpen: false, formError: '' }); } },
   formInput(event) { this.setData({ ['form.' + event.currentTarget.dataset.field]: event.detail.value }); },
-  formReview(event) { this.setData({ 'form.reviewRequired': event.detail.value }); },
   formPick(event) {
     const field = event.currentTarget.dataset.field;
-    if (field === 'releaseIndex') this.setData({ releaseIndex: Number(event.detail.value) });
-    else if (!this.data.editingId && field === 'formSubjectIndex') this.formOptions(this.data.formSubjects[Number(event.detail.value)].value, '');
+    if (!this.data.editingId && field === 'formSubjectIndex') this.formOptions(this.data.formSubjects[Number(event.detail.value)].value, '');
     else if (!this.data.editingId) this.setData({ formCollectionIndex: Number(event.detail.value) });
   },
   async addAttachment(event) {
@@ -182,7 +182,6 @@ Page(withInputHints({
       await l.request(endpoint + '/items' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', {
         sourceId: form.sourceId, title: form.title, subject: subject.value, subjectLabel: subject.label, collection: collection.value, collectionLabel: collection.label,
         questionText: form.questionText, answerText: form.answerText, tags, tagNames,
-        reviewRequired: form.reviewRequired, releaseStatus: releases[this.data.releaseIndex].value,
         expectedRevisionId: this.data.editingRevision,
         attachments: form.attachments.map(a => ({ id: a.id, token: a.token, kind: a.kind, label: a.label })),
       });
@@ -232,5 +231,132 @@ Page(withInputHints({
       await this.readFacets(); await this.load(true);
     } catch (error) { this.setData({ error: error.message }); }
     finally { this.setData({ importBusy: false }); }
+  },
+  toggleBatchMode() {
+    const batchMode = !this.data.batchMode;
+    this.setData({
+      batchMode,
+      selectedCount: 0,
+      items: this.data.items.map(x => ({ ...x, selected: false })),
+    });
+  },
+  toggleSelectItem(e) {
+    const idx = Number(e.currentTarget.dataset.index);
+    const items = this.data.items.map((x, i) => (i === idx ? { ...x, selected: !x.selected } : x));
+    this.setData({ items, selectedCount: items.filter(x => x.selected).length });
+  },
+  async runBatch(e) {
+    const action = e.currentTarget.dataset.action;
+    const ids = this.data.items.filter(x => x.selected).map(x => x.resourceId);
+    if (!ids.length) return;
+    try {
+      const res = await l.request(endpoint + '/items/batch', 'POST', { ids, action });
+      wx.showToast({ title: `已完成 ${res.succeeded.length} 题` });
+      this.setData({ batchMode: false, selectedCount: 0 });
+      await this.load(true);
+    } catch (err) { l.error(err); }
+  },
+  async openTaxonomy() {
+    try {
+      const data = await l.request(endpoint + '/taxonomy');
+      this.setData({
+        taxonomyOpen: true,
+        taxSubjects: data.subjects || [],
+        taxCollections: data.collections || [],
+        taxTags: data.tags || [],
+      });
+    } catch (err) { l.error(err); }
+  },
+  closeTaxonomy() {
+    this.setData({ taxonomyOpen: false });
+  },
+  taxInput(e) {
+    this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
+  },
+  async addSubject() {
+    try {
+      await l.request(endpoint + '/subjects', 'POST', { code: this.data.newSubjectCode, label: this.data.newSubjectLabel });
+      this.setData({ newSubjectCode: '', newSubjectLabel: '' });
+      await this.openTaxonomy();
+      await this.readFacets();
+    } catch (err) { l.error(err); }
+  },
+  async addCollection() {
+    try {
+      await l.request(endpoint + '/collections', 'POST', { subjectCode: this.data.newColSubject, code: this.data.newColCode, label: this.data.newColLabel });
+      this.setData({ newColCode: '', newColLabel: '' });
+      await this.openTaxonomy();
+      await this.readFacets();
+    } catch (err) { l.error(err); }
+  },
+  async addTag() {
+    try {
+      await l.request(endpoint + '/tags', 'POST', { collectionCode: this.data.newTagCol, code: this.data.newTagCode, label: this.data.newTagLabel });
+      this.setData({ newTagCode: '', newTagLabel: '' });
+      await this.openTaxonomy();
+    } catch (err) { l.error(err); }
+  },
+  async removeTaxItem(e) {
+    const { kind, id } = e.currentTarget.dataset;
+    try {
+      await l.request(endpoint + '/' + kind + '/' + encodeURIComponent(id), 'DELETE', {});
+      await this.openTaxonomy();
+      await this.readFacets();
+    } catch (err) { l.error(err); }
+  },
+  toggleFormTag(e) {
+    const { code, label } = e.currentTarget.dataset;
+    const lines = String(this.data.form.tagsText || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    const existsIdx = lines.findIndex(line => line.split('|')[0].trim() === code);
+    if (existsIdx >= 0) lines.splice(existsIdx, 1);
+    else lines.push(`${code} | ${label}`);
+    this.setData({ 'form.tagsText': lines.join('\n') });
+  },
+  async aiIngest() {
+    if (this.data.aiBusy) return;
+    try {
+      const file = await l.pickFile(true);
+      this.setData({ aiBusy: true });
+      const res = await l.upload(endpoint + '/ai-ingest', file);
+      this.setData({ aiDrafts: res.candidates || [], aiAttachment: res.attachment || null });
+    } catch (err) {
+      if (!String(err?.errMsg || '').includes('cancel')) l.error(err);
+    } finally {
+      this.setData({ aiBusy: false });
+    }
+  },
+  closeAiDrafts() {
+    this.setData({ aiDrafts: [], aiAttachment: null });
+  },
+  applyAiDraft(e) {
+    const draft = this.data.aiDrafts[Number(e.currentTarget.dataset.index)];
+    if (!draft) return;
+    this.formOptions(this.data.subjects[this.data.subjectIndex]?.value, '');
+    const att = this.data.aiAttachment ? [{ ...this.data.aiAttachment, key: this.data.aiAttachment.token, kindLabel: '题目' }] : [];
+    this.setData({
+      aiDrafts: [],
+      aiAttachment: null,
+      formOpen: true,
+      editingId: '',
+      editingRevision: '',
+      form: {
+        title: draft.title || '',
+        sourceId: '',
+        questionText: draft.questionText || '',
+        answerText: draft.answerText || '',
+        tagsText: (draft.tags || []).map(t => `${t} | ${t}`).join('\n'),
+        attachments: att,
+      },
+    });
+  },
+  async openCurator() {
+    const pages = getCurrentPages();
+    const index = pages.map(p => p.route).lastIndexOf('pages/learning/index');
+    if (index >= 0 && index < pages.length - 1) {
+      await pages[index].selectAgentPreset('question_curator');
+      wx.navigateBack({ delta: pages.length - 1 - index });
+    } else {
+      wx.redirectTo({ url: '/pages/learning/index?section=agents&presetKey=question_curator' });
+    }
   },
 }));

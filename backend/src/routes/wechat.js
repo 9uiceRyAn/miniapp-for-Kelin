@@ -28,7 +28,7 @@ async function session(db, user) {
   if (user.status !== 1) fail(403, '账号已停用');
   const token = randomToken();
   await db.execute('INSERT INTO auth_sessions(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(NOW(),INTERVAL 12 HOUR))', [user.id, hashToken(token)]);
-  return { token, user: { id: user.id, username: user.username, displayName: user.display_name || user.username, role: user.role } };
+  return { token, user: { id: user.id, username: user.username, displayName: user.display_name || user.username, role: user.role, avatarUrl: user.avatar_url || '' } };
 }
 async function identify(db, appid, identity) {
   const [rows] = await db.execute('SELECT u.* FROM wx_identities i JOIN users u ON u.id=i.user_id WHERE (i.app_id=? AND i.open_id=?) OR (? IS NOT NULL AND i.union_id=?) FOR UPDATE',

@@ -60,9 +60,8 @@ async function verify(mediaId, value) {
   if (!item.storage_path) fail(410, '原媒体不可用');
   return item;
 }
-async function requirePublishedQuestion(user, resource, status) {
-  if (resource.type === 'question' && status === 'draft' && !(await capability(user)))
-    fail(403, '题目尚未发布');
+async function requirePublishedQuestion() {
+  // Question bank no longer uses draft/publish gating; withdrawn items are blocked by requireResource.
 }
 async function requireResource(user, resourceId) {
   const resource = await one('SELECT * FROM kl_resources WHERE id=?', [
@@ -72,7 +71,7 @@ async function requireResource(user, resourceId) {
   if (resource.visibility === 'withdrawn') fail(410, '资料已撤下');
   if (
     resource.source_file_id &&
-    !(await one('SELECT id FROM files WHERE id=?', [resource.source_file_id]))
+    !(await one('SELECT id FROM files WHERE id=? AND deleted_at IS NULL', [resource.source_file_id]))
   )
     fail(410, '原文件已删除');
   if (resource.visibility === 'public') return resource;

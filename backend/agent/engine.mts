@@ -6,6 +6,7 @@ export interface EngineInput {
   model: { gateway_id: string; parameters: Record<string, unknown> };
   visionAvailable: boolean;
   libraryManagement?: boolean;
+  questionCurator?: boolean;
   instructions: string;
   messages: any[];
   signal: AbortSignal;
@@ -76,6 +77,71 @@ export async function execute(input: EngineInput) {
     description: '查询原有 A–E 文件库，找到 fileId 后用 index_file 提案加入教学资料检索。不会上传或删除原文件。',
     schema: z.object({query:z.string().optional(),category:z.enum(['A','B','C','D','E']).optional(),page:z.number().optional()}),
   };
+  if (input.questionCurator) {
+    definitions.read_question_skill = {
+      description: '读取题库学科分类 Skill 与官方 taxonomy；不传 skillId 或传 list 时返回可用 Skill 列表。',
+      schema: z.object({
+        skillId: z.string().optional(),
+        includeTaxonomy: z.boolean().optional(),
+      }),
+    };
+    definitions.list_taxonomy = {
+      description: '读取线上题库当前的学科、数据集和知识点标签树。',
+      schema: z.object({}),
+    };
+    definitions.get_question_detail = {
+      description: '根据 resourceId 获取题库中某道题目的完整详情与当前 revisionId。',
+      schema: z.object({ resourceId: z.string() }),
+    };
+    definitions.create_question = {
+      description: '直接录入一道新题到题库（立即生效）。录入前应先通过 read_question_skill 和 list_taxonomy 确认学科、数据集和标签。',
+      schema: z.object({
+        title: z.string(),
+        subject: z.string(),
+        subjectLabel: z.string().optional(),
+        collection: z.string(),
+        collectionLabel: z.string().optional(),
+        sourceId: z.string().optional(),
+        questionText: z.string().optional(),
+        answerText: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        tagNames: z.record(z.string(), z.string()).optional(),
+      }),
+    };
+    definitions.propose_question_update = {
+      description: '提交修改已有题目的确认卡片，教师点击确认后才生效。须提供真实 resourceId 与 expectedRevisionId。',
+      schema: z.object({
+        resourceId: z.string(),
+        expectedRevisionId: z.string(),
+        title: z.string().optional(),
+        questionText: z.string().optional(),
+        answerText: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        tagNames: z.record(z.string(), z.string()).optional(),
+        summary: z.string().optional(),
+      }),
+    };
+    definitions.propose_question_batch_update = {
+      description: '提交批量修改已有题目的确认卡片（增删标签、删除或恢复），教师点击确认后才生效。',
+      schema: z.object({
+        ids: z.array(z.string()),
+        action: z.enum(['add_tags', 'remove_tags', 'delete', 'restore']),
+        tags: z.array(z.any()).optional(),
+        summary: z.string().optional(),
+      }),
+    };
+    definitions.propose_taxonomy_change = {
+      description: '提交新增或更新学科、数据集、知识点标签的确认卡片，教师点击确认后才生效。',
+      schema: z.object({
+        operation: z.enum(['save_subject', 'save_collection', 'save_tag']).optional(),
+        code: z.string(),
+        label: z.string(),
+        subjectCode: z.string().optional(),
+        collectionCode: z.string().optional(),
+        summary: z.string().optional(),
+      }),
+    };
+  }
   if (process.env.TAVILY_API_KEY)
     definitions.web_search = {
       description: '搜索互联网，返回实际网页来源及引用键。',

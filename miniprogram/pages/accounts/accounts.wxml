@@ -1,65 +1,186 @@
-<view class="workspace-shell accounts">
-  <text wx:if="{{error && !editingId}}" class="error">{{error}}</text>
-  <text wx:if="{{busy && !authorized}}">加载中…</text>
-  <block wx:if="{{authorized}}">
-    <view class="card account-list">
-      <view class="section-line"><text class="heading">账号</text><text class="meta">共 {{total}} 个</text></view>
-      <text class="field-label">用户名或显示名</text>
-      <view class="field-action">
-        <input aria-label="用户名或显示名" value="{{q}}" data-field="q" bindinput="input" confirm-type="search" bindconfirm="search"/>
-        <button class="primary" disabled="{{busy}}" bindtap="search">搜索</button>
-      </view>
-      <view class="filters">
-        <picker disabled="{{busy}}" range="{{['全部角色','教师','学生']}}" value="{{role==='teacher'?1:role==='student'?2:0}}" bindchange="role" aria-label="筛选角色">
-          <view class="picker-face"><text>角色 · {{role==='teacher'?'教师':role==='student'?'学生':'全部'}}</text><view class="chevron" aria-hidden="true"/></view>
-        </picker>
-        <picker disabled="{{busy}}" range="{{['全部状态','已启用','已停用']}}" value="{{status==='1'?1:status==='0'?2:0}}" bindchange="status" aria-label="筛选状态">
-          <view class="picker-face"><text>状态 · {{status==='1'?'已启用':status==='0'?'已停用':'全部'}}</text><view class="chevron" aria-hidden="true"/></view>
-        </picker>
-      </view>
-      <view wx:for="{{users}}" wx:key="id" class="user">
-        <view class="section-line">
-          <view class="identity">
-            <text class="user-title">{{item.display_name||item.username}}</text>
-            <text wx:if="{{item.display_name && item.display_name!==item.username}}" class="username">{{item.username}}</text>
-            <text class="meta">{{item.role==='teacher'?'教师':'学生'}} · {{item.status===1?'已启用':'已停用'}}{{item.id===selfId?' · 当前账号':''}}</text>
-          </view>
-          <button class="manage" data-index="{{index}}" bindtap="toggleUser" disabled="{{busy}}" aria-expanded="{{editingId===item.id}}" aria-label="{{editingId===item.id?'收起':'管理'}} {{item.username}}">{{editingId===item.id?'收起':'管理'}}</button>
-        </view>
-        <view wx:if="{{editingId===item.id}}" class="editor">
-          <text class="field-label">显示名</text>
-          <view class="field-action">
-            <input aria-label="{{item.username}} 的显示名" value="{{editedName}}" data-field="editedName" bindinput="input" maxlength="30"/>
-            <button data-index="{{index}}" data-action="name" bindtap="update" disabled="{{busy||!editedName}}">保存显示名</button>
-          </view>
-          <text class="field-label">新密码（6–72 位）</text>
-          <view class="field-action">
-            <input aria-label="{{item.username}} 的新密码，6 至 72 位" password="{{true}}" value="{{editedPassword}}" data-field="editedPassword" bindinput="input" maxlength="72"/>
-            <button data-index="{{index}}" data-action="password" bindtap="update" disabled="{{busy||editedPassword.length<6}}">重置密码</button>
-          </view>
-          <button wx:if="{{item.id!==selfId}}" class="status-action {{item.status===1?'danger':''}}" data-index="{{index}}" data-action="status" bindtap="update" disabled="{{busy}}">{{item.status===1?'停用账号':'启用账号'}}</button>
-          <text wx:if="{{error}}" class="error">{{error}}</text>
-        </view>
-      </view>
-      <text wx:if="{{!busy && !users.length && !error}}" class="empty">没有匹配的账号</text>
-      <view wx:if="{{total>20||page>1}}" class="pager">
-        <button disabled="{{busy||page<=1}}" bindtap="prev">上一页</button><text>第 {{page}} 页</text><button disabled="{{busy||page*20>=total}}" bindtap="next">下一页</button>
+<view class="device-nav workspace-shell" style="{{navigationStyle}}">
+  <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
+  <include src="../../templates/workspace-sidebar.wxml"/>
+  <view class="workspace-main">
+    <view class="workspace-header">
+      <view class="header-start"><text>账号管理</text></view>
+    </view>
+    <view class="workspace-content">
+    <view wx:if="{{!authorized}}" class="ws-gate-wrap">
+      <view class="ws-gate-card">
+        <text class="ws-gate-title">管理员密码解锁</text>
+        <text class="ws-gate-desc">输入共享管理员密码后可管理师生账号与注册码，解锁后 15 分钟内通用。</text>
+        <input
+          class="ws-input"
+          password="{{true}}"
+          value="{{password}}"
+          data-field="password"
+          bindinput="input"
+          bindconfirm="unlock"
+          data-hint-id="adminPassword"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='adminPassword'?'':'输入管理员密码'}}"
+        />
+        <button class="ws-btn ws-btn-primary ws-btn-block" bindtap="unlock" loading="{{busy}}" disabled="{{busy||!password}}">解锁账号管理</button>
+        <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
       </view>
     </view>
-    <view class="card">
-      <text class="heading">注册码</text>
-      <text class="sub">永久有效，不限注册人数。保存新码后旧码立即失效。</text>
-      <view class="code-card" wx:for="{{codes}}" wx:key="role">
-        <view class="section-line">
-          <text class="field-label">{{item.role==='teacher'?'教师码':'学生码'}}</text>
-          <button class="copy" data-index="{{index}}" bindtap="copy" aria-label="复制{{item.role==='teacher'?'教师':'学生'}}注册码">复制</button>
+
+    <block wx:else>
+      <view class="ws-toolbar-secondary">
+        <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="openCodes">管理注册码</button>
+        <text class="ws-section-meta">共 {{total}} 个账号</text>
+      </view>
+      <view class="ws-search-row">
+        <input
+          class="ws-input"
+          value="{{q}}"
+          data-field="q"
+          bindinput="input"
+          confirm-type="search"
+          bindconfirm="search"
+          data-hint-id="searchUser"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='searchUser'?'':'搜索用户名或显示名'}}"
+        />
+        <button class="ws-btn ws-btn-primary" disabled="{{busy}}" bindtap="search">搜索</button>
+      </view>
+      <view class="ws-filter-row">
+        <picker disabled="{{busy}}" range="{{['全部角色','教师','学生']}}" value="{{role==='teacher'?1:role==='student'?2:0}}" bindchange="role">
+          <view class="ws-picker"><text>角色：{{role==='teacher'?'教师':role==='student'?'学生':'全部'}}</text><text>⌄</text></view>
+        </picker>
+        <picker disabled="{{busy}}" range="{{['全部状态','已启用','已停用']}}" value="{{status==='1'?1:status==='0'?2:0}}" bindchange="status">
+          <view class="ws-picker"><text>状态：{{status==='1'?'已启用':status==='0'?'已停用':'全部'}}</text><text>⌄</text></view>
+        </picker>
+      </view>
+
+      <view wx:if="{{error && !sheetMode}}" class="ws-error-box">{{error}}</view>
+
+      <view class="ws-list" wx:if="{{users.length}}">
+        <view wx:for="{{users}}" wx:key="id" class="ws-list-row">
+          <view class="ws-list-main">
+            <view class="ws-list-title-row">
+              <text class="ws-list-title">{{item.display_name||item.username}}</text>
+              <text class="ws-badge ws-badge-default">{{item.role==='teacher'?'教师':'学生'}}</text>
+              <text class="ws-badge {{item.status===1?'ws-badge-success':'ws-badge-danger'}}">{{item.status===1?'已启用':'已停用'}}</text>
+              <text wx:if="{{item.id===selfId}}" class="ws-badge ws-badge-draft">当前账号</text>
+            </view>
+            <text wx:if="{{item.display_name && item.display_name!==item.username}}" class="ws-list-meta">{{item.username}}</text>
+          </view>
+          <view class="ws-list-actions">
+            <button class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="openUserSheet" disabled="{{busy}}">管理</button>
+          </view>
         </view>
-        <text class="code" selectable="true">{{item.code}}</text>
-        <text class="field-label">新注册码（6–72 位）</text>
-        <view class="field-action">
-          <input aria-label="{{item.role==='teacher'?'教师':'学生'}}新注册码，6 至 72 位" maxlength="72" value="{{item.role==='teacher'?code_teacher:code_student}}" data-field="code_{{item.role}}" bindinput="input"/>
-          <button disabled="{{busy}}" data-index="{{index}}" bindtap="saveCode">保存新码</button>
+      </view>
+
+      <view wx:elif="{{!busy}}" class="ws-empty">没有匹配的账号</view>
+
+      <view wx:if="{{total>20||page>1}}" class="ws-pager">
+        <button class="ws-btn ws-btn-secondary ws-btn-sm" disabled="{{busy||page<=1}}" bindtap="prev">上一页</button>
+        <text>第 {{page}} 页</text>
+        <button class="ws-btn ws-btn-secondary ws-btn-sm" disabled="{{busy||page*20>=total}}" bindtap="next">下一页</button>
+      </view>
+    </block>
+    </view>
+  </view>
+  <include src="../../templates/workspace-bottom.wxml"/>
+
+  <!-- 编辑账号抽屉 -->
+  <block wx:if="{{sheetMode==='user' && editingUser}}">
+    <view class="ws-overlay" bindtap="closeSheet"/>
+    <view class="ws-sheet" role="dialog" aria-label="管理账号">
+      <view class="ws-sheet-header">
+        <view>
+          <text class="ws-sheet-title">{{editingUser.display_name||editingUser.username}}</text>
+          <text class="ws-sheet-subtitle">{{editingUser.username}} · {{editingUser.role==='teacher'?'教师':'学生'}}</text>
         </view>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{busy}}" aria-label="关闭">×</button>
+      </view>
+      <scroll-view scroll-y class="ws-sheet-body">
+        <text class="ws-field-label">显示名（1–30 位）</text>
+        <input
+          class="ws-input"
+          value="{{editedName}}"
+          data-field="editedName"
+          bindinput="input"
+          maxlength="30"
+          data-hint-id="editedName"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='editedName'?'':'输入新的显示名'}}"
+        />
+        <button class="ws-btn ws-btn-secondary ws-btn-sm" style="margin-top:10px" bindtap="saveName" disabled="{{busy||!editedName}}">保存显示名</button>
+
+        <text class="ws-field-label">重置登录密码（6–72 位）</text>
+        <input
+          class="ws-input"
+          password="{{true}}"
+          value="{{editedPassword}}"
+          data-field="editedPassword"
+          bindinput="input"
+          maxlength="72"
+          data-hint-id="editedPassword"
+          bindfocus="onInputHintFocus"
+          bindblur="onInputHintBlur"
+          placeholder="{{inputHintFocus==='editedPassword'?'':'输入新密码'}}"
+        />
+        <button class="ws-btn ws-btn-secondary ws-btn-sm" style="margin-top:10px" bindtap="savePassword" disabled="{{busy||editedPassword.length<6}}">确认重置密码</button>
+
+        <block wx:if="{{editingUser.id!==selfId}}">
+          <text class="ws-field-label">账号状态</text>
+          <button class="ws-btn {{editingUser.status===1?'ws-btn-danger':'ws-btn-primary'}} ws-btn-block" bindtap="toggleStatus" disabled="{{busy}}">{{editingUser.status===1?'停用此账号':'启用此账号'}}</button>
+        </block>
+
+        <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
+        <view class="ws-sheet-spacer"/>
+      </scroll-view>
+      <view class="ws-sheet-footer">
+        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{busy}}">关闭</button>
+      </view>
+    </view>
+  </block>
+
+  <!-- 注册码管理抽屉 -->
+  <block wx:if="{{sheetMode==='codes'}}">
+    <view class="ws-overlay" bindtap="closeSheet"/>
+    <view class="ws-sheet" role="dialog" aria-label="注册码管理">
+      <view class="ws-sheet-header">
+        <view>
+          <text class="ws-sheet-title">注册码管理</text>
+          <text class="ws-sheet-subtitle">永久有效，不限注册人数。保存新码后旧码立即失效。</text>
+        </view>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{busy}}" aria-label="关闭">×</button>
+      </view>
+      <scroll-view scroll-y class="ws-sheet-body">
+        <view wx:for="{{codes}}" wx:key="role" style="padding: 14px 0; border-bottom: 1px solid var(--ws-border);">
+          <view class="ws-list-title-row" style="justify-content: space-between;">
+            <text class="ws-list-title">{{item.role==='teacher'?'教师注册码':'学生注册码'}}</text>
+            <button class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="copy">复制</button>
+          </view>
+          <text class="code-text" selectable="true">{{item.code}}</text>
+          <text class="ws-field-label">修改为新注册码（6–72 位）</text>
+          <view class="ws-search-row" style="margin-bottom:0">
+            <input
+              class="ws-input"
+              maxlength="72"
+              value="{{item.role==='teacher'?code_teacher:code_student}}"
+              data-field="code_{{item.role}}"
+              bindinput="input"
+              data-hint-id="code_{{item.role}}"
+              bindfocus="onInputHintFocus"
+              bindblur="onInputHintBlur"
+              placeholder="{{inputHintFocus===('code_'+item.role)?'':'输入 6–72 位新注册码'}}"
+            />
+            <button class="ws-btn ws-btn-primary ws-btn-sm" disabled="{{busy}}" data-index="{{index}}" bindtap="saveCode">保存</button>
+          </view>
+        </view>
+        <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
+        <view class="ws-sheet-spacer"/>
+      </scroll-view>
+      <view class="ws-sheet-footer">
+        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{busy}}">关闭</button>
       </view>
     </view>
   </block>

@@ -1,0 +1,21 @@
+{
+  "1": {"code": "1", "name": "Cell structure", "evidence": "microscopy, magnification, resolution, organelles and prokaryotic/eukaryotic ultrastructure"},
+  "2": {"code": "2", "name": "Biological molecules", "evidence": "water, carbohydrates, lipids, proteins, nucleic-acid structure and biochemical tests"},
+  "3": {"code": "3", "name": "Enzymes", "evidence": "active sites, enzyme action, rate factors, inhibition and immobilised enzymes"},
+  "4": {"code": "4", "name": "Cell membranes and transport", "evidence": "membrane structure, diffusion, osmosis, active transport, co-transport and water potential"},
+  "5": {"code": "5", "name": "The mitotic cell cycle", "evidence": "chromosome behaviour, mitosis, cell-cycle control, telomeres and stem cells"},
+  "6": {"code": "6", "name": "Nucleic acids and protein synthesis", "evidence": "DNA replication, transcription, translation, genetic code, mRNA and tRNA"},
+  "7": {"code": "7", "name": "Transport in plants", "evidence": "xylem, phloem, transpiration pathways, phloem loading, translocation and mass flow; A Level stomatal aperture homeostasis is topic 14"},
+  "8": {"code": "8", "name": "Transport in mammals", "evidence": "heart, cardiac cycle, blood vessels, haemoglobin and oxygen transport"},
+  "9": {"code": "9", "name": "Gas exchange", "evidence": "gas-exchange surfaces, lungs, alveoli, ventilation and respiratory disease"},
+  "10": {"code": "10", "name": "Infectious diseases", "evidence": "pathogens, transmission, cholera, malaria, tuberculosis, HIV and antibiotics"},
+  "11": {"code": "11", "name": "Immunity", "evidence": "phagocytes, lymphocytes, antibodies, immune response, vaccination and monoclonal antibodies"},
+  "12": {"code": "12", "name": "Energy and respiration", "evidence": "ATP, glycolysis, link reaction, Krebs cycle, oxidative phosphorylation and anaerobic respiration"},
+  "13": {"code": "13", "name": "Photosynthesis", "evidence": "chloroplasts, photosystems, photophosphorylation, Calvin cycle, RuBisCO and limiting factors"},
+  "14": {"code": "14", "name": "Homeostasis", "evidence": "negative feedback, blood glucose, kidney, osmoregulation, thermoregulation and plant homeostasis including guard-cell stomatal aperture regulation and abscisic-acid signalling"},
+  "15": {"code": "15", "name": "Control and coordination", "evidence": "neurones, action potentials, synapses, muscles, hormones and plant/animal responses"},
+  "16": {"code": "16", "name": "Inheritance", "evidence": "meiosis, alleles, genetic crosses, linkage, sex linkage, mutation, gene interaction and gene control including the lac operon"},
+  "17": {"code": "17", "name": "Selection and evolution", "evidence": "natural/artificial selection, allele-frequency change, adaptation, speciation and evolution"},
+  "18": {"code": "18", "name": "Classification, biodiversity and conservation", "evidence": "taxonomy, domains, species concepts, biodiversity measurement, sampling and conservation"},
+  "19": {"code": "19", "name": "Genetic technology", "evidence": "PCR, electrophoresis, sequencing, recombinant DNA, genetic engineering, gene therapy and bioinformatics"}
+}

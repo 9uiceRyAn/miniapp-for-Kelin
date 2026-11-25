@@ -1,7 +1,10 @@
 const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
+const storage = require('../../utils/storage');
 const workspace = require('../../utils/workspace');
 const usageView = require('../../utils/usage');
+const drive = require('../../utils/drive');
+const fileUtil = require('../../utils/file');
 Page(withInputHints({
   data: {
     section: 'bank',
@@ -22,6 +25,7 @@ Page(withInputHints({
     startingChat: false,
     user: {},
     profileInitial: 'C',
+    profileAvatarUrl: '',
     admin: false,
     teacher: false,
     items: [],
@@ -33,8 +37,6 @@ Page(withInputHints({
     collection: '',
     skill: '',
     tag: '',
-    usableOnly: false,
-    reviewRequired: '',
     subjects: [{ id: '', label: '全部学科' }],
     collections: [{ id: '', label: '全部数据集' }],
     skills: [{ id: '', label: '全部技能' }],
@@ -62,14 +64,47 @@ Page(withInputHints({
     submittingText: false,
     category: 'A',
     chooseExisting: false,
+    driveFolderId: '',
+    driveBreadcrumbs: [],
+    driveFolders: [],
+    driveFiles: [],
+    driveHideMarked: false,
+    driveUploading: false,
+    driveSheet: '',
+    driveEditTitle: '',
+    driveEditName: '',
+    driveTree: [],
+    driveMoveTarget: '',
+    driveTrashFolders: [],
+    driveTrashFiles: [],
   },
   openTeacherManagement() {
     if (this.data.teacher) l.go('/pages/accounts/accounts');
+  },
+  async onChooseProfileAvatar(e) {
+    const avatarPath = e.detail?.avatarUrl || '';
+    if (!avatarPath) return;
+    try {
+      const result = await l.upload('/api/auth/avatar', { path: avatarPath, name: 'avatar.jpg' });
+      if (!result?.avatarUrl) return;
+      this.setData({
+        profileAvatarUrl: l.url(result.avatarUrl),
+        'user.avatar_url': result.avatarUrl,
+      });
+      const cached = storage.get(storage.KEYS.USER);
+      if (cached && typeof cached === 'object') {
+        storage.set(storage.KEYS.USER, { ...cached, avatarUrl: result.avatarUrl });
+      }
+      wx.showToast({ title: '头像已更新', icon: 'success' });
+    } catch (err) {
+      l.error(err);
+    }
   },
   onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   onLoad(options) {
     this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
+    this._targetPresetKey = options.presetKey || '';
     this.setData({
       section: options.section || 'bank',
       agentId: options.agentId || '',
@@ -86,14 +121,11 @@ Page(withInputHints({
       this.setData({
         user: me.user,
         profileInitial: Array.from(me.user.display_name || me.user.name || me.user.username || 'C')[0].toUpperCase(),
+        profileAvatarUrl: me.user.avatar_url ? l.url(me.user.avatar_url) : '',
         admin: me.admin,
         teacher: me.user.role === 'teacher',
       });
       this._ready = true;
-      if (this.data.section === 'library' && this.data.teacher) {
-        await this.openLibraryManager();
-        return;
-      }
       await this.facets();
       const section = this.data.section === 'chat' ? 'agents' : this.data.section;
       this.setData({ section, mainTab: this.tabFor(section), sectionTitle: this.titleFor(section) });
@@ -107,8 +139,19 @@ Page(withInputHints({
       l.error(e);
     }
   },
-  home() { if (this.data.admin) l.go('/pages/home/home'); },
-  openConnections() { l.go('/pages/admin/admin?mode=connections'); },
+  home() { if (this.data.teacher) l.go('/pages/home/home'); },
+  openAddQuestionMenu() {
+    if (!this.data.teacher) return;
+    wx.showActionSheet({
+      itemList: ['AI 导入', '人工导入（单题）'],
+      success: (res) => {
+        if (res.tapIndex === 0) this.selectAgentPreset('question_curator');
+        else if (res.tapIndex === 1) l.go('/pages/home/home?action=new');
+      },
+    });
+  },
+  openAgentPresets() { if (this.data.teacher) l.go('/pages/studio/studio'); },
+  openConnections() { l.go('/pages/admin/admin'); },
   openAdmin() {
     l.go('/pages/admin/admin');
   },
@@ -116,7 +159,7 @@ Page(withInputHints({
     return ['agents', 'teacher', 'history'].includes(section) ? 'chat' : ['bank', 'library'].includes(section) ? section : 'profile';
   },
   titleFor(section) {
-    return { bank: '题库', agents: '学习助手', history: '会话历史', profile: '个人中心', library: '公共教学资料', teacher: '我的教学助手', usage: '用量与费用' }[section] || '学习工作台';
+    return { bank: '题库', agents: '学习助手', history: '会话历史', profile: '个人中心', library: '资料网盘', teacher: '我的教学助手', usage: '用量与费用' }[section] || '学习工作台';
   },
   ...workspace.drawer,
   toggleFilters() { this.setData({ filtersOpen: !this.data.filtersOpen }); },
@@ -126,8 +169,11 @@ Page(withInputHints({
     const section = id === 'chat' ? 'agents' : id;
     await this.selectSection({ currentTarget: { dataset: { id: section } } });
   },
+  async selectAgentPreset(presetKey) {
+    this._targetPresetKey = presetKey || '';
+    await this.selectSection({ currentTarget: { dataset: { id: 'agents' } } });
+  },
   async selectSection(e) {
-    if (e.currentTarget.dataset.id === 'library' && this.data.teacher) return this.openLibraryManager();
     const section = e.currentTarget.dataset.id;
     // Search belongs to its content area; preserve bank filters across tabs.
     this._queries = this._queries || {};
@@ -286,7 +332,7 @@ Page(withInputHints({
   async selectSubject(e) {
     const index = Number(e.currentTarget.dataset.index), subject = this.data.subjects[index];
     if (!subject) return;
-    this.setData({ subject: subject.id, subjectLabel: subject.label, collection: '', skill: '', tag: '', q: '', collectionIndex: 0, skillIndex: 0, tagIndex: 0, reviewRequired: '', drawerOpen: false, items: [], questionGroups: [], page: 1 });
+    this.setData({ subject: subject.id, subjectLabel: subject.label, collection: '', skill: '', tag: '', q: '', collectionIndex: 0, skillIndex: 0, tagIndex: 0, drawerOpen: false, items: [], questionGroups: [], page: 1 });
     this.updateFacetOptions();
     if (await this.refreshTags()) await this.load(true);
   },
@@ -297,22 +343,12 @@ Page(withInputHints({
     this.updateFacetOptions();
     await this.load(true);
   },
-  review(e) {
-    this.setData({ usableOnly: false, reviewRequired: e.detail.value ? 'true' : '' });
-    this.load(true);
-  },
-  usable(e) {
-    this.setData({ usableOnly: e.detail.value, reviewRequired: '' });
-    this.load(true);
-  },
   async clear() {
     this.setData({
       q: '',
       collection: '',
       skill: '',
       tag: '',
-      usableOnly: false,
-      reviewRequired: '',
       collectionIndex: 0,
       skillIndex: 0,
       tagIndex: 0,
@@ -343,19 +379,30 @@ Page(withInputHints({
               collection: this.data.collection,
               skill: this.data.skill,
               tag: this.data.tag,
-              qualityStatus: this.data.usableOnly ? 'ready' : '',
-              reviewRequired: this.data.usableOnly ? 'false' : this.data.reviewRequired,
             }),
         );
-      else if (section === 'library')
-        result = await l.request(
-          '/api/library?' +
+      else if (section === 'library') {
+        const data = await l.request(
+          '/api/drive/items?' +
             l.query({
-              page,
+              folderId: this.data.driveFolderId,
               q: this.data.q,
-              includeProcessing: this.data.teacher ? 'true' : undefined,
+              hideMarked: this.data.driveHideMarked ? 'true' : '',
             }),
         );
+        if (requestId !== this._requestId) return;
+        this.setData({
+          driveBreadcrumbs: data.breadcrumbs || [],
+          driveFolders: data.folders || [],
+          driveFiles: (data.files || []).map(f => ({
+            ...f,
+            sizeLabel: drive.formatSize(f.file_size),
+            timeLabel: fileUtil.formatDate(f.created_at),
+          })),
+          loading: false,
+        });
+        return;
+      }
       else if (section === 'agents' || section === 'teacher') {
         result = await l.request(
           '/api/ai/agents?' +
@@ -380,7 +427,8 @@ Page(withInputHints({
             : this.data.scope === 'teacher'
               ? '/api/ai/teacher/usage'
               : '/api/ai/usage';
-        const data = await l.request(
+        const requester = this.data.scope === 'admin' ? l.managementRequest : l.request;
+        const data = await requester(
           route +
             '?' +
             l.query({
@@ -415,13 +463,20 @@ Page(withInputHints({
         if (!groups.has(key)) groups.set(key, { key, label, items: [] });
         groups.get(key).items.push(item);
       });
-      this.setData({
+      const update = {
         items,
         questionGroups: Array.from(groups.values()),
         total: result.total,
         page,
         ...(section === 'usage' ? { usageOverview: usageView.overview(summary), usagePeriod: usageView.period(this.data.from, this.data.to) } : {}),
-      });
+      };
+      if (section === 'agents' && this._targetPresetKey) {
+        const key = this._targetPresetKey;
+        this._targetPresetKey = '';
+        const idx = items.findIndex(x => x.preset_key === key || (key === 'question_curator' && (String(x.name || '').includes('题库整理') || x.tool_permission === 'read_write')));
+        if (idx >= 0) update.agentIndex = idx;
+      }
+      this.setData(update);
     } catch (e) {
       l.error(e);
     } finally {
@@ -547,6 +602,195 @@ Page(withInputHints({
   date(e) {
     this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
   },
+  openDriveFolder(e) {
+    const id = e.currentTarget.dataset.id || '';
+    this.setData({ driveFolderId: id ? String(id) : '', q: '' });
+    this.load(true);
+  },
+  toggleDriveHideMarked(e) {
+    this.setData({ driveHideMarked: Boolean(e.detail.value) });
+    this.load(true);
+  },
+  async toggleDriveMark(e) {
+    const id = e.currentTarget.dataset.id;
+    const marked = Boolean(e.currentTarget.dataset.marked);
+    try {
+      await l.request('/api/marks/' + id, marked ? 'DELETE' : 'PUT', {});
+      await this.load(true);
+    } catch (err) { l.error(err); }
+  },
+  previewDriveFile(e) {
+    const file = this.data.driveFiles[e.currentTarget.dataset.index];
+    if (file) drive.previewFile(file);
+  },
+  async driveUpload() {
+    if (this.data.driveUploading) return;
+    try {
+      const files = await drive.chooseUploadFiles();
+      if (!files.length) return;
+      this.setData({ driveUploading: true });
+      for (const f of files) {
+        await drive.uploadFile(this.data.driveFolderId, f);
+      }
+      wx.showToast({ title: '上传成功' });
+      await this.load(true);
+    } catch (err) {
+      if (!String(err?.errMsg || '').includes('cancel')) l.error(err);
+    } finally {
+      this.setData({ driveUploading: false });
+    }
+  },
+  exportDriveFolder() {
+    if (!this.data.driveFolderId) return;
+    const last = this.data.driveBreadcrumbs[this.data.driveBreadcrumbs.length - 1];
+    drive.downloadAndSave('/api/drive/folders/' + this.data.driveFolderId + '/export', (last?.name || '资料') + '.zip');
+  },
+  openDriveNewFolder() {
+    this._driveEdit = { mode: 'create-folder' };
+    this.setData({ driveSheet: 'name', driveEditTitle: '新建文件夹', driveEditName: '' });
+  },
+  closeDriveSheet() {
+    this.setData({ driveSheet: '', driveEditName: '' });
+  },
+  async submitDriveName() {
+    const name = String(this.data.driveEditName || '').trim();
+    if (!name) return;
+    try {
+      const ctx = this._driveEdit || {};
+      if (ctx.mode === 'create-folder') {
+        await l.request('/api/drive/folders', 'POST', { parentId: this.data.driveFolderId || null, name });
+      } else if (ctx.mode === 'rename-folder') {
+        await l.request('/api/drive/folders/' + ctx.id, 'PATCH', { name });
+      } else if (ctx.mode === 'rename-file') {
+        await l.request('/api/drive/files/' + ctx.id, 'PATCH', { name });
+      }
+      this.closeDriveSheet();
+      await this.load(true);
+    } catch (err) { l.error(err); }
+  },
+  async openMoveSheet(type, item) {
+    try {
+      const data = await l.request('/api/drive/tree');
+      const flat = [];
+      const byParent = new Map();
+      for (const row of data.folders || []) {
+        const key = row.parent_id ? String(row.parent_id) : 'root';
+        if (!byParent.has(key)) byParent.set(key, []);
+        byParent.get(key).push(row);
+      }
+      const walk = (parentKey, depth) => {
+        for (const node of byParent.get(parentKey) || []) {
+          if (type === 'folder' && node.id === item.id) continue;
+          flat.push({ ...node, indent: '　'.repeat(depth) });
+          walk(String(node.id), depth + 1);
+        }
+      };
+      walk('root', 0);
+      this._driveMove = { type, id: item.id };
+      this.setData({ driveSheet: 'move', driveTree: flat, driveMoveTarget: item.parent_id || item.folder_id || '' });
+    } catch (err) { l.error(err); }
+  },
+  pickMoveTarget(e) {
+    this.setData({ driveMoveTarget: e.currentTarget.dataset.id });
+  },
+  async submitDriveMove() {
+    const ctx = this._driveMove;
+    if (!ctx) return;
+    try {
+      const target = this.data.driveMoveTarget ? Number(this.data.driveMoveTarget) : null;
+      if (ctx.type === 'folder') await l.request('/api/drive/folders/' + ctx.id, 'PATCH', { parentId: target });
+      else await l.request('/api/drive/files/' + ctx.id, 'PATCH', { folderId: target });
+      this.closeDriveSheet();
+      await this.load(true);
+    } catch (err) { l.error(err); }
+  },
+  openDriveMenu(e) {
+    const { type, index } = e.currentTarget.dataset;
+    const item = type === 'folder' ? this.data.driveFolders[index] : this.data.driveFiles[index];
+    if (!item) return;
+    if (type === 'folder') {
+      wx.showActionSheet({
+        itemList: ['重命名', '移动到', '删除文件夹'],
+        success: ({ tapIndex }) => {
+          if (tapIndex === 0) {
+            this._driveEdit = { mode: 'rename-folder', id: item.id };
+            this.setData({ driveSheet: 'name', driveEditTitle: '重命名文件夹', driveEditName: item.name });
+          } else if (tapIndex === 1) {
+            this.openMoveSheet('folder', item);
+          } else if (tapIndex === 2) {
+            wx.showModal({
+              title: '确认删除',
+              content: `将「${item.name}」及内部文件移入回收站？`,
+              confirmColor: '#a12540',
+              success: async res => {
+                if (!res.confirm) return;
+                try { await l.request('/api/drive/folders/' + item.id, 'DELETE', {}); await this.load(true); }
+                catch (err) { l.error(err); }
+              },
+            });
+          }
+        },
+      });
+      return;
+    }
+    const actions = ['预览', drive.isDesktop() ? '保存到本地' : '分享 / 发送'];
+    if (item.canEdit) actions.push('重命名', '移动到', '删除文件');
+    wx.showActionSheet({
+      itemList: actions,
+      success: ({ tapIndex }) => {
+        if (tapIndex === 0) drive.previewFile(item);
+        else if (tapIndex === 1) drive.downloadAndSave('/api/drive/files/' + item.id + '/download', item.original_name);
+        else if (tapIndex === 2) {
+          this._driveEdit = { mode: 'rename-file', id: item.id };
+          this.setData({ driveSheet: 'name', driveEditTitle: '重命名文件', driveEditName: item.original_name });
+        } else if (tapIndex === 3) {
+          this.openMoveSheet('file', item);
+        } else if (tapIndex === 4) {
+          wx.showModal({
+            title: '确认删除',
+            content: `将「${item.original_name}」移入回收站？`,
+            confirmColor: '#a12540',
+            success: async res => {
+              if (!res.confirm) return;
+              try { await l.request('/api/drive/files/' + item.id, 'DELETE', {}); await this.load(true); }
+              catch (err) { l.error(err); }
+            },
+          });
+        }
+      },
+    });
+  },
+  async openDriveTrash() {
+    try {
+      const data = await l.request('/api/drive/trash');
+      this.setData({ driveSheet: 'trash', driveTrashFolders: data.folders || [], driveTrashFiles: data.files || [] });
+    } catch (err) { l.error(err); }
+  },
+  async restoreDriveTrash(e) {
+    const { type, id } = e.currentTarget.dataset;
+    try {
+      await l.request('/api/drive/trash/restore', 'POST', { type, id });
+      wx.showToast({ title: '已恢复' });
+      await this.openDriveTrash();
+      await this.load(true);
+    } catch (err) { l.error(err); }
+  },
+  purgeDriveTrash(e) {
+    const { type, id } = e.currentTarget.dataset;
+    wx.showModal({
+      title: '彻底删除',
+      content: '彻底删除后将清除物理文件且无法恢复，确认继续？',
+      confirmColor: '#a12540',
+      success: async res => {
+        if (!res.confirm) return;
+        try {
+          await l.request('/api/drive/trash/' + type + '/' + id, 'DELETE', {});
+          wx.showToast({ title: '已彻底删除' });
+          await this.openDriveTrash();
+        } catch (err) { l.error(err); }
+      },
+    });
+  },
   logout() {
     const api = require('../../utils/api');
     const storage = require('../../utils/storage');
@@ -562,6 +806,7 @@ Page(withInputHints({
         } catch (error) {
           console.warn('后端退出失败，继续清理本地登录状态:', error);
         }
+        l.clearManagementToken();
         storage.clearSession();
         wx.reLaunch({ url: '/pages/login/login' });
       },

@@ -7,7 +7,7 @@
     <view class="detail-heading">
      <view class="detail-paper"><text class="detail-subject">{{item.subject_label||'教学资料'}}</text><text>{{paperSummary}}</text></view>
      <text class="detail-title">{{questionHeading}}</text>
-     <view class="detail-topic"><text class="detail-topic-label" wx:if="{{topicLabel}}">{{topicLabel}}</text><text wx:if="{{item.review_required}}" class="detail-quality">待审核</text><text wx:if="{{item.release_status==='provisional'}}" class="detail-quality">暂定发布</text></view>
+     <view class="detail-topic"><text class="detail-topic-label" wx:if="{{topicLabel}}">{{topicLabel}}</text></view>
     </view>
     <view wx:if="{{item.parseError}}" class="error">{{item.parseError}}</view><view wx:if="{{item.status==='queued'||item.status==='processing'}}" class="status">正在解析，完成后自动更新…</view>
     <view wx:if="{{document&&item.chunks.length}}" class="detail-document-text"><view wx:for="{{item.chunks}}" wx:key="position"><text class="detail-section-title">{{item.label}}</text><text class="detail-paragraph" user-select="{{true}}">{{item.body}}</text></view></view>

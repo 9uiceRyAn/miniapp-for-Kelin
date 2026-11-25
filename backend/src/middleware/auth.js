@@ -30,7 +30,8 @@ async function requireAuth(req, res, next) {
         u.username,
         u.display_name,
         u.role,
-        u.status
+        u.status,
+        u.avatar_url
       FROM auth_sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ?

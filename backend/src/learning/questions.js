@@ -136,21 +136,22 @@ async function storePrepared(prepared, { dryRun = false, manifest = {}, expected
       );
       if (!revision) {
         revision = { id: c.id() };
+        const normalizedItem = { ...item, release_status: 'published', review_required: false };
         await c.rows(
           'INSERT INTO kl_revisions(id,resource_id,content_hash,data,subject,collection_code,skill,quality_status,release_status,review_required,search_text) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
           [
             revision.id,
             resource.id,
             hash,
-            JSON.stringify(item),
-            item.subject,
-            item.collection,
-            item.skill || '',
-            item.quality_status || '',
-            item.release_status || '',
-            Boolean(item.review_required),
-            item.search_text ||
-              `${item.id} ${item.title} ${item.primary_tag_name || ''}`,
+            JSON.stringify(normalizedItem),
+            normalizedItem.subject,
+            normalizedItem.collection,
+            normalizedItem.skill || '',
+            normalizedItem.quality_status || '',
+            'published',
+            0,
+            normalizedItem.search_text ||
+              `${normalizedItem.id} ${normalizedItem.title} ${normalizedItem.primary_tag_name || ''}`,
           ],
           db,
         );
@@ -204,21 +205,15 @@ function addSearchFilters(query, where, args) {
 function conditions(q) {
   const where = ['r.type=?', "r.visibility='public'", "v.status='ready'"];
   const args = ['question'];
-  where.push("v.release_status<>'draft'");
   addSearchFilters(q, where, args);
   for (const [field, column] of Object.entries({
     skill: 'skill',
     qualityStatus: 'quality_status',
-    releaseStatus: 'release_status',
   }))
     if (q[field]) {
       where.push(`v.${column}=?`);
       args.push(String(q[field]));
     }
-  if (q.reviewRequired !== undefined && q.reviewRequired !== '') {
-    where.push('v.review_required=?');
-    args.push(q.reviewRequired === true || q.reviewRequired === 'true');
-  }
   if (q.tag) {
     if (!q.collection) c.fail(400, '标签筛选必须指定数据集');
     where.push(
@@ -292,7 +287,7 @@ async function facets(q = {}) {
 async function taxonomy(collection) {
   if (!collection) c.fail(400, '需要数据集');
   return c.rows(
-    "SELECT t.code,MAX(t.label) label,COUNT(*) count FROM kl_tags t JOIN kl_resources r ON r.current_revision=t.revision_id JOIN kl_revisions v ON v.id=t.revision_id WHERE t.collection_code=? AND r.type='question' AND r.visibility='public' AND v.status='ready' AND v.release_status<>'draft' GROUP BY t.code ORDER BY t.code",
+    "SELECT t.code,MAX(t.label) label,COUNT(*) count FROM kl_tags t JOIN kl_resources r ON r.current_revision=t.revision_id JOIN kl_revisions v ON v.id=t.revision_id WHERE t.collection_code=? AND r.type='question' AND r.visibility='public' AND v.status='ready' GROUP BY t.code ORDER BY t.code",
     [collection],
   );
 }

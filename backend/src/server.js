@@ -60,6 +60,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth/wechat', require('./routes/wechat'));
 
 app.use('/api/files', fileRoutes);
+app.use('/api/drive', require('./routes/drive'));
 
 app.use('/api/marks', markRoutes);
 
@@ -78,6 +79,7 @@ app.use((error, req, res, next) => {
 
   return res.status(error.status || (error.code === 'LIMIT_FILE_SIZE' ? 413 : 500)).json({
     success: false,
+    ...(error.status && error.code ? { code: error.code } : {}),
     message: error.status ? error.message : error.code === 'LIMIT_FILE_SIZE' ? '文件超过上传大小限制' : '服务器内部错误',
   });
 });

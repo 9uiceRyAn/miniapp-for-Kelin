@@ -1,0 +1,607 @@
+@import "./workspace-tokens.wxss";
+@import "./workspace-motion.wxss";
+
+page {
+  background: var(--ws-canvas);
+  color: var(--ws-text);
+  font-family: var(--ws-font);
+  font-size: var(--ws-text-size);
+}
+
+/* 二级轻量子页外框（无底栏，统一顶栏返回） */
+.subpage-shell {
+  min-height: 100vh;
+  background: var(--ws-canvas);
+  color: var(--ws-text);
+  font-family: var(--ws-font);
+  font-size: var(--ws-text-size);
+  display: flex;
+  flex-direction: column;
+}
+
+.subpage-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--ws-canvas);
+  border-bottom: 1px solid var(--ws-border);
+  padding: var(--ws-safe-top, env(safe-area-inset-top)) var(--nav-right, var(--ws-page-gutter)) 0 var(--ws-page-gutter);
+  min-height: calc(var(--ws-safe-top, env(safe-area-inset-top)) + var(--nav-height, 48px));
+  height: calc(var(--ws-safe-top, env(safe-area-inset-top)) + var(--nav-height, 48px));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ws-toolbar-primary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ws-toolbar-primary .ws-btn {
+  flex: 1;
+}
+
+.ws-toolbar-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.subpage-header-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.subpage-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 10px 0 4px;
+  margin: 0;
+  background: transparent;
+  color: var(--ws-secondary);
+  font-size: 13px;
+  border-radius: var(--ws-radius-sm);
+  flex-shrink: 0;
+}
+.subpage-back::after { border: 0; }
+
+.subpage-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ws-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subpage-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.subpage-body {
+  width: 100%;
+  max-width: var(--ws-content-width);
+  margin: 0 auto;
+  padding: 24px var(--ws-page-gutter) calc(40px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.subpage-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.subpage-h1 {
+  font-size: var(--ws-title-size);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.4px;
+}
+
+.subpage-subtitle {
+  display: block;
+  font-size: 12px;
+  color: var(--ws-secondary);
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+
+/* 四级按钮体系 */
+.ws-btn,
+.workspace-shell .ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  margin: 0;
+  border-radius: var(--ws-radius);
+  font-family: var(--ws-font);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ws-btn::after,
+.workspace-shell .ws-btn::after { border: 0; }
+.ws-btn[disabled],
+.workspace-shell .ws-btn[disabled] { opacity: 0.45; }
+
+.ws-btn-sm,
+.workspace-shell .ws-btn-sm {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: var(--ws-radius-sm);
+}
+
+.ws-btn-block,
+.workspace-shell .ws-btn-block {
+  width: 100%;
+}
+
+.ws-btn-primary,
+.workspace-shell .ws-btn-primary {
+  background: var(--ws-accent);
+  color: var(--ws-on-accent);
+  border: 1px solid var(--ws-accent);
+}
+
+.ws-btn-secondary,
+.workspace-shell .ws-btn-secondary {
+  background: var(--ws-canvas);
+  color: var(--ws-text);
+  border: 1px solid var(--ws-border);
+}
+
+.ws-btn-ghost,
+.workspace-shell .ws-btn-ghost {
+  background: transparent;
+  color: var(--ws-secondary);
+  border: 1px solid transparent;
+}
+
+.ws-btn-danger,
+.workspace-shell .ws-btn-danger {
+  background: transparent;
+  color: var(--ws-danger);
+  border: 1px solid var(--ws-error-border);
+}
+
+/* 表单控件（统一左对齐、细边框、44px 高度） */
+.ws-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ws-secondary);
+  margin: 16px 0 8px;
+  text-align: left;
+}
+.ws-field-label:first-child { margin-top: 0; }
+
+.ws-input,
+.ws-textarea,
+.ws-picker {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--ws-canvas);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius);
+  color: var(--ws-text);
+  font-family: var(--ws-font);
+  font-size: 14px;
+  text-align: left;
+}
+
+.ws-input {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.ws-textarea {
+  min-height: 110px;
+  padding: 12px;
+  line-height: 1.7;
+}
+
+.ws-picker {
+  min-height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ws-input:focus,
+.ws-textarea:focus {
+  border-color: var(--ws-accent);
+}
+
+/* 分段选择器 */
+.ws-segment {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ws-segment-item,
+.workspace-shell .ws-segment-item {
+  flex: 1;
+  min-width: 110px;
+  min-height: 42px;
+  padding: 0 12px;
+  margin: 0;
+  border-radius: var(--ws-radius);
+  border: 1px solid var(--ws-border);
+  background: var(--ws-canvas);
+  color: var(--ws-secondary);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.ws-segment-item::after,
+.workspace-shell .ws-segment-item::after { border: 0; }
+.ws-segment-item.is-selected,
+.workspace-shell .ws-segment-item.is-selected {
+  border-color: var(--ws-accent);
+  background: var(--ws-sidebar);
+  color: var(--ws-text);
+  font-weight: 500;
+}
+
+/* 搜索栏、筛选行、分页 */
+.ws-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ws-search-row .ws-input { flex: 1; min-width: 0; }
+
+.ws-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ws-filter-row picker { flex: 1; min-width: 120px; }
+
+.ws-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 20px 0 10px;
+}
+.ws-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ws-text);
+}
+.ws-section-meta {
+  font-size: 12px;
+  color: var(--ws-secondary);
+}
+
+/* 列表行（极细分割线） */
+.ws-list {
+  border-top: 1px solid var(--ws-border);
+}
+
+.ws-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--ws-border);
+}
+
+.ws-list-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-list-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ws-list-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ws-text);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.ws-list-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ws-secondary);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.ws-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 状态徽标 */
+.ws-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.ws-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--ws-radius-xs);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.ws-badge-default { background: var(--ws-muted); color: var(--ws-secondary); }
+.ws-badge-draft { background: var(--ws-draft-bg); color: var(--ws-draft-text); }
+.ws-badge-success { background: var(--ws-success-bg); color: var(--ws-success-text); }
+.ws-badge-danger { background: var(--ws-error-bg); color: var(--ws-danger); }
+
+/* 密码解锁门禁卡片 */
+.ws-gate-wrap {
+  max-width: 420px;
+  margin: 48px auto 0;
+}
+
+.ws-gate-card {
+  background: var(--ws-canvas);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius);
+  padding: 24px;
+}
+
+.ws-gate-title {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ws-text);
+  margin-bottom: 6px;
+}
+
+.ws-gate-desc {
+  display: block;
+  font-size: 12px;
+  color: var(--ws-secondary);
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+
+.ws-gate-card .ws-btn-primary {
+  margin-top: 16px;
+}
+
+/* 错误提示、空态、分页 */
+.ws-error-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--ws-error-bg);
+  border: 1px solid var(--ws-error-border);
+  border-radius: var(--ws-radius);
+  color: var(--ws-danger);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.ws-empty {
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ws-secondary);
+}
+
+.ws-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--ws-secondary);
+}
+
+/* 统一抽屉弹窗（Sheet） */
+.ws-overlay {
+  position: fixed;
+  inset: 0;
+  background: #00000045;
+  z-index: 40;
+}
+
+.ws-sheet {
+  position: fixed;
+  z-index: 41;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 640px;
+  max-width: 100%;
+  background: var(--ws-canvas);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 40px #00000012;
+  animation: workspace-enter 180ms ease-out both;
+}
+
+.ws-sheet-header {
+  padding: calc(var(--ws-safe-top, env(safe-area-inset-top)) + 24px) 28px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--ws-border);
+  flex-shrink: 0;
+}
+
+.ws-sheet-title {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ws-text);
+}
+
+.ws-sheet-subtitle {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ws-secondary);
+  line-height: 1.6;
+}
+
+.ws-sheet-close,
+.workspace-shell .ws-sheet-close {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  background: var(--ws-muted);
+  color: var(--ws-text);
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ws-sheet-close::after,
+.workspace-shell .ws-sheet-close::after { border: 0; }
+
+.ws-sheet-body {
+  min-height: 0;
+  flex: 1;
+  height: 0;
+  padding: 18px 28px;
+  box-sizing: border-box;
+}
+
+.ws-sheet-spacer { height: 24px; }
+
+.ws-sheet-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 28px calc(16px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ws-border);
+  flex-shrink: 0;
+}
+
+/* AI 操作确认卡片 */
+.ws-action-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--ws-sidebar);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius);
+}
+
+.ws-action-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ws-action-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ws-text);
+}
+
+.ws-action-card-body {
+  display: block;
+  font-size: 12px;
+  color: var(--ws-secondary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.ws-action-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (max-width: 700px) {
+  .subpage-header {
+    padding: calc(var(--ws-safe-top, env(safe-area-inset-top)) + 8px) var(--ws-page-gutter) 10px;
+  }
+  .subpage-body {
+    padding: 18px var(--ws-page-gutter) calc(32px + env(safe-area-inset-bottom));
+  }
+  .ws-list-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .ws-list-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .ws-sheet {
+    top: calc(var(--ws-safe-top, env(safe-area-inset-top)) + 48px);
+    bottom: 0;
+    width: 100%;
+    max-height: calc(100% - var(--ws-safe-top, env(safe-area-inset-top)) - 48px);
+    border-radius: var(--ws-sheet-radius) var(--ws-sheet-radius) 0 0;
+  }
+  .ws-sheet-header { padding: 18px 20px 14px; }
+  .ws-sheet-body { padding: 16px 20px; }
+  .ws-sheet-footer { padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); }
+  .ws-sheet-footer .ws-btn-primary { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-sheet { animation: none; }
+}

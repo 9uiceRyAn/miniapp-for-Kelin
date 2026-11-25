@@ -1,0 +1,72 @@
+{
+  "subject": "Economics",
+  "syllabus_code": "9708",
+  "topics": [
+    {
+      "code": "AS.U1",
+      "name": "AS Unit 1 · 基础经济概念与资源配置",
+      "stage": "AS",
+      "unit": 1
+    },
+    {
+      "code": "AS.U2",
+      "name": "AS Unit 2 · 需求、供给、弹性与市场均衡",
+      "stage": "AS",
+      "unit": 2
+    },
+    {
+      "code": "AS.U3",
+      "name": "AS Unit 3 · 市场失灵、政府干预与收入分配",
+      "stage": "AS",
+      "unit": 3
+    },
+    {
+      "code": "AS.U4",
+      "name": "AS Unit 4 · 国民收入、宏观均衡、增长、就业与物价",
+      "stage": "AS",
+      "unit": 4
+    },
+    {
+      "code": "AS.U5",
+      "name": "AS Unit 5 · 宏观经济目标与政策",
+      "stage": "AS",
+      "unit": 5
+    },
+    {
+      "code": "AS.U6",
+      "name": "AS Unit 6 · 国际贸易、国际收支与汇率",
+      "stage": "AS",
+      "unit": 6
+    },
+    {
+      "code": "A2.U7",
+      "name": "A2 Unit 7 · 消费者理论、企业与市场结构",
+      "stage": "A2",
+      "unit": 7
+    },
+    {
+      "code": "A2.U8",
+      "name": "A2 Unit 8 · 资源配置政策、收入再分配与劳动力市场",
+      "stage": "A2",
+      "unit": 8
+    },
+    {
+      "code": "A2.U9",
+      "name": "A2 Unit 9 · 宏观收入决定、增长、就业与货币",
+      "stage": "A2",
+      "unit": 9
+    },
+    {
+      "code": "A2.U10",
+      "name": "A2 Unit 10 · 宏观目标、政策权衡与政策效果",
+      "stage": "A2",
+      "unit": 10
+    },
+    {
+      "code": "A2.U11",
+      "name": "A2 Unit 11 · 国际收支、汇率、发展与全球化",
+      "stage": "A2",
+      "unit": 11
+    }
+  ]
+}

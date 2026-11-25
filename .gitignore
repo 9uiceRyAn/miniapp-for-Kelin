@@ -1,4 +1,5 @@
 # Secrets / local config
+/服务器.txt
 .env
 .env.*
 !.env.example

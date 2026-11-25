@@ -9,7 +9,6 @@ const media = require('./media');
 const STAGING = path.join(media.ROOT, 'question-imports');
 const MAX_ITEMS = 1000;
 const MAX_EXPANDED = 200 * 1024 * 1024;
-const STATES = ['draft', 'published', 'provisional'];
 const KINDS = ['question', 'answer', 'ms', 'sm', 'audio', 'source'];
 
 /** Sign an expiring upload/import reference for the current administrator. */
@@ -34,8 +33,6 @@ function text(value, name, max = 500, required = false) {
 }
 function validateItem(item) {
   for (const [key, max] of [['id', 191], ['subject', 100], ['collection', 93], ['title', 1000]]) text(item[key], key, max, true);
-  if (!STATES.includes(item.release_status || 'published')) c.fail(400, '发布状态无效');
-  if (item.review_required !== undefined && typeof item.review_required !== 'boolean') c.fail(400, '待审核标记无效');
   if (item.tags.length > 100 || item.tags.some(tag => !tag.trim() || tag.length > 100)) c.fail(400, '标签编号不能为空或超过 100 字符');
   if (item.tag_names && (typeof item.tag_names !== 'object' || Array.isArray(item.tag_names))) c.fail(400, '标签名称无效');
   for (const label of Object.values(item.tag_names || {})) text(label, '标签名称', 191);
@@ -75,16 +72,8 @@ async function list(query) {
   const where = ["r.type='question'", "v.status='ready'"];
   const args = [];
   if (query.state === 'deleted') where.push("r.visibility='withdrawn'");
-  else {
-    where.push("r.visibility='public'");
-    if (query.state && query.state !== 'all') {
-      if (!STATES.includes(query.state)) c.fail(400, '发布状态筛选无效');
-      if (query.state === 'published') where.push("v.release_status IN ('published','')");
-      else { where.push('v.release_status=?'); args.push(query.state); }
-    }
-  }
+  else where.push("r.visibility='public'");
   q.addSearchFilters(query, where, args);
-  if (query.reviewRequired === 'true') where.push('v.review_required=1');
   const from = ' FROM kl_resources r JOIN kl_revisions v ON v.id=r.current_revision WHERE ' + where.join(' AND ');
   const p = c.page(query);
   const total = await c.one('SELECT COUNT(*) total' + from, args);
@@ -93,7 +82,7 @@ async function list(query) {
   for (const row of found) {
     const data = c.json(row.data);
     const refs = row.visibility !== 'withdrawn' && query.sessionHash ? await media.references(row.revisionId, query.sessionHash) : [];
-    items.push({ resourceId: row.resourceId, revisionId: row.revisionId, sourceId: row.sourceId, visibility: row.visibility, title: data.title, subject: data.subject, subject_label: data.subject_label || data.subject, collection: data.collection, collection_label: data.collection_label || data.collection, primary_tag_name: data.primary_tag_name || '', release_status: data.release_status || 'published', review_required: Boolean(data.review_required), thumbnail: refs.find(m => m.kind === 'question' && m.mime.startsWith('image/') && m.available) || null });
+    items.push({ resourceId: row.resourceId, revisionId: row.revisionId, sourceId: row.sourceId, visibility: row.visibility, title: data.title, subject: data.subject, subject_label: data.subject_label || data.subject, collection: data.collection, collection_label: data.collection_label || data.collection, primary_tag_name: data.primary_tag_name || '', thumbnail: refs.find(m => m.kind === 'question' && m.mime.startsWith('image/') && m.available) || null });
   }
   return { items, total: Number(total.total), page: p.page, pageSize: p.pageSize };
 }
@@ -120,8 +109,8 @@ async function save(user, id, input) {
     answer_text: text(input.answerText === undefined ? previous?.answer_text || '' : input.answerText, '答案', 100000),
     tags: input.tags === undefined ? previous?.tags || [] : input.tags,
     tag_names: input.tagNames === undefined ? previous?.tag_names || {} : input.tagNames,
-    release_status: input.releaseStatus === undefined ? previous ? previous.release_status || 'published' : 'draft' : input.releaseStatus,
-    review_required: input.reviewRequired === undefined ? previous ? Boolean(previous.review_required) : true : input.reviewRequired };
+    release_status: 'published',
+    review_required: false };
   if (!Array.isArray(item.tags) || !item.tag_names || typeof item.tag_names !== 'object' || Array.isArray(item.tag_names)) c.fail(400, '知识点标签无效');
   item.primary_tag = previous?.primary_tag && item.tags.includes(previous.primary_tag) ? previous.primary_tag : item.tags[0] || '';
   item.primary_tag_name = Object.hasOwn(item.tag_names, item.primary_tag) ? item.tag_names[item.primary_tag] : item.primary_tag;
@@ -231,10 +220,7 @@ async function previewImport(user, bytes, name) {
     const prepared = await q.prepare(items, path.dirname(metadata), directory, validateItem);
     const missing = prepared.flatMap(p => p.assets.filter(a => !a.bytes).map(a => p.item.id + ': ' + a.path));
     if (missing.length) c.fail(400, '缺少 ' + missing.length + ' 个媒体文件：' + missing.slice(0, 3).join('、'));
-    const heads = {}, summary = { items: items.length, created: 0, updated: 0, unchanged: 0, media: prepared.reduce((n, p) => n + p.assets.length, 0),
-      published: items.filter(item => !item.release_status || item.release_status === 'published').length,
-      drafts: items.filter(item => item.release_status === 'draft').length,
-      provisional: items.filter(item => item.release_status === 'provisional').length };
+    const heads = {}, summary = { items: items.length, created: 0, updated: 0, unchanged: 0, media: prepared.reduce((n, p) => n + p.assets.length, 0) };
     for (const p of prepared) {
       const existing = await c.one('SELECT * FROM kl_resources WHERE namespace=? AND source_id=?', ['alevel:' + p.item.collection, p.item.id]);
       if (existing?.visibility === 'withdrawn') c.fail(409, '题目 ' + p.item.id + ' 已删除，请先在管理页恢复');
@@ -277,4 +263,166 @@ async function cancelImport(user, token) {
   await removeImport(directory);
   return { cancelled: true };
 }
-module.exports = { upload, list, facets, detail, save, visibility, previewImport, confirmImport, cancelImport };
+async function taxonomyTree() {
+  const subjects = await c.rows('SELECT code,label,sort_order,enabled FROM kl_subjects ORDER BY sort_order,code');
+  const collections = await c.rows('SELECT code,subject_code,label,sort_order,enabled FROM kl_collections ORDER BY sort_order,code');
+  const tags = await c.rows('SELECT id,collection_code,parent_id,code,label,sort_order FROM kl_taxonomy_tags ORDER BY sort_order,code');
+  return { subjects, collections, tags };
+}
+
+async function saveSubject(input) {
+  const code = text(input.code, '学科编号', 100, true);
+  const label = text(input.label, '学科名称', 191, true);
+  const sortOrder = Number(input.sortOrder || 0);
+  const enabled = input.enabled === undefined ? true : Boolean(input.enabled);
+  await c.rows(
+    'INSERT INTO kl_subjects(code,label,sort_order,enabled) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE label=VALUES(label),sort_order=VALUES(sort_order),enabled=VALUES(enabled)',
+    [code, label, sortOrder, enabled ? 1 : 0],
+  );
+  return c.one('SELECT * FROM kl_subjects WHERE code=?', [code]);
+}
+
+async function deleteSubject(code) {
+  const cols = await c.one('SELECT COUNT(*) total FROM kl_collections WHERE subject_code=?', [code]);
+  if (Number(cols?.total || 0) > 0) c.fail(409, `学科下仍有 ${cols.total} 个数据集，请先清理`);
+  const qs = await c.one("SELECT COUNT(*) total FROM kl_resources r JOIN kl_revisions v ON v.id=r.current_revision WHERE r.type='question' AND r.visibility<>'withdrawn' AND v.subject=?", [code]);
+  if (Number(qs?.total || 0) > 0) c.fail(409, `学科下仍有 ${qs.total} 道题目，无法删除`);
+  await c.rows('DELETE FROM kl_subjects WHERE code=?', [code]);
+  return { code };
+}
+
+async function saveCollection(input) {
+  const code = text(input.code, '数据集编号', 93, true);
+  const subjectCode = text(input.subjectCode || input.subject_code, '所属学科', 100, true);
+  const label = text(input.label, '数据集名称', 191, true);
+  if (!(await c.one('SELECT code FROM kl_subjects WHERE code=?', [subjectCode]))) c.fail(404, '所属学科不存在');
+  const sortOrder = Number(input.sortOrder || 0);
+  const enabled = input.enabled === undefined ? true : Boolean(input.enabled);
+  await c.rows(
+    'INSERT INTO kl_collections(code,subject_code,label,sort_order,enabled) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE subject_code=VALUES(subject_code),label=VALUES(label),sort_order=VALUES(sort_order),enabled=VALUES(enabled)',
+    [code, subjectCode, label, sortOrder, enabled ? 1 : 0],
+  );
+  return c.one('SELECT * FROM kl_collections WHERE code=?', [code]);
+}
+
+async function deleteCollection(code) {
+  const qs = await c.one("SELECT COUNT(*) total FROM kl_resources r JOIN kl_revisions v ON v.id=r.current_revision WHERE r.type='question' AND r.visibility<>'withdrawn' AND v.collection_code=?", [code]);
+  if (Number(qs?.total || 0) > 0) c.fail(409, `数据集下仍有 ${qs.total} 道题目，无法删除`);
+  await c.rows('DELETE FROM kl_collections WHERE code=?', [code]);
+  return { code };
+}
+
+async function saveTag(input) {
+  const collectionCode = text(input.collectionCode || input.collection_code, '所属数据集', 93, true);
+  const code = text(input.code, '标签编号', 100, true);
+  const label = text(input.label, '标签名称', 191, true);
+  const parentId = input.parentId || input.parent_id || null;
+  const sortOrder = Number(input.sortOrder || 0);
+  if (!(await c.one('SELECT code FROM kl_collections WHERE code=?', [collectionCode]))) c.fail(404, '所属数据集不存在');
+  if (input.id) {
+    await c.rows('UPDATE kl_taxonomy_tags SET code=?,label=?,parent_id=?,sort_order=? WHERE id=?', [code, label, parentId, sortOrder, input.id]);
+    return c.one('SELECT * FROM kl_taxonomy_tags WHERE id=?', [input.id]);
+  }
+  const existing = await c.one('SELECT id FROM kl_taxonomy_tags WHERE collection_code=? AND code=?', [collectionCode, code]);
+  const id = existing?.id || c.id();
+  await c.rows(
+    'INSERT INTO kl_taxonomy_tags(id,collection_code,parent_id,code,label,sort_order) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE parent_id=VALUES(parent_id),label=VALUES(label),sort_order=VALUES(sort_order)',
+    [id, collectionCode, parentId, code, label, sortOrder],
+  );
+  return c.one('SELECT * FROM kl_taxonomy_tags WHERE id=?', [id]);
+}
+
+async function deleteTag(id) {
+  const tag = await c.one('SELECT * FROM kl_taxonomy_tags WHERE id=?', [id]);
+  if (!tag) c.fail(404, '标签不存在');
+  const used = await c.one(
+    "SELECT COUNT(*) total FROM kl_tags t JOIN kl_resources r ON r.current_revision=t.revision_id WHERE r.type='question' AND r.visibility<>'withdrawn' AND t.collection_code=? AND t.code=?",
+    [tag.collection_code, tag.code],
+  );
+  if (Number(used?.total || 0) > 0) c.fail(409, `仍有 ${used.total} 道题目使用该标签，无法删除`);
+  await c.rows('DELETE FROM kl_taxonomy_tags WHERE id=?', [id]);
+  return { id };
+}
+
+async function batchUpdate(user, input) {
+  const ids = Array.isArray(input.ids) ? [...new Set(input.ids.map(String).filter(Boolean))] : [];
+  if (!ids.length || ids.length > 200) c.fail(400, '请选择 1–200 道题目');
+  const action = String(input.action || '');
+  const validActions = ['add_tags', 'remove_tags', 'delete', 'restore'];
+  if (!validActions.includes(action)) c.fail(400, '不支持的批量操作');
+  const succeeded = [], failed = [];
+  for (const id of ids) {
+    try {
+      if (action === 'delete' || action === 'restore') {
+        const cur = await ownedQuestion(id);
+        await visibility(user, id, { expectedRevisionId: cur.current_revision }, action === 'delete');
+      } else {
+        const cur = await detail(id, null);
+        const patch = { expectedRevisionId: cur.revisionId };
+        if (action === 'add_tags' || action === 'remove_tags') {
+          const tagNames = { ...(cur.tag_names || {}) };
+          const tagSet = new Set(cur.tags || []);
+          for (const t of input.tags || []) {
+            const code = String(t.code || t).trim();
+            if (!code) continue;
+            if (action === 'add_tags') { tagSet.add(code); tagNames[code] = String(t.label || code); }
+            else { tagSet.delete(code); delete tagNames[code]; }
+          }
+          patch.tags = [...tagSet];
+          patch.tagNames = tagNames;
+        }
+        await save(user, id, patch);
+      }
+      succeeded.push(id);
+    } catch (e) {
+      failed.push({ id, message: e.message });
+    }
+  }
+  return { succeeded, failed };
+}
+
+async function aiIngest(user, bytes, name, options = {}) {
+  if (!['.png', '.jpg', '.jpeg', '.webp', '.pdf'].includes(path.extname(name).toLowerCase())) c.fail(400, '请选择题目图片或 PDF');
+  const uploaded = await upload(user, bytes, name);
+  const models = require('./models');
+  const settings = await models.settings();
+  const modelId = settings.visionModelId || settings.defaultChatModelId;
+  if (!modelId) c.fail(503, '请先在「平台与 API 管理」配置默认模型');
+  const model = await models.resolve(modelId);
+  const ext = path.extname(name).toLowerCase();
+  const isImage = ['.png', '.jpg', '.jpeg', '.webp'].includes(ext);
+  let textContext = '';
+  if (ext === '.pdf') {
+    const pages = await require('./documents').extract(bytes, ext, { user, purpose: 'ai_ingest' });
+    textContext = pages.map(page => page.body).join('\n').slice(0, 12000);
+    if (!textContext.trim()) c.fail(422, '未从 PDF 提取到题目');
+  }
+  const prompt = '请识别材料中的题目，输出严格 JSON 数组（不要输出多余解释）：[{"title":"题目标题","questionText":"题干","answerText":"参考答案或解析（无则空串）","tags":["知识点标签"]}]。' +
+    (options.collection ? `目标数据集：${options.collection}。` : '');
+  const content = isImage
+    ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: `data:${uploaded.mime};base64,${bytes.toString('base64')}` } }]
+    : prompt + '\n材料内容：\n' + textContext;
+  const raw = await models.completion(model, [{ role: 'user', content }], { user, purpose: 'ai_ingest' }, { max_tokens: 2000 });
+  let candidates = [];
+  try {
+    const match = raw.match(/\[[\s\S]*\]/);
+    candidates = JSON.parse(match ? match[0] : raw);
+  } catch {
+    candidates = [{ title: path.basename(name, ext), questionText: raw.trim(), answerText: '', tags: [] }];
+  }
+  return {
+    attachment: { kind: 'question', token: uploaded.token, label: uploaded.name },
+    candidates: (Array.isArray(candidates) ? candidates : [candidates]).slice(0, 10).map((item, idx) => ({
+      title: String(item.title || `${path.basename(name, ext)} · 题 ${idx + 1}`).slice(0, 200),
+      questionText: String(item.questionText || ''),
+      answerText: String(item.answerText || ''),
+      tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+    })),
+  };
+}
+
+module.exports = {
+  upload, list, facets, detail, save, visibility, previewImport, confirmImport, cancelImport,
+  taxonomyTree, saveSubject, deleteSubject, saveCollection, deleteCollection, saveTag, deleteTag,
+  batchUpdate, aiIngest,
+};

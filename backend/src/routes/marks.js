@@ -12,7 +12,7 @@ async function fileExists(fileId) {
     `
     SELECT id
     FROM files
-    WHERE id = ?
+    WHERE id = ? AND deleted_at IS NULL
     LIMIT 1
     `,
     [fileId],
@@ -49,6 +49,7 @@ router.get(
           ON f.id = m.file_id
         WHERE m.user_id = ?
           AND f.category = ?
+          AND f.deleted_at IS NULL
         ORDER BY m.marked_at DESC
         `,
         [req.user.id, category],

@@ -1,0 +1,79 @@
+{
+  "name": "IELTS Writing classification taxonomy",
+  "version": "1.0",
+  "source": "分类要求.jpg",
+  "tags": [
+    {
+      "code": "T1.DYNAMIC_TREND",
+      "task": 1,
+      "name_zh": "动态趋势图",
+      "name_en": "Dynamic trend"
+    },
+    {
+      "code": "T1.STATIC_DATA",
+      "task": 1,
+      "name_zh": "静态数据图",
+      "name_en": "Static data"
+    },
+    {
+      "code": "T1.PROCESS",
+      "task": 1,
+      "name_zh": "流程图",
+      "name_en": "Process"
+    },
+    {
+      "code": "T1.MAP",
+      "task": 1,
+      "name_zh": "地图",
+      "name_en": "Map"
+    },
+    {
+      "code": "T2.EDUCATION",
+      "task": 2,
+      "name_zh": "教育",
+      "name_en": "Education"
+    },
+    {
+      "code": "T2.ENVIRONMENT",
+      "task": 2,
+      "name_zh": "环境",
+      "name_en": "Environment"
+    },
+    {
+      "code": "T2.TECHNOLOGY",
+      "task": 2,
+      "name_zh": "科技",
+      "name_en": "Technology"
+    },
+    {
+      "code": "T2.GOVERNMENT",
+      "task": 2,
+      "name_zh": "政府",
+      "name_en": "Government"
+    },
+    {
+      "code": "T2.URBANIZATION",
+      "task": 2,
+      "name_zh": "城市化",
+      "name_en": "Urbanization"
+    },
+    {
+      "code": "T2.GLOBALIZATION",
+      "task": 2,
+      "name_zh": "全球化",
+      "name_en": "Globalization"
+    },
+    {
+      "code": "T2.MEDIA",
+      "task": 2,
+      "name_zh": "媒体",
+      "name_en": "Media"
+    },
+    {
+      "code": "T2.SOCIETY",
+      "task": 2,
+      "name_zh": "社会",
+      "name_en": "Society"
+    }
+  ]
+}

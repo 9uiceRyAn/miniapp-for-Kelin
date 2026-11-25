@@ -1,6 +1,11 @@
 const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
 const { pool, transaction } = require('../db');
+const { UPLOAD_ROOT } = require('../utils/file-storage');
 const {
   hashPassword,
   verifyPassword,
@@ -12,6 +17,22 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const { validateCode } = require('../registration-codes');
+
+const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
+const AVATAR_MIME_EXT = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 2 * 1024 * 1024,
+    files: 1,
+  },
+});
 
 async function createSession(db, userId) {
   const token = randomToken();
@@ -27,6 +48,7 @@ function publicUser(user) {
     username: user.username,
     displayName: user.display_name || user.username,
     role: user.role,
+    avatarUrl: user.avatar_url || '',
   };
 }
 
@@ -174,7 +196,7 @@ router.post('/login', async (req, res) => {
     const result = await transaction(async db => {
       // Password resets lock this same user before revoking sessions and devices.
       const [rows] = await db.execute(
-        'SELECT id, username, password_hash, display_name, role, status FROM users WHERE username = ? FOR UPDATE',
+        'SELECT id, username, password_hash, display_name, role, status, avatar_url FROM users WHERE username = ? FOR UPDATE',
         [username],
       );
       const user = rows[0];
@@ -306,7 +328,7 @@ router.post('/remember-login', async (req, res) => {
       const device = devices[0];
       if (!device) return null;
       const [users] = await db.execute(
-        'SELECT id, username, display_name, role, status FROM users WHERE id = ? FOR UPDATE',
+        'SELECT id, username, display_name, role, status, avatar_url FROM users WHERE id = ? FOR UPDATE',
         [device.user_id],
       );
       const user = users[0];
@@ -337,5 +359,61 @@ router.post('/remember-login', async (req, res) => {
   }
 });
 
+
+/**
+ * 上传头像
+ */
+router.post('/avatar', requireAuth, avatarUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      return res.status(400).json({ success: false, message: '请选择头像图片' });
+    }
+    const mime = String(req.file.mimetype || '').toLowerCase();
+    const ext = AVATAR_MIME_EXT[mime];
+    if (!ext) {
+      return res.status(400).json({ success: false, message: '仅支持 JPG、PNG、WebP 或 GIF 图片' });
+    }
+
+    await fs.promises.mkdir(AVATAR_DIR, { recursive: true });
+    const filename = `${req.user.id}_${crypto.randomBytes(12).toString('hex')}${ext}`;
+    const targetPath = path.join(AVATAR_DIR, filename);
+    await fs.promises.writeFile(targetPath, req.file.buffer);
+
+    const avatarUrl = `/api/auth/avatars/${filename}`;
+    await pool.execute('UPDATE users SET avatar_url = ? WHERE id = ?', [avatarUrl, req.user.id]);
+
+    const prevUrl = String(req.user.avatar_url || '');
+    if (prevUrl.startsWith('/api/auth/avatars/')) {
+      const prevName = prevUrl.slice('/api/auth/avatars/'.length);
+      if (/^[A-Za-z0-9_.-]+$/.test(prevName) && !prevName.includes('..')) {
+        fs.promises.unlink(path.join(AVATAR_DIR, prevName)).catch(() => {});
+      }
+    }
+
+    return res.json({ success: true, data: { avatarUrl } });
+  } catch (error) {
+    console.error('avatar upload error:', error);
+    return res.status(500).json({ success: false, message: '头像上传失败' });
+  }
+});
+
+/**
+ * 获取头像
+ */
+router.get('/avatars/:filename', (req, res) => {
+  const filename = String(req.params.filename || '');
+  if (!/^[A-Za-z0-9_.-]+$/.test(filename) || filename.includes('..')) {
+    return res.status(400).json({ success: false, message: '无效的头像文件名' });
+  }
+  const avatarRoot = path.resolve(AVATAR_DIR);
+  const filePath = path.resolve(avatarRoot, filename);
+  if (!filePath.startsWith(avatarRoot + path.sep)) {
+    return res.status(400).json({ success: false, message: '无效的头像路径' });
+  }
+  res.set('Cache-Control', 'public, max-age=86400');
+  return res.sendFile(filePath, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
 
 module.exports = router;

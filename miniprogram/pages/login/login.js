@@ -18,6 +18,8 @@ Page(withInputHints({
     focusedField: '',
     wechatEnabled: false,
     wechatStatus: '正在检查微信登录服务…',
+    wechatAvatarPath: '',
+    wechatDisplayName: '',
   },
 
   onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },

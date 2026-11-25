@@ -1,6 +1,56 @@
 const api = require('./api'),
   storage = require('./storage');
 const base = api.API_BASE_URL;
+const MANAGEMENT_TOKEN_KEY = 'kl_management_token';
+const MANAGEMENT_EXPIRES_KEY = 'kl_management_expires';
+let memoryManagementToken = '';
+let memoryManagementExpires = 0;
+
+function getManagementToken() {
+  if (!memoryManagementToken) {
+    memoryManagementToken = wx.getStorageSync(MANAGEMENT_TOKEN_KEY) || '';
+    memoryManagementExpires = Number(wx.getStorageSync(MANAGEMENT_EXPIRES_KEY) || 0);
+  }
+  if (!memoryManagementToken || Date.now() >= memoryManagementExpires) {
+    clearManagementToken();
+    return '';
+  }
+  return memoryManagementToken;
+}
+
+function setManagementToken(token, expiresAt) {
+  memoryManagementToken = token || '';
+  memoryManagementExpires = Number(expiresAt || 0);
+  if (memoryManagementToken) {
+    wx.setStorageSync(MANAGEMENT_TOKEN_KEY, memoryManagementToken);
+    wx.setStorageSync(MANAGEMENT_EXPIRES_KEY, memoryManagementExpires);
+  }
+}
+
+function clearManagementToken() {
+  memoryManagementToken = '';
+  memoryManagementExpires = 0;
+  try {
+    wx.removeStorageSync(MANAGEMENT_TOKEN_KEY);
+    wx.removeStorageSync(MANAGEMENT_EXPIRES_KEY);
+  } catch {}
+}
+
+async function managementRequest(path, method = 'GET', data = {}) {
+  const token = getManagementToken();
+  try {
+    return await api.request({
+      path,
+      method,
+      data,
+      header: token ? { 'X-Management-Token': token } : {},
+    });
+  } catch (err) {
+    if (err.statusCode === 403) clearManagementToken();
+    throw err;
+  }
+}
+
 function request(path, method = 'GET', data) {
   return api.request({ path, method, data: data || {} });
 }
@@ -186,6 +236,10 @@ function openDocument(doc) {
 module.exports = {
   openDocument,
   request,
+  managementRequest,
+  getManagementToken,
+  setManagementToken,
+  clearManagementToken,
   query,
   url,
   error,

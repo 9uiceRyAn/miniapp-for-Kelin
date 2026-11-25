@@ -3,6 +3,7 @@ const { pool } = require('../db');
 const { requireAuth, requireTeacher } = require('../middleware/auth');
 const { hashPassword } = require('../utils/security');
 const codes = require('../registration-codes');
+const adminGate = require('../learning/connection-access');
 const router = express.Router();
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
@@ -10,6 +11,11 @@ router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
 }, requireAuth, requireTeacher);
+router.post('/unlock', wrap(async (req, res) => {
+  const data = adminGate.unlock(req);
+  res.json({ success: true, data });
+}));
+router.use(adminGate.authorize);
 router.get('/users', wrap(async (req, res) => {
   const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
   const where = ['1=1'];
