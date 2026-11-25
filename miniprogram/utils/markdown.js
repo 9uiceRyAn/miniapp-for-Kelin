@@ -1,4 +1,4 @@
-const CITE_RE = /\[\[cite:[a-f0-9-]+\]\]/g;
+const CITE_RE = /\[\[cite:[^\]\r\n]*\]\]/g;
 
 function prepareMarkdown(rawText) {
   const cleaned = String(rawText || '').replace(CITE_RE, '').replace(/\r\n?/g, '\n');

@@ -6,7 +6,7 @@ const { prepareMarkdown } = require(path.join(__dirname, '../../miniprogram/util
 
 test('prepareMarkdown strips citations and normalizes LaTeX delimiters while protecting code blocks', () => {
   const input = [
-    '引用测试[[cite:1234abcd-5678-90ef-1234-567890abcdef]]。',
+    '引用测试[[cite:引用键]][[cite:1234abcd-5678-90ef-1234-567890abcdef]]。',
     '',
     '行内公式 \\(a^2 + b^2 = c^2\\)，块级公式：',
     '\\[\\sum_{i=1}^n i = \\frac{n(n+1)}{2}\\]',
