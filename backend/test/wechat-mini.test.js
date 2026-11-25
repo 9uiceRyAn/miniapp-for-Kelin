@@ -66,10 +66,13 @@ test('mini login, registration, binding and teacher access survive web retiremen
   const { ticket } = await wx('mini', 200, { code: 'first' });
   const registration = { ticket, action: 'register', role: 'student', registerCode: 'student-code' };
   await wx('complete', 403, { ...registration, registerCode: 'bad' });
-  const student = await wx('complete', 200, registration);
+  const student = await wx('complete', 200, { ...registration, displayName: ' 小林 ' });
+  assert.equal(student.user.displayName, '小林');
   assert.equal(student.user.role, 'student');
   await wx('complete', 401, registration);
-  assert.equal((await wx('mini', 200, { code: 'again' })).user.id, student.user.id);
+  const returning = await wx('mini', 200, { code: 'again' });
+  assert.equal(returning.user.id, student.user.id);
+  assert.equal(returning.user.displayName, '小林');
   await api('teacher-admin/users', 403, null, student.token);
   identity = { openid: 'teacher-open' };
   const binding = { ...(await wx('mini', 200, { code: 'bind' })), action: 'bind', username: 'teacher' };

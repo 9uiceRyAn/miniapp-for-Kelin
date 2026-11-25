@@ -28,14 +28,18 @@ module.exports = {
   wechatField(e){this.setData({[e.currentTarget.dataset.field]:e.detail.value});},
   wechatMode(e){this.setData({wechatAction:e.currentTarget.dataset.mode});},
   wechatRole(e){this.setData({wechatRole:e.detail.value?'teacher':'student'});},
-  async wechatComplete(){
+  async wechatComplete(event){
     if (this.data.loading || this.data.autoLoggingIn) return;
     this.setData({loading:true,errorMessage:''});
     try {
       const { wechatTicket: ticket, wechatAction: action } = this.data;
       const fields = action === 'bind'
         ? { username: this.data.username, password: this.data.password }
-        : { role: this.data.wechatRole, registerCode: this.data.wechatRegisterCode };
+        : {
+            role: this.data.wechatRole,
+            registerCode: this.data.wechatRegisterCode,
+            displayName: event.detail.value.displayName,
+          };
       const data = await request('complete', { ticket, action, ...fields });
       finish(this,data);
     }catch(e){this.setData({loading:false,errorMessage:e.message||'绑定失败'});}

@@ -70,7 +70,7 @@ router.post('/mini', wrap(async (req, res) => {
   url.search = new URLSearchParams({ appid, secret, js_code: req.body.code, grant_type: 'authorization_code' });
   res.json({ success: true, data: await enter(appid, await official(url)) });
 }));
-async function completeAccount(ticket, { action, username, password, role: requestedRole, registerCode }) {
+async function completeAccount(ticket, { action, username, password, role: requestedRole, registerCode, displayName }) {
   const ticketHash = hashToken(ticket);
   const { appid } = config();
   const [attempt] = await pool.execute('UPDATE wx_challenges SET attempts=attempts+1 WHERE id=? AND app_id=? AND attempts<5 AND expires_at>NOW()', [ticketHash, appid]);
@@ -91,9 +91,11 @@ async function completeAccount(ticket, { action, username, password, role: reque
       if (existing) user = existing;
       else {
         const name = 'wx_' + randomToken(12);
+        const nickname = (typeof displayName === 'string' && displayName.trim().slice(0, 30))
+          || (role === 'teacher' ? '微信教师' : '微信学生');
         const [created] = await db.execute('INSERT INTO users(username,password_hash,display_name,role,status) VALUES(?,?,?,?,1)',
-          [name, '!wechat-only', role === 'teacher' ? '微信教师' : '微信学生', role]);
-        user = { id: created.insertId, username: name, display_name: role === 'teacher' ? '微信教师' : '微信学生', role, status: 1 };
+          [name, '!wechat-only', nickname, role]);
+        user = { id: created.insertId, username: name, display_name: nickname, role, status: 1 };
       }
     } else fail(400, '请选择绑定或注册');
     if (user.status !== 1) fail(403, '账号已停用');

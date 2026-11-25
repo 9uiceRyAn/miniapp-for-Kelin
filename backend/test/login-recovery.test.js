@@ -72,10 +72,10 @@ test('WeChat registration omits stale credentials and drops the previous device 
   page.setData({ username: 'old', password: 'obsolete', wechatTicket: 'ticket',
     wechatAction: 'register', wechatRole: 'student', wechatRegisterCode: 'example' });
   t.mock.method(api, 'request', async ({ data }) => {
-    assert.deepEqual(data, { ticket: 'ticket', action: 'register', role: 'student', registerCode: 'example' });
+    assert.deepEqual(data, { ticket: 'ticket', action: 'register', role: 'student', registerCode: 'example', displayName: '小林' });
     return { token: 'current', user: { id: 2 } };
   });
-  await page.wechatComplete();
+  await page.wechatComplete({ detail: { value: { displayName: '小林' } } });
   assert.equal(storage.getRememberToken(), '');
   assert.equal(storage.getToken(), 'current');
 });
