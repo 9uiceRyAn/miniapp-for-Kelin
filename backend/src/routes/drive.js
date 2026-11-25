@@ -60,7 +60,7 @@ async function ensureLegacyFolders() {
     );
   }
   await pool.execute(
-    'UPDATE files f JOIN drive_folders d ON d.legacy_category = f.category SET f.folder_id = d.id WHERE f.folder_id IS NULL',
+    'UPDATE files f JOIN drive_folders d ON d.legacy_category = f.category COLLATE utf8mb4_unicode_ci SET f.folder_id = d.id WHERE f.folder_id IS NULL',
   );
 }
 

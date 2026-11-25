@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS drive_folders (
   parent_id BIGINT UNSIGNED NULL,
   name VARCHAR(191) NOT NULL,
   owner_id BIGINT UNSIGNED NOT NULL,
-  legacy_category CHAR(1) NULL,
+  legacy_category CHAR(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   deleted_at TIMESTAMP NULL DEFAULT NULL,
   deleted_by BIGINT UNSIGNED NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -34,6 +34,6 @@ JOIN (
 ) u;
 
 UPDATE files f
-JOIN drive_folders d ON d.legacy_category = f.category
+JOIN drive_folders d ON d.legacy_category = f.category COLLATE utf8mb4_unicode_ci
 SET f.folder_id = d.id
 WHERE f.folder_id IS NULL;
