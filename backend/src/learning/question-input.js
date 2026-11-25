@@ -11,7 +11,7 @@ async function recognize(question, image, modelId, bytes, context) {
   const key = ids.join('/');
   if (!pending.has(key)) {
     const work = async () => {
-      const body = await documents.vision(bytes, image.mime, context, modelId);
+      const body = await documents.vision(bytes || await fs.readFile(media.absolute(image.storage_path)), image.mime, context, modelId);
       if (!body.trim()) core.fail(502, '视觉模型返回空内容');
       await core.rows('INSERT IGNORE INTO kl_question_image_text(revision_id,media_id,model_id,body) VALUES(?,?,?,?)', [...ids, body]);
       return body;
@@ -21,11 +21,26 @@ async function recognize(question, image, modelId, bytes, context) {
   return pending.get(key);
 }
 
-async function prepare(question, model, visionModelId, context) {
-  const images = await core.rows(
+function questionImages(revisionId) {
+  return core.rows(
     "SELECT id,mime,label,storage_path FROM kl_media WHERE revision_id=? AND mime LIKE 'image/%' AND kind NOT IN ('answer','ms','sm') ORDER BY position,id",
-    [question.revisionId],
+    [revisionId],
   );
+}
+
+async function questionText(question, context) {
+  if (String(question.question_text || '').trim()) return question.question_text;
+  const pages = [];
+  for (const image of await questionImages(question.revisionId)) {
+    if (!image.storage_path) core.fail(422, question.title + '：题图文件缺失');
+    if (!context.visionModelId) core.fail(503, '请配置已验证的视觉模型以读取题图');
+    pages.push(await recognize(question, image, context.visionModelId, null, context));
+  }
+  return pages.join('\n\n');
+}
+
+async function prepare(question, model, visionModelId, context) {
+  const images = await questionImages(question.revisionId);
   const stem = String(question.question_text || '').trim();
   if (!images.length && !stem) core.fail(422, question.title + '：此修订缺少可读题面');
   const parts = stem ? [{ type: 'text', text: stem }] : [];
@@ -48,4 +63,4 @@ async function prepare(question, model, visionModelId, context) {
   }
   return parts;
 }
-module.exports = { prepare };
+module.exports = { prepare, questionText };

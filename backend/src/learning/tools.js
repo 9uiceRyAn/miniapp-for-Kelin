@@ -80,6 +80,7 @@ async function call(name, args, context) {
     else if (name === 'get_question_detail') {
       c.teacher(context.user);
       result = await require('./question-management').detail(args.resourceId, null);
+      result.question_text = await require('./question-input').questionText(result, context);
     } else if (name === 'create_question' || name === 'create_question_draft') {
       c.teacher(context.user);
       result = await require('./question-management').save(context.user, null, args);
@@ -174,12 +175,15 @@ async function call(name, args, context) {
               await fs.readFile(media.absolute(image.storage_path)),
               image.mime,
               context,
+              context.visionModelId,
             ),
           });
         result.remainingMedia = result.mediaList.filter(
           (x) => !images.some((image) => image.id === x.id),
         );
         if (!images.length) c.fail(404, '此修订没有可读图片');
+      } else if (data.type === 'question') {
+        result.question_text = await require('./question-input').questionText(data, context);
       }
       if (data.status !== 'ready')
         c.fail(409, '资料尚未解析成功，请查看解析状态');

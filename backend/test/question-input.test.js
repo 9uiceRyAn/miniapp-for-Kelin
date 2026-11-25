@@ -27,6 +27,13 @@ test('selected revision supplies all ordered question images, recognizes once pe
     assert.deepEqual(parts.slice(1).map(p=>p.text.split('\n').pop()),['first','second']);
   }
   assert.equal(recognize.mock.callCount(),2);
+  const { questionText } = require('../src/learning/question-input');
+  const imageOnly = { ...q, question_text: '' };
+  assert.equal(await questionText(imageOnly, { visionModelId: 'vision-1' }), 'first\n\nsecond');
+  assert.equal(recognize.mock.callCount(), 2);
+  assert.equal(await questionText(imageOnly, { visionModelId: 'vision-2' }), 'first\n\nsecond');
+  assert.equal(recognize.mock.callCount(), 4);
+  assert.equal(await questionText(q, {}), q.question_text);
   images[1].storage_path=null;
   await assert.rejects(prepare(q,{},'vision-1',{}), /第 2 页.*缺失/);
   images=[];

@@ -210,12 +210,14 @@ async function execute(runId, engineOverride) {
     ]);
     snap = c.json(conv.snapshot);
     const currentModel = await models.resolve(snap.model.id);
-    const { visionModelId } = await models.settings();
+    const settings = await models.settings();
+    const visionModelId = settings.visionModelId || (currentModel.capabilities?.verified?.vision ? currentModel.id : null);
     pricing = await models.price(snap.model.id);
     const sources = new Map();
     context = {
       user,
       runId,
+      visionModelId,
       agentId: conv.agent_id,
       conversationId: conv.id,
       purpose:
@@ -228,6 +230,12 @@ async function execute(runId, engineOverride) {
             : 'student',
       emit: (type, data) => event(runId, type, data),
       cite: async (data) => {
+        if (data.resourceId && data.revisionId) {
+          for (const [key, prior] of sources) {
+            if (prior.resourceId === data.resourceId && prior.revisionId === data.revisionId &&
+                (prior.position ?? null) === (data.position ?? null)) return key;
+          }
+        }
         const id = c.id();
         sources.set(id, data);
         await c.rows(
