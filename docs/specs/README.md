@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 第一期：题库 | 正式数据导入、查询 API、原生列表/详情/媒体；独立可用 | [题库实施与验收](phase-1-question-bank/03-delivery-and-acceptance.md) |
 | 第二期：Agent | 创建助手、教学会话、带题提问、公共文档工具、教师记录与费用 | 第一期验收通过后，执行 [Agent 实施与验收](phase-2-agent/06-delivery-and-acceptance.md) |
+| 第三期：工作台扩展 | 网盘式资料管理、Agent 预设管理、题库管理增强与整理助手、账号管理密码门禁 | 按 [第三期总览](phase-3-workspace-expansion/00-overview-and-decisions.md) 分步实施与验收 |
 
 第一期不依赖模型连接、Mastra 或 Agent 数据表；第二期复用已交付题库的身份、资源 ID、修订与读取服务。
 
@@ -31,6 +32,16 @@
 | [04-backend-and-api.md](phase-2-agent/04-backend-and-api.md) | Agent 模块合并、领域实体、API |
 | [05-mini-program.md](phase-2-agent/05-mini-program.md) | 创建/教学/教师管理页面、带题提问 |
 | [06-delivery-and-acceptance.md](phase-2-agent/06-delivery-and-acceptance.md) | 第二期顺序、接入条件、验收 |
+
+第三期规格集中在 `phase-3-workspace-expansion/`（2026-11-26 新增）：
+
+| 文档 | 权威范围 |
+| --- | --- |
+| [00-overview-and-decisions.md](phase-3-workspace-expansion/00-overview-and-decisions.md) | 第三期总览、已确认决策 D21–D39、权限矩阵、Migration 规划 |
+| [01-cloud-drive-library.md](phase-3-workspace-expansion/01-cloud-drive-library.md) | 网盘式资料管理（多级目录、回收站、旧数据迁移、AI 轻量索引） |
+| [02-agent-presets.md](phase-3-workspace-expansion/02-agent-presets.md) | AI Agent 预设管理中心（极简 5 项配置、只读/可改与可用范围、初始预置 Agent） |
+| [03-question-bank-and-curator-agent.md](phase-3-workspace-expansion/03-question-bank-and-curator-agent.md) | 题库管理增强、题库整理 AI 助手与账号管理管理员密码门禁 |
+| [04-ui-design-system.md](phase-3-workspace-expansion/04-ui-design-system.md) | 小程序统一 UI 样式与组件规范（Token、子页外框、Sheet 抽屉、旧页收口） |
 
 ## 维护规则
 
