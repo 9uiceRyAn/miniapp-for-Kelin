@@ -2,6 +2,7 @@ const withInputHints = require('../../utils/input-hints');
 const api = require('../../utils/api');
 const storage = require('../../utils/storage');
 const wechat = require('../../utils/wechat.js');
+const { pageInsetsStyle } = require('../../utils/workspace');
 
 Page(withInputHints({
   ...wechat,
@@ -15,6 +16,7 @@ Page(withInputHints({
     autoLoggingIn: false,
     errorMessage: '',
     focusedField: '',
+    pageInsets: '',
     wechatEnabled: false,
     wechatStatus: '正在检查微信登录服务…',
   },
@@ -35,6 +37,7 @@ Page(withInputHints({
       });
     const savedUsername = storage.getRememberUsername();
     this.setData({
+      pageInsets: pageInsetsStyle(wx),
       username: savedUsername,
       rememberUsername: Boolean(savedUsername),
     });
@@ -172,6 +175,16 @@ Page(withInputHints({
         errorMessage: error.message || '登录失败，请检查后端服务',
       });
     }
+  },
+
+  onResize() {
+    this.setData({ pageInsets: pageInsetsStyle(wx) });
+  },
+
+  closeWechatPanel() {
+    if (this.data.loading) return;
+    this.resetInputHints();
+    this.setData({ wechatTicket: '', wechatRegisterCode: '', errorMessage: '', showPassword: false, focusedField: '' });
   },
 
   goRegister() {

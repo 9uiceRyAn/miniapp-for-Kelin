@@ -26,7 +26,7 @@ module.exports = {
     }catch(e){this.setData({loading:false,errorMessage:e.message||'微信登录失败'});}
   },
   wechatField(e){this.setData({[e.currentTarget.dataset.field]:e.detail.value});},
-  wechatMode(e){this.setData({wechatAction:e.currentTarget.dataset.mode});},
+  wechatMode(e){this.setData({wechatAction:e.currentTarget.dataset.mode,errorMessage:''});},
   wechatRole(e){this.setData({wechatRole:e.detail.value?'teacher':'student'});},
   async wechatComplete(){
     if (this.data.loading || this.data.autoLoggingIn) return;

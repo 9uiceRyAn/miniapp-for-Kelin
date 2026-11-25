@@ -2,3 +2,57 @@
 @import "../../styles/workspace-tokens.wxss";
 @import "../../styles/workspace-layout.wxss";
 @import "../../styles/workspace-content.wxss";
+
+.chat-shell {
+  --chat-top-inset: max(env(safe-area-inset-top, 0px), var(--ui-safe-top, 0px));
+  --chat-bottom-inset: max(env(safe-area-inset-bottom, 0px), var(--ui-safe-bottom, 0px));
+  padding-top: var(--chat-top-inset);
+  grid-template-rows: minmax(0, 1fr) calc(var(--ws-bottom-height) + var(--chat-bottom-inset));
+}
+
+.chat-shell .workspace-bottom {
+  padding-bottom: calc(9px + var(--chat-bottom-inset));
+}
+
+.chat-shell .header-start > text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-shell .chat-composer-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-shell .chat-composer-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.chat-shell .chat-composer-actions button:first-child { justify-self: start; }
+.chat-shell .chat-composer-actions button:last-child {
+  justify-self: end;
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .chat-shell .workspace-header { padding-right: max(17px, var(--ui-menu-right, 0px)); }
+  .chat-shell .breadcrumb { display: none; }
+  .chat-shell .drawer-button { flex-shrink: 0; }
+  .chat-shell .workspace-sidebar,
+  .chat-shell .workspace-scrim {
+    top: var(--chat-top-inset);
+    bottom: calc(var(--ws-bottom-height) + var(--chat-bottom-inset));
+  }
+  .chat-shell .workspace-bottom { padding-bottom: calc(7px + var(--chat-bottom-inset)); }
+}

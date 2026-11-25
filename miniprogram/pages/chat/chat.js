@@ -23,6 +23,7 @@ Page({
     recentHasMore: false,
     recentLoading: false,
     id: '',
+    pageInsets: '',
     conversation: null,
     teacher: false,
     libraryActions: [],
@@ -44,7 +45,7 @@ Page({
   },
   async onLoad(options) {
     if (!l.guard()) return;
-    this.setData({ id: options.id });
+    this.setData({ id: options.id, pageInsets: workspace.pageInsetsStyle(wx) });
     this._visible = true;
     if (options.questionId) {
       try {
@@ -75,6 +76,9 @@ Page({
       this.setData({ text: options.initialText });
       await this.send();
     }
+  },
+  onResize() {
+    this.setData({ pageInsets: workspace.pageInsetsStyle(wx) });
   },
   onShow() {
     this._visible = true;

@@ -16,4 +16,14 @@ function groupConversations(rows, previous, activeAgentId) {
   }
   return Array.from(groups.values());
 }
-module.exports = { groupConversations };
+function pageInsetsStyle(wx) {
+  const info = wx.getWindowInfo?.() || wx.getSystemInfoSync?.() || {};
+  const statusBar = Math.max(info.statusBarHeight || 0, info.safeArea?.top || 0);
+  const top = Math.max(0, statusBar - (info.screenTop || 0));
+  const bottom = Math.max(0, (info.screenHeight || 0) - (info.safeArea?.bottom || info.screenHeight || 0));
+  const menu = wx.getMenuButtonBoundingClientRect?.();
+  const menuRight = menu?.left > 0 && menu.left < info.windowWidth ? info.windowWidth - menu.left + 8 : 0;
+  return '--ui-safe-top:' + top + 'px;--ui-safe-bottom:' + bottom + 'px;--ui-menu-right:' + menuRight + 'px';
+}
+
+module.exports = { groupConversations, pageInsetsStyle };
