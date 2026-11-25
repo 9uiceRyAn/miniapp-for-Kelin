@@ -73,10 +73,10 @@ module.exports = async function questionManagementTests({ t, api, origin, teache
     const preview = await upload('/imports/preview', JSON.stringify([importItem('json-import')]), '题库.json', teacher.token, 200, true);
     assert.equal(preview.name, '题库.json');
     assert.equal(preview.summary.created, 1);
-    assert.equal(preview.summary.published, 1); assert.equal(preview.summary.drafts, 0);
     assert.equal((await api('GET', base + '/items?collection=managed-import', null, teacher.token)).total, 0);
     const report = await api('POST', base + '/imports/confirm', { token: preview.token }, teacher.token);
     assert.equal(report.created, 1);
+    assert.equal((await api('GET', '/api/question-bank/items?collection=managed-import', null, student.token)).total, 1);
     const repeated = await api('POST', base + '/imports/confirm', { token: preview.token }, teacher.token);
     assert.deepEqual(repeated, report);
     const unchanged = await upload('/imports/preview', JSON.stringify([importItem('json-import')]), '题库.json');

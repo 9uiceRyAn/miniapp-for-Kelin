@@ -175,11 +175,14 @@ test(
       server = app.listen(0, '127.0.0.1');
     await new Promise((resolve) => server.on('listening', resolve));
     const origin = 'http://127.0.0.1:' + server.address().port;
+    const managementTokens = new Map();
+    process.env.ADMIN_MANAGEMENT_PASSWORD_HASH = require('../src/utils/security').hashPassword('fixture-admin');
     const api = async (method, url, body, token, expected = 200) => {
       const response = await fetch(origin + url, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          ...(managementTokens.has(token) ? { 'X-Management-Token': managementTokens.get(token) } : {}),
           ...(token ? { Authorization: 'Bearer ' + token } : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
@@ -215,6 +218,9 @@ test(
       await c.rows("INSERT INTO kl_capabilities VALUES(?,'platform_admin')", [
         teacher.user.id,
       ]);
+      await api('GET', '/api/ai/admin/models', null, teacher.token, 403);
+      const grant = await api('POST', '/api/ai/admin/unlock', { password: 'fixture-admin' }, teacher.token);
+      managementTokens.set(teacher.token, grant.token);
       const tu = { id: teacher.user.id, role: 'teacher' },
         su = { id: student.user.id, role: 'student' },
         ot = { id: otherTeacher.user.id, role: 'teacher' };
@@ -357,7 +363,7 @@ test(
         },
       );
       await t.test(
-        'publishing and test conversations keep immutable skills/models; other teachers cannot edit',
+        'publishing and test conversations keep immutable skills/models; teachers can maintain the shared draft',
         async () => {
           agent = await api(
             'POST',
@@ -413,9 +419,8 @@ test(
           await api(
             'PUT',
             `/api/ai/agents/${agent.id}/draft`,
-            { content: 'hijack' },
+            { name: 'Math', content: 'shared draft', modelId: model.id },
             otherTeacher.token,
-            404,
           );
           await api(
             'GET',
@@ -837,7 +842,7 @@ test(
             "INSERT INTO kl_capabilities VALUES(?,'platform_admin')",
             [platform.user.id],
           );
-          await api('GET', '/api/ai/admin/models', null, platform.token);
+          await api('GET', '/api/ai/admin/models', null, platform.token, 403);
           await api(
             'GET',
             '/api/ai/conversations/' + conversation.id,

@@ -32,7 +32,8 @@ test('mini login, registration, binding and teacher access survive web retiremen
   });
   await connection.changeUser({ database: dbName });
   for (const file of ['fixtures/base.sql', '../../database/migrations/003_wechat_identity.sql',
-    '../../database/migrations/004_teacher_accounts.sql', '../../database/migrations/009_user_avatar.sql']) {
+    '../../database/migrations/004_teacher_accounts.sql', '../../database/migrations/009_user_avatar.sql',
+    '../../database/migrations/010_management_password.sql']) {
     const sql = await fs.readFile(path.join(__dirname, file), 'utf8');
     for (const statement of sql.split(';').filter(s => s.trim())) await connection.query(statement);
   }
@@ -51,10 +52,12 @@ test('mini login, registration, binding and teacher access survive web retiremen
     assert.equal(new URL(url).pathname, '/sns/jscode2session');
     return Promise.resolve({ ok: true, json: async () => identity });
   });
+  process.env.ADMIN_MANAGEMENT_PASSWORD_HASH = hashPassword('fixture-admin');
+  let managementToken;
   async function api(route, status, body, token) {
     const response = await fetch(origin + '/api/' + route, {
       method: body ? 'POST' : 'GET',
-      headers: { 'Content-Type': 'application/json', ...(token && { Authorization: 'Bearer ' + token }) },
+      headers: { 'Content-Type': 'application/json', ...(managementToken && { 'X-Management-Token': managementToken }), ...(token && { Authorization: 'Bearer ' + token }) },
       body: body && JSON.stringify(body),
     });
     const result = await response.json();
@@ -79,6 +82,8 @@ test('mini login, registration, binding and teacher access survive web retiremen
   await wx('complete', 401, { ...binding, password: 'wrong' });
   const bound = await wx('complete', 200, { ...binding, password: 'teacher-password' });
   assert.equal(bound.user.id, teacher.insertId);
+  await api('teacher-admin/users', 403, null, bound.token);
+  managementToken = (await api('teacher-admin/unlock', 200, { password: 'fixture-admin' }, bound.token)).token;
   assert.equal((await api('teacher-admin/users', 200, null, bound.token)).total, 2);
   await connection.execute('UPDATE users SET status=0 WHERE id=?', [teacher.insertId]);
   await wx('mini', 403, { code: 'disabled' });
