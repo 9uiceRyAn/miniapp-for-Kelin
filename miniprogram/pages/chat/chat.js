@@ -1,5 +1,13 @@
+const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
 const workspace = require('../../utils/workspace');
+async function renderOrOriginal(message) {
+  try {
+    return await l.renderMessage(message);
+  } catch {
+    return message;
+  }
+}
 const toolNames = {
   propose_library_change: '准备资料操作',
   search_existing_files: '查找已有 A–E 资料',
@@ -12,7 +20,7 @@ const toolNames = {
   calculate: '计算',
   web_search: '搜索网页',
 };
-Page({
+Page(withInputHints({
   data: {
     mainTab: 'chat',
     section: 'chat',
@@ -27,22 +35,28 @@ Page({
     teacher: false,
     libraryActions: [],
     confirmingAction: '',
+    applyingDraft: false,
     messages: [],
     assets: [],
     text: '',
     question: null,
     questionTitle: '',
     running: false,
+    sending: false,
     runId: '',
     partial: '',
+    streamHead: '',
+    streamTail: '',
+    streamTick: 0,
     progress: '',
     uploading: false,
     readOnly: false,
     error: '',
-    applying: false,
     hasOlder: false,
+    loadingOlder: false,
   },
   async onLoad(options) {
+    this.setData({ safeTop: wx.getWindowInfo ? wx.getWindowInfo().statusBarHeight : 0 });
     if (!l.guard()) return;
     this.setData({ id: options.id });
     this._visible = true;
@@ -66,13 +80,20 @@ Page({
       }
     }
     await this.load();
-    if (!this.data.readOnly && wx.getStorageSync) {
+    if (!this.data.readOnly) {
       const draft = wx.getStorageSync(this.draftKey());
-      if (draft) this.setData({ text: draft.text || '', question: draft.question || null, questionTitle: draft.questionTitle || '', assets: this.data.assets.map(asset => ({ ...asset, selected: (draft.selectedAssets || []).includes(asset.resourceId) })) });
+      if (draft) this.setData({
+        text: draft.text || '',
+        ...(options.questionId ? {} : { question: draft.question || null, questionTitle: draft.questionTitle || '' }),
+        assets: this.data.assets.map(asset => ({ ...asset, selected: (draft.selectedAssets || []).includes(asset.resourceId) })),
+      });
     }
     await this.loadRecent();
     if (options.initialText && !this.data.readOnly) {
-      this.setData({ text: options.initialText });
+      let initialText = options.initialText;
+      try { initialText = decodeURIComponent(initialText); }
+      catch (e) { /* Already plain text can contain a literal percent sign. */ }
+      this.setData({ text: initialText });
       await this.send();
     }
   },
@@ -97,40 +118,14 @@ Page({
   back() {
     wx.navigateBack();
   },
-  toggleDrawer() { this.setData({ drawerOpen: !this.data.drawerOpen }); },
-  closeDrawer() { this.setData({ drawerOpen: false }); },
-  async loadRecent(append = false) {
-    if (append && (this.data.recentLoading || !this.data.recentHasMore)) return;
-    const requestId = (this._recentRequestId || 0) + 1;
-    this._recentRequestId = requestId;
-    const page = append ? this.data.recentPage + 1 : 1;
-    this.setData({ recentLoading: true });
-    try {
-      const rows = await l.request('/api/ai/conversations?' + l.query({ page }));
-      if (requestId !== this._recentRequestId) return;
-      const unique = new Map((append ? this.data.recentConversations : []).concat(rows).map(row => [row.id, row]));
-      const recentConversations = Array.from(unique.values());
-      this.setData({ recentConversations, recentPage: page, recentHasMore: rows.length === 20,
-        conversationGroups: workspace.groupConversations(recentConversations, this.data.conversationGroups, this.data.conversation && this.data.conversation.agent_id) });
-    } catch (e) { if (requestId === this._recentRequestId) l.error(e); }
-    finally { if (requestId === this._recentRequestId) this.setData({ recentLoading: false }); }
-  },
-  moreRecent() { return this.loadRecent(true); },
-  toggleAgentGroup(e) {
-    const id = e.currentTarget.dataset.id;
-    this.setData({ conversationGroups: this.data.conversationGroups.map(group => group.id === id ? { ...group, expanded: !group.expanded } : group) });
-  },
+  ...workspace.drawer,
+  ...workspace.recentMethods(l, page => page.data.conversation?.agent_id),
   draftKey() { return 'learning-chat-draft:' + require('../../utils/storage').getUser().id + ':' + this.data.id; },
   home() { wx.reLaunch({ url: '/pages/home/home' }); },
   async selectMain(e) {
     const id = e.currentTarget.dataset.id;
     if (id === 'chat') { this.closeDrawer(); return; }
-    const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : [];
-    const index = pages.map(page => page.route).lastIndexOf('pages/learning/index');
-    if (index >= 0 && index < pages.length - 1) {
-      await pages[index].selectMain(e);
-      wx.navigateBack({ delta: pages.length - 1 - index });
-    } else wx.redirectTo({ url: '/pages/learning/index?section=' + id });
+    return workspace.returnToWorkspace(e, getCurrentPages(), wx);
   },
   async selectSection(e) {
     if (e.currentTarget.dataset.id === 'library' && this.data.teacher) {
@@ -149,21 +144,22 @@ Page({
   },
   input(e) {
     this.setData({ text: e.detail.value });
-    this._requestId = null;
+    this._textVersion = (this._textVersion || 0) + 1;
   },
   removeQuestion() {
     this.setData({ question: null, questionTitle: '' });
   },
   async load() {
+    const request = (this._conversationRequest || 0) + 1;
+    this._conversationRequest = request;
     try {
       const result = await l.request('/api/ai/conversations/' + this.data.id);
+      if (request !== this._conversationRequest) return;
       const user = require('../../utils/storage').getUser();
       this.setData({
         conversation: result.conversation,
         teacher: user.role === 'teacher',
         libraryActions: result.libraryActions || [],
-        messages: result.messages,
-        hasOlder: result.hasOlder,
         assets: result.assets.map((x) => ({
           ...x,
           selected:
@@ -172,14 +168,6 @@ Page({
         })),
         readOnly: String(result.conversation.owner_id) !== String(user.id),
       });
-      for (let i = 0; i < result.messages.length; i++) {
-        try {
-          const message = await l.renderMessage(result.messages[i]);
-          this.setData({ ['messages[' + i + ']']: message });
-        } catch (e) {
-          /* Plain text stays readable when formula rendering is unavailable. */
-        }
-      }
       if (result.conversation.active_run) {
         if (!this.data.running) {
           this._sequence = 0;
@@ -190,7 +178,8 @@ Page({
           });
           this.connect();
         }
-      } else this.setData({ running: false, progress: '' });
+      }
+      await this.mergeMessages(result);
       if (
         (result.libraryActions?.some(x => x.status === 'applying') || result.assets.some((x) =>
           ['queued', 'processing'].includes(x.status),
@@ -213,49 +202,52 @@ Page({
     finally { this.setData({ confirmingAction: '' }); }
   },
   async send() {
-    if (this.data.running || this.data.uploading || this.data.readOnly) return;
+    if (this.data.running || this.data.sending || this.data.uploading || this.data.readOnly) return;
     if (
       !this.data.text.trim() &&
       !this.data.question &&
       !this.data.assets.some((x) => x.selected)
     )
       return;
-    this._requestId = this._requestId || l.id();
+    const { text, question } = this.data;
+    const textVersion = this._textVersion;
+    const assets = this.data.assets.filter(x => x.selected).map(x => x.resourceId);
+    const payload = { text, question, assets };
+    const payloadKey = JSON.stringify(payload);
+    if (this._sendRequest?.payloadKey !== payloadKey)
+      this._sendRequest = { payloadKey, requestId: l.id() };
+    const { requestId } = this._sendRequest;
+    this.setData({ sending: true, error: '' });
     try {
       const result = await l.request(
         '/api/ai/conversations/' + this.data.id + '/messages',
         'POST',
-        {
-          requestId: this._requestId,
-          text: this.data.text,
-          question: this.data.question,
-          assets: this.data.assets
-            .filter((x) => x.selected)
-            .map((x) => x.resourceId),
-        },
+        { requestId, ...payload },
       );
-      this._requestId = null;
+      this._sendRequest = null;
       this._sequence = 0;
       this.setData({
-        text: '',
-        question: null,
-        questionTitle: '',
+        ...(textVersion === this._textVersion ? { text: '' } : {}),
+        ...(question === this.data.question ? { question: null, questionTitle: '' } : {}),
         running: true,
         runId: result.runId,
         partial: '',
         progress: '正在准备回答',
         error: '',
-        assets: this.data.assets.map((x) => ({ ...x, selected: false })),
+        assets: this.data.assets.map(x => assets.includes(x.resourceId) ? { ...x, selected: false } : x),
       });
-      await this.loadMessages();
       this.connect();
+      await this.loadMessages();
     } catch (e) {
       this.setData({ error: e.message });
       l.error(e);
+    } finally {
+      this.setData({ sending: false });
     }
   },
   async older() {
-    if (!this.data.messages.length) return;
+    if (!this.data.messages.length || !this.data.hasOlder || this.data.loadingOlder) return;
+    this.setData({ loadingOlder: true });
     try {
       const result = await l.request(
         '/api/ai/conversations/' +
@@ -263,31 +255,41 @@ Page({
           '?beforeSequence=' +
           this.data.messages[0].seq,
       );
-      const messages = [];
-      for (const message of result.messages) {
-        try {
-          messages.push(await l.renderMessage(message));
-        } catch {
-          messages.push(message);
-        }
-      }
-      this.setData({
-        messages: messages.concat(this.data.messages),
-        hasOlder: result.hasOlder,
-      });
+      await this.mergeMessages(result);
     } catch (e) {
       l.error(e);
+    } finally {
+      this.setData({ loadingOlder: false });
     }
   },
   async loadMessages() {
     const result = await l.request('/api/ai/conversations/' + this.data.id);
-    this.setData({ messages: result.messages });
+    await this.mergeMessages(result);
+  },
+  async mergeMessages(result) {
+    const known = new Set(this.data.messages.map(message => message.id));
+    const incoming = await Promise.all(
+      result.messages.filter(message => !known.has(message.id)).map(renderOrOriginal),
+    );
+    const messages = new Map(this.data.messages.map(message => [message.id, message]));
+    incoming.forEach(message => messages.set(message.id, message));
+    const merged = [...messages.values()].sort((a, b) => a.seq - b.seq);
+    this.setData({ messages: merged, hasOlder: merged.length > 0 && merged[0].seq > 1 });
   },
   consume(event) {
     if (event.seq <= this._sequence) return;
     this._sequence = event.seq;
-    if (event.type === 'text-delta')
-      this.setData({ partial: this.data.partial + (event.data.text || '') });
+    if (event.type === 'text-delta') {
+      const tail = event.data.text || '';
+      if (!tail) return;
+      // Only the newest fragment fades; all earlier text stays stable.
+      this.setData({
+        streamHead: this.data.partial,
+        streamTail: tail,
+        streamTick: this.data.streamTick + 1,
+        partial: this.data.partial + tail,
+      });
+    }
     else if (event.type === 'tool-started')
       this.setData({
         progress: '正在' + (toolNames[event.data.name] || '处理资料'),
@@ -370,6 +372,7 @@ Page({
     }
   },
   async attach() {
+    if (this.data.sending || this.data.running || this.data.uploading || this.data.readOnly) return;
     try {
       const file = await l.pickFile(true);
       this.setData({ uploading: true });
@@ -401,14 +404,13 @@ Page({
   },
   async refreshAssets() {
     if (!this._visible) return;
-    const current = this.data.assets;
     try {
       const result = await l.request('/api/ai/conversations/' + this.data.id);
       this.setData({
         assets: result.assets.map((x) => ({
           ...x,
           selected:
-            current.find((a) => a.resourceId === x.resourceId)?.selected ||
+            this.data.assets.find((a) => a.resourceId === x.resourceId)?.selected ||
             false,
         })),
       });
@@ -434,6 +436,7 @@ Page({
       );
       return;
     }
+    if (this.data.sending) return;
     this.setData({
       ['assets[' + index + '].selected']: !this.data.assets[index].selected,
     });
@@ -461,12 +464,24 @@ Page({
     );
   },
   async applyDraft(e) {
+    if (this.data.applyingDraft || this.data.readOnly) return;
+    this.setData({ applyingDraft: true });
     try {
       const message = this.data.messages[Number(e.currentTarget.dataset.index)],
         text = message.data.text,
         match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
       const draft = JSON.parse(match ? match[1] : text);
       if (!draft.content) throw new Error('生成结果尚未包含完整草稿');
+      const confirmed = await new Promise((resolve, reject) => {
+        wx.showModal({
+          title: '应用教学草稿',
+          content: '应用后将替换教师工作台中的草稿。',
+          confirmText: '应用',
+          success: result => resolve(result.confirm),
+          fail: reject,
+        });
+      });
+      if (!confirmed) return;
       const agent = await l.request(
         '/api/ai/agents/' + this.data.conversation.agent_id,
       );
@@ -476,9 +491,12 @@ Page({
         parameters: agent.draft_parameters,
         builderConversationId: this.data.id,
       });
+      this.getOpenerEventChannel?.()?.emit('draftApplied');
       wx.showToast({ title: '已应用到草稿' });
     } catch (e) {
       l.error(e);
+    } finally {
+      this.setData({ applyingDraft: false });
     }
   },
-});
+}));

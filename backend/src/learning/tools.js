@@ -106,12 +106,8 @@ async function call(name, args, context) {
         args.resourceId,
         args.revisionId,
       );
-      const resource = await media.requireResource(
-        context.user,
-        args.resourceId,
-      );
       if (
-        resource.visibility === 'private' &&
+        data.visibility === 'private' &&
         !(await c.one(
           'SELECT id FROM kl_assets WHERE resource_id=? AND conversation_id=?',
           [args.resourceId, context.conversationId],

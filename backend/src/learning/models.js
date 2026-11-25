@@ -1,4 +1,5 @@
 const c = require('./core');
+const { estimate } = require('./pricing');
 const { bignumber } = require('mathjs');
 async function gateway(endpoint, body, method = 'POST') {
   const management = endpoint === '/model/new' || endpoint === '/model/update';
@@ -146,24 +147,6 @@ async function addPrice(modelId, input) {
   );
   return price(modelId);
 }
-function estimate(usage, pricing) {
-  if (!pricing || usage?.input === undefined || usage?.output === undefined)
-    return null;
-  const { input, output, cached = 0 } = usage,
-    r = pricing.rates;
-  if (
-    r.input === undefined ||
-    r.output === undefined ||
-    (cached > 0 && r.cachedInput === undefined)
-  )
-    return null;
-  return bignumber(Math.max(0, input - cached))
-    .mul(r.input)
-    .add(bignumber(output).mul(r.output))
-    .add(bignumber(cached).mul(r.cachedInput || 0))
-    .div(1000000)
-    .toFixed(12);
-}
 async function record(context, operation, modelId, usage, pricing, extra = {}) {
   const amount =
     extra.credits !== undefined && pricing?.rates?.credit !== undefined
@@ -187,8 +170,14 @@ async function record(context, operation, modelId, usage, pricing, extra = {}) {
     ],
   );
 }
+function tokenUsage(usage) {
+  return usage ? {
+    input: usage.prompt_tokens,
+    output: usage.completion_tokens,
+    cached: usage.prompt_tokens_details?.cached_tokens || 0,
+  } : null;
+}
 async function completion(model, messages, context, options = {}) {
-  await resolve(model.id);
   const pricing = await price(model.id),
     operation = c.id();
   try {
@@ -217,18 +206,11 @@ async function completion(model, messages, context, options = {}) {
         },
       },
     });
-    const u = result.usage;
     await record(
       context,
       operation,
       model.id,
-      u
-        ? {
-            input: u.prompt_tokens,
-            output: u.completion_tokens,
-            cached: u.prompt_tokens_details?.cached_tokens || 0,
-          }
-        : null,
+      tokenUsage(result.usage),
       pricing,
       { requestId: result.id },
     );
@@ -281,10 +263,7 @@ async function usage(user, query = {}, scope = 'self') {
   const found = await c.rows(
     'SELECT u.*,person.display_name userName,m.name modelName FROM kl_usage u LEFT JOIN users person ON person.id=u.user_id LEFT JOIN kl_models m ON m.id=u.model_id' +
       where +
-      ' ORDER BY created_at DESC,id LIMIT ' +
-      p.pageSize +
-      ' OFFSET ' +
-      p.offset,
+      ' ORDER BY created_at DESC,id' + c.limitOffset(p),
     args,
   );
   return {
@@ -321,7 +300,7 @@ async function probe(user, id, kind = 'text') {
               {
                 type: 'image_url',
                 image_url: {
-                  url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE1cAAAAASUVORK5CYII=',
+                  url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAFzUkdCAK7OHOkAAABHSURBVFiF7dcxCgAwCEPRpPT+V06P4CAly3cWfGQQdZKoWKc5HAAAAJJ0xw57N2FYM/UEAAAAAAAAAADzPfD5bagnAAAAgAeeTgg+4/4RiQAAAABJRU5ErkJggg==',
                 },
               },
             ]
@@ -371,18 +350,11 @@ async function probe(user, id, kind = 'text') {
     );
     throw e;
   }
-  const usage = result.usage;
   await record(
     { user, purpose: 'admin_test' },
     operation,
     id,
-    usage
-      ? {
-          input: usage.prompt_tokens,
-          output: usage.completion_tokens,
-          cached: usage.prompt_tokens_details?.cached_tokens || 0,
-        }
-      : null,
+    tokenUsage(result.usage),
     pricing,
     { requestId: result.id },
   );
@@ -411,14 +383,12 @@ async function probe(user, id, kind = 'text') {
 module.exports = {
   probe,
   settings,
-  gateway,
   list,
   resolve,
   create,
   update,
   price,
   addPrice,
-  estimate,
   record,
   completion,
   usage,

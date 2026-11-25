@@ -126,127 +126,6 @@ function request({
 }
 
 
-function uploadOne({
-  category,
-  filePath,
-  fileName,
-  fileSize = 0,
-  onProgress,
-}) {
-  return new Promise(
-    (resolve, reject) => {
-      const task =
-        wx.uploadFile({
-          url:
-            `${API_BASE_URL}/api/files/upload`,
-
-          filePath,
-
-          name: 'file',
-
-          header: authHeader(),
-
-          formData: {
-            category:
-              String(category || ''),
-
-            clientFileName:
-              fileName ||
-              '未命名文件',
-
-            clientFileSize:
-              String(
-                Number(
-                  fileSize || 0,
-                ),
-              ),
-          },
-
-          success(result) {
-            const statusCode =
-              Number(
-                result.statusCode ||
-                500,
-              );
-
-            let body = {};
-
-            try {
-              body =
-                typeof result.data ===
-                'string'
-                  ? JSON.parse(
-                      result.data,
-                    )
-                  : result.data || {};
-            } catch (error) {
-              reject(
-                makeError(
-                  '服务器返回了无法解析的数据',
-                  statusCode,
-                  result.data,
-                ),
-              );
-              return;
-            }
-
-            if (
-              statusCode >= 200 &&
-              statusCode < 300 &&
-              body.success
-            ) {
-              resolve(body.data);
-              return;
-            }
-
-            reject(
-              makeError(
-                body.message ||
-                  `上传失败，状态码：${statusCode}`,
-                statusCode,
-                body,
-              ),
-            );
-          },
-
-          fail(error) {
-            console.error(
-              'wx.uploadFile 失败：',
-              error,
-            );
-
-            reject(
-              makeError(
-                error.errMsg ||
-                  '上传文件失败',
-                500,
-                error,
-              ),
-            );
-          },
-        });
-
-      if (
-        typeof onProgress ===
-          'function' &&
-        task &&
-        task.onProgressUpdate
-      ) {
-        task.onProgressUpdate(
-          (result) => {
-            onProgress(
-              Number(
-                result.progress || 0,
-              ),
-            );
-          },
-        );
-      }
-    },
-  );
-}
-
-
 function download({
   path,
   fileName,
@@ -335,97 +214,9 @@ function download({
 }
 
 
-/*
- * 保留旧名字，防止其他代码
- * 仍然引用 api.callCloud。
- */
-function callCloud(
-  action,
-  data = {},
-  options = {},
-) {
-  switch (action) {
-    case 'login':
-      return request({
-        path:
-          '/api/auth/login',
-        method: 'POST',
-        data,
-        auth: false,
-        ...options,
-      });
-
-    case 'register':
-      return request({
-        path:
-          '/api/auth/register',
-        method: 'POST',
-        data,
-        auth: false,
-        ...options,
-      });
-
-    case 'me':
-      return request({
-        path:
-          '/api/auth/me',
-        ...options,
-      });
-
-    case 'logout':
-      return request({
-        path:
-          '/api/auth/logout',
-        method: 'POST',
-        ...options,
-      });
-
-    case 'counts':
-      return request({
-        path:
-          '/api/files/counts',
-        ...options,
-      });
-
-    case 'listFiles':
-      return request({
-        path:
-          `/api/files?category=${
-            encodeURIComponent(
-              data.category || '',
-            )
-          }`,
-        ...options,
-      });
-
-    case 'deleteFile':
-      return request({
-        path:
-          `/api/files/${
-            encodeURIComponent(
-              data.id,
-            )
-          }`,
-        method: 'DELETE',
-        ...options,
-      });
-
-    default:
-      return Promise.reject(
-        makeError(
-          `不支持的旧接口：${action}`,
-          400,
-        ),
-      );
-  }
-}
-
-
 module.exports = {
   API_BASE_URL,
   request,
-  callCloud,
-  uploadOne,
   download,
 
   login(data) {
@@ -491,13 +282,6 @@ module.exports = {
     });
   },
 
-  counts() {
-    return request({
-      path:
-        '/api/files/counts',
-    });
-  },
-
   files(category) {
     return request({
       path:
@@ -509,36 +293,4 @@ module.exports = {
     });
   },
 
-  marks(category) {
-    return request({
-      path:
-        `/api/marks?category=${
-          encodeURIComponent(
-            category,
-          )
-        }`,
-    });
-  },
-
-  setMarked(id, marked) {
-    return request({
-      path:
-        `/api/marks/${
-          encodeURIComponent(id)
-        }`,
-      method: marked
-        ? 'PUT'
-        : 'DELETE',
-    });
-  },
-
-  deleteFile(id) {
-    return request({
-      path:
-        `/api/files/${
-          encodeURIComponent(id)
-        }`,
-      method: 'DELETE',
-    });
-  },
 };

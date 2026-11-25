@@ -59,7 +59,6 @@ async function attachment(user, conversationId, proposal) {
 
 // Validate both when proposing and when confirming; never trust model-supplied ownership.
 async function validate(user, conversationId, input) {
-  await authorize(user, conversationId);
   const allowed = ['add_text', 'publish_attachment', 'index_file', 'replace_text', 'replace_attachment', 'withdraw'];
   if (!allowed.includes(input.action)) c.fail(400, '不支持的资料操作');
   const proposal = { action: input.action };
@@ -95,6 +94,7 @@ async function validate(user, conversationId, input) {
 }
 
 async function propose(input, context) {
+  await authorize(context.user, context.conversationId);
   const { proposal } = await validate(context.user, context.conversationId, input);
   return { proposal, awaitingConfirmation: true, message: '操作已准备，请教师在会话卡片中确认。尚未更改资料。' };
 }
@@ -103,13 +103,13 @@ async function searchFiles(input, context) {
   await authorize(context.user, context.conversationId);
   const pagination = c.page({page:input.page,pageSize:10});
   const where = ['original_name LIKE ?'];
-  const values = ['%' + String(input.query || '').replace(/[\\%_]/g, '\\$&') + '%'];
+  const values = [c.containsPattern(input.query || '')];
   if (input.category) {
     if (!/^[A-E]$/.test(input.category)) c.fail(400, '资料分类应为 A–E');
     where.push('category=?'); values.push(input.category);
   }
   const total = await c.one('SELECT COUNT(*) total FROM files WHERE '+where.join(' AND '),values);
-  const items = await c.rows('SELECT id fileId,original_name title,category FROM files WHERE '+where.join(' AND ')+' ORDER BY id DESC LIMIT '+pagination.pageSize+' OFFSET '+pagination.offset, values);
+  const items = await c.rows('SELECT id fileId,original_name title,category FROM files WHERE '+where.join(' AND ')+' ORDER BY id DESC' + c.limitOffset(pagination), values);
   return {items,total:Number(total.total),...pagination};
 }
 
@@ -162,4 +162,4 @@ async function recover() {
   await c.rows("UPDATE kl_tools SET status='action_failed',data=JSON_SET(data,'$.result.error','服务重启中断了操作，请核对资料状态后重新提出操作') WHERE name='propose_library_change' AND status='applying'");
 }
 
-module.exports = { open, authorize, validate, propose, searchFiles, cards, confirm, recover };
+module.exports = { open, propose, searchFiles, cards, confirm, recover };

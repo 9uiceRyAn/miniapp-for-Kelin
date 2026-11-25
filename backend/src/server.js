@@ -78,7 +78,7 @@ app.use((error, req, res, next) => {
 
   return res.status(error.status || (error.code === 'LIMIT_FILE_SIZE' ? 413 : 500)).json({
     success: false,
-    message: error.status ? error.message : '服务器内部错误',
+    message: error.status ? error.message : error.code === 'LIMIT_FILE_SIZE' ? '文件超过上传大小限制' : '服务器内部错误',
   });
 });
 

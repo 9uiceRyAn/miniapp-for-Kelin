@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const crypto = require('node:crypto');
-const { rows, one, fail, hash } = require('./core');
+const { signature, matches } = require('./signatures');
+const { rows, one, fail, hash, capability } = require('./core');
 const ROOT = path.resolve(
   process.env.LEARNING_STORAGE_ROOT ||
     path.join(__dirname, '../../uploads/learning'),
@@ -23,13 +23,6 @@ async function blob(bytes, extension = '') {
   }
   return { path: relative, hash: digest };
 }
-function key() {
-  if (!process.env.MEDIA_SIGNING_KEY) fail(503, '尚未配置媒体签名');
-  return process.env.MEDIA_SIGNING_KEY;
-}
-function signature(payload) {
-  return crypto.createHmac('sha256', key()).update(payload).digest('hex');
-}
 function ticket(mediaId, tokenHash) {
   const expires = Math.floor(Date.now() / 1000) + 900;
   const payload = Buffer.from(
@@ -42,11 +35,7 @@ function ticket(mediaId, tokenHash) {
 }
 async function verify(mediaId, value) {
   const [payload, supplied = ''] = String(value || '').split('.');
-  const expected = signature(payload || '');
-  if (
-    supplied.length !== expected.length ||
-    !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
-  )
+  if (!matches(payload || '', supplied))
     fail(401, '媒体访问凭证无效');
   let decoded;
   try {
@@ -62,13 +51,18 @@ async function verify(mediaId, value) {
   );
   if (!session) fail(401, '登录已过期');
   const item = await one(
-    'SELECT m.*,r.resource_id FROM kl_media m JOIN kl_revisions r ON r.id=m.revision_id WHERE m.id=?',
+    'SELECT m.*,r.resource_id,r.release_status FROM kl_media m JOIN kl_revisions r ON r.id=m.revision_id WHERE m.id=?',
     [mediaId],
   );
   if (!item) fail(404, '媒体不存在');
-  await requireResource(session, item.resource_id);
+  const resource = await requireResource(session, item.resource_id);
+  await requirePublishedQuestion(session, resource, item.release_status);
   if (!item.storage_path) fail(410, '原媒体不可用');
   return item;
+}
+async function requirePublishedQuestion(user, resource, status) {
+  if (resource.type === 'question' && status === 'draft' && !(await capability(user)))
+    fail(403, '题目尚未发布');
 }
 async function requireResource(user, resourceId) {
   const resource = await one('SELECT * FROM kl_resources WHERE id=?', [
@@ -101,7 +95,7 @@ async function references(revisionId, sessionHash) {
     label: m.label,
     mime: m.mime,
     available: Boolean(m.storage_path),
-    ...(m.storage_path ? ticket(m.id, sessionHash) : {}),
+    ...(m.storage_path && sessionHash ? ticket(m.id, sessionHash) : {}),
   }));
 }
 const mime = (file) =>
@@ -125,6 +119,7 @@ module.exports = {
   ticket,
   verify,
   requireResource,
+  requirePublishedQuestion,
   references,
   mime,
 };

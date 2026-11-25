@@ -31,8 +31,8 @@ export async function execute(input: EngineInput) {
       description:
         '搜索真实公共题库，返回题目和修订 ID。标签查询须提供 collection。',
       schema: z.object({
-        query: z.string().optional(),
-        subject: z.string().optional(),
+        query: z.string().describe('题目编号或具体关键词；按科目浏览时省略，不要填写真实物理题等泛称。').optional(),
+        subject: z.string().describe('英文科目代码，例如 physics、chemistry、biology、mathematics；不可填写中文科目名。').optional(),
         collection: z.string().optional(),
         tag: z.string().optional(),
       }),
@@ -107,7 +107,6 @@ export async function execute(input: EngineInput) {
     ...input.model.parameters,
     onStepFinish: input.onStep,
   } as any);
-  let text = '';
   for await (const chunk of stream.fullStream) {
     if (chunk.type === 'text-delta') {
       const delta =
@@ -115,10 +114,8 @@ export async function execute(input: EngineInput) {
         (chunk as any).payload?.textDelta ??
         (chunk as any).textDelta ??
         '';
-      text += delta;
       await input.emit('text-delta', { text: delta });
     }
     if (chunk.type === 'error') throw new Error('模型执行失败');
   }
-  return text;
 }

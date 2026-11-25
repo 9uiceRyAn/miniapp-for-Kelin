@@ -49,7 +49,6 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = rows[0];
-    req.authToken = token;
     req.authTokenHash = tokenHash;
 
     return next();

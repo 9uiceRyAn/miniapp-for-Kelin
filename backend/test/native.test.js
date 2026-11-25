@@ -3,7 +3,7 @@ const { test } = require('node:test'),
   fs = require('node:fs'),
   path = require('node:path'),
   vm = require('node:vm');
-function loadPage(file, learning, wx = {}) {
+function loadPage(file, learning, wx = {}, api = {}) {
   let config;
   vm.runInNewContext(
     fs.readFileSync(
@@ -15,11 +15,14 @@ function loadPage(file, learning, wx = {}) {
         config = value;
       },
       require: (name) =>
-        name.includes('learning')
+        name.includes('input-hints')
+          ? require(path.join(__dirname, '../../miniprogram/utils/input-hints.js'))
+          : name.includes('workspace') ? require(path.join(__dirname, '../../miniprogram/utils/workspace.js'))
+          : name.includes('learning')
           ? learning
           : name.includes('storage')
             ? { getUser: () => ({ id: 1, role: 'student' }) }
-            : {},
+            : name.endsWith('/api') ? api : {},
       wx,
       console,
       setTimeout: () => 1,
@@ -48,7 +51,7 @@ function loadPage(file, learning, wx = {}) {
 test('native UTF-8 event decoding preserves Chinese and emoji across network chunk boundaries', () => {
   const sandbox = {
     module: { exports: {} },
-    require: () => ({}),
+    require: () => ({ getToken: () => 'test' }),
     Uint8Array,
     String,
     Array,
@@ -64,14 +67,13 @@ test('native UTF-8 event decoding preserves Chinese and emoji across network chu
     ),
     sandbox,
   );
-  const decode = sandbox.module.exports.decoder(),
-    bytes = Buffer.from('题目 🧮 已完成');
-  let actual = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const b = new Uint8Array([bytes[i]]);
-    actual += decode(b.buffer);
-  }
-  assert.equal(actual, '题目 🧮 已完成');
+  let chunk;
+  const received = [];
+  sandbox.wx.request = () => ({ onChunkReceived(cb) { chunk = cb; } });
+  sandbox.module.exports.subscribe('run', 0, event => received.push(event.text), assert.ifError);
+  const bytes = Buffer.from(JSON.stringify({ text: '题目 🧮 已完成' }) + '\n');
+  for (const byte of bytes) chunk({ data: Uint8Array.of(byte).buffer });
+  assert.deepEqual(received, ['题目 🧮 已完成']);
 });
 test('a stale filter response cannot overwrite a newer native query', async () => {
   const pending = [];
@@ -125,4 +127,219 @@ test('leaving the native detail page pauses audio and unloading destroys it', ()
 test('students can retry their failed private attachment without receiving public document management controls',async()=>{
  const page=loadPage('question/detail.js',{request:async()=>({resourceId:'private-document',revisionId:'r1',ownerId:1,visibility:'private',status:'failed',media:[]}),url:x=>x,error:()=>{}});
  page.data.id='private-document';await page.load();assert.equal(page.data.canRetry,true);assert.equal(page.data.canManage,false);
+});
+
+test('stream fragment animation preserves all text and ignores replayed events', () => {
+  const page = loadPage('chat/chat.js', {});
+  page._sequence = 0;
+  page.consume({ seq: 1, type: 'text-delta', data: { text: '先读题 🧮\n' } });
+  page.consume({ seq: 2, type: 'text-delta', data: { text: '再计算 72/1000。' } });
+  assert.equal(page.data.streamHead + page.data.streamTail, '先读题 🧮\n再计算 72/1000。');
+  assert.equal(page.data.partial, page.data.streamHead + page.data.streamTail);
+  const tick = page.data.streamTick;
+  page.consume({ seq: 2, type: 'text-delta', data: { text: '重复片段' } });
+  assert.equal(page.data.streamTick, tick);
+  assert.equal(page.data.partial, '先读题 🧮\n再计算 72/1000。');
+});
+
+test('native chat decodes the landing question once without changing literal percent text', async () => {
+  for (const text of ['为什么 H+ 与 OH− 会生成水？ 50% 与 %20', '计算 50%']) {
+    const page = loadPage('chat/chat.js', { guard: () => true }, { getStorageSync: () => '' });
+    page.load = async () => {};
+    page.loadRecent = async () => {};
+    let sent;
+    page.send = async () => { sent = page.data.text; };
+    await page.onLoad({ id: 'test-conversation', initialText: text === '计算 50%' ? text : encodeURIComponent(text) });
+    assert.equal(sent, text);
+  }
+});
+
+test('question reading keeps paper metadata compact and switches answer media without mixing revisions', async () => {
+  const item = { id: '9708-11-2020-MJ-Q01', sourceId: '9708-11-2020-MJ-Q01', title: '9708 · 2020 MJ · Paper 11 · Question 1', primary_tag_name: 'AS Unit 1 · 基础经济概念与资源配置', question_range: { start: 1, end: 1 }, details: { syllabus_code: '9708', year: 2020, session: 'MJ', paper: '11' }, source_ref: { question_document: '9708_s20_qp_11.pdf', question_pages: [2] }, revisionId: 'r1', media: [
+    { id: 'q', kind: 'question', mime: 'image/png', path: '/q.png', available: true },
+    { id: 'a', kind: 'answer', mime: 'image/png', path: '/a.png', available: true },
+    { id: 'context', kind: 'source', mime: 'application/pdf', path: '/context.pdf', available: true },
+    { id: 'mark', kind: 'ms', mime: 'application/pdf', path: '/mark.pdf', available: true },
+  ], chunks: [] };
+  const page = loadPage('question/detail.js', { request: async () => structuredClone(item), url: x => 'https://local.test' + x });
+  await page.load();
+  assert.equal(page.data.questionHeading, '第 1 题');
+  assert.equal(page.data.paperSummary, '9708 · 2020 MJ · Paper 11');
+  assert.equal(page.data.item.sourceText, '9708_s20_qp_11.pdf · 第 2 页');
+  assert.equal(page.data.detailsOpen, false);
+  assert.deepEqual([...page.data.visibleImages].map(x => x.id), ['q']);
+  page.toggleAnswers();
+  assert.deepEqual([...page.data.visibleImages].map(x => x.id), ['a']);
+  assert.equal(page.data.visibleOtherMedia[0].originalIndex, 1);
+  page.preview({ currentTarget: { dataset: { url: 'https://local.test/a.png' } } });
+  assert.equal(page.data.previewOpen, true);
+  assert.equal(page.data.previewIndex, 0);
+  assert.deepEqual([...page.data.previewImages].map(x => x.url), ['https://local.test/a.png']);
+  page.closePreview();
+  assert.equal(page.data.previewOpen, false);
+  assert.equal(page.data.previewImages.length, 0);
+  page.toggleAnswers();
+  assert.deepEqual([...page.data.visibleImages].map(x => x.id), ['q']);
+});
+test('tutor sheet enters a conversation with the selected immutable question revision', async () => {
+  const routes = [];
+  const page = loadPage('question/detail.js', { request: async () => ({ items: [{ id: 'tutor', name: '作业大师' }] }), go: x => routes.push(x) });
+  page.setData({ id: 'question-resource', revisionId: 'question-revision' });
+  await page.ask();
+  assert.equal(page.data.choosing, true);
+  assert.equal(page.data.loadingTutors, false);
+  page.enter('conversation');
+  assert.equal(page.data.choosing, false);
+  assert.equal(routes[0], '/pages/chat/chat?id=conversation&questionId=question-resource&revisionId=question-revision');
+});
+
+test('text-only question answers remain available without answer images', async () => {
+  const item = { title: 'Typed question', question_text: 'Calculate 2 + 2.', answer_text: '4', media: [], chunks: [], revisionId: 'typed-revision', status: 'ready' };
+  const page = loadPage('question/detail.js', { request: async () => item, url: value => value, error: error => { throw error; } });
+  page.setData({ id: 'typed-question' });
+  await page.load();
+  assert.equal(page.data.item.hasAnswer, true);
+  page.toggleAnswers();
+  assert.equal(page.data.answers, true);
+  assert.equal(page.data.item.answer_text, '4');
+});
+
+test('teacher workspace saves valid edits for the builder and keeps incomplete edits on return', async () => {
+  let savedContent = 'Original instructions';
+  let navigation;
+  const page = loadPage('studio/studio.js', {
+    request: async (url, method, body) => {
+      if (method === 'PUT') { savedContent = body.content; return; }
+      if (method === 'POST') return { id: 'builder-session' };
+      if (url.endsWith('/models')) return [];
+      return { name: 'Tutor', skill: { content: savedContent } };
+    },
+    error: error => { throw error; },
+  }, {
+    navigateTo(options) { navigation = options; options.success(); },
+    showToast() {},
+  });
+
+  page.data.id = 'tutor';
+  await page.load();
+  page.setData({ content: 'Local instructions' });
+  await page.builder();
+  page.onShow();
+  await new Promise(setImmediate);
+  assert.equal(savedContent, 'Local instructions');
+  assert.equal(page.data.content, 'Local instructions');
+
+  page.setData({ content: '', name: 'Unsaved name' });
+  await page.builder();
+  page.onShow();
+  await new Promise(setImmediate);
+  assert.equal(page.data.name, 'Unsaved name');
+  assert.equal(page.data.content, '');
+
+  savedContent = 'New builder instructions';
+  navigation.events.draftApplied();
+  page.onShow();
+  await new Promise(setImmediate);
+  assert.equal(page.data.content, 'New builder instructions');
+});
+
+test('native chat preserves text typed during a send and ignores a second tap', async () => {
+  const sent = [];
+  let completeSend;
+  const page = loadPage('chat/chat.js', {
+    id: () => 'message',
+    request: async (url, method, body) => {
+      if (method !== 'POST') return { messages: [] };
+      sent.push(body.text);
+      return new Promise(resolve => { completeSend = resolve; });
+    },
+    error: error => { throw error; },
+  });
+
+  page.setData({ text: 'First message' });
+  const sending = page.send();
+  page.input({ detail: { value: 'Next message' } });
+  await page.send();
+  completeSend({ runId: 'run' });
+  await sending;
+
+  assert.deepEqual(sent, ['First message']);
+  assert.equal(page.data.text, 'Next message');
+  assert.equal(page.data.sending, false);
+});
+
+test('native chat subscribes to an accepted run even if reloading messages fails', async () => {
+  const subscribed = [];
+  const page = loadPage('chat/chat.js', {
+    id: () => 'message',
+    request: async (url, method) => {
+      if (method === 'POST') return { runId: 'run' };
+      throw new Error('Message refresh failed');
+    },
+    subscribe: (runId) => { subscribed.push(runId); return {}; },
+    error() {},
+  });
+  page._visible = true;
+  page.setData({ text: 'First message' });
+  await page.send();
+
+  assert.deepEqual(subscribed, ['run']);
+  assert.equal(page.data.running, true);
+});
+
+test('opening a saved conversation from a question keeps the selected revision and restores draft text', async () => {
+  const page = loadPage('chat/chat.js', {
+    guard: () => true,
+    request: async () => ({ resourceId: 'new-question', revisionId: 'new-revision', title: 'Selected question' }),
+  }, {
+    getStorageSync: () => ({
+      text: 'Previous draft',
+      question: { resourceId: 'old-question', revisionId: 'old-revision' },
+    }),
+  });
+  page.load = async () => {};
+  page.loadRecent = async () => {};
+  await page.onLoad({ id: 'conversation', questionId: 'new-question', revisionId: 'new-revision' });
+
+  assert.equal(page.data.question.resourceId, 'new-question');
+  assert.equal(page.data.question.revisionId, 'new-revision');
+  assert.equal(page.data.text, 'Previous draft');
+});
+
+test('a late reply for an A–E category cannot replace files under the new category', async () => {
+  const resolveFiles = new Map();
+  const page = loadPage('learning/index.js', {}, {}, {
+    files: category => new Promise(resolve => { resolveFiles.set(category, resolve); }),
+  });
+  const first = page.existing();
+  const second = page.category({ detail: { value: 1 } });
+  assert.equal(page.data.existingFiles.length, 0);
+  resolveFiles.get('B')([{ id: 'file-b' }]);
+  await second;
+  resolveFiles.get('A')([{ id: 'file-a' }]);
+  await first;
+
+  assert.equal(page.data.category, 'B');
+  assert.equal(page.data.existingFiles[0].id, 'file-b');
+});
+
+test('the native tutor sheet requests another page for the same selected assistant', async () => {
+  const requested = [];
+  const page = loadPage('question/detail.js', {
+    query: fields => new URLSearchParams(fields).toString(),
+    request: async url => {
+      requested.push(url);
+      return requested.length === 1
+        ? Array.from({ length: 20 }, (_, id) => ({ id }))
+        : [{ id: 20 }];
+    },
+  });
+  page.setData({ tutors: [{ id: 'tutor' }], tutorIndex: 0 });
+  await page.chooseExisting();
+  await page.chooseExisting();
+
+  assert.match(requested[0], /agentId=tutor&page=1/);
+  assert.match(requested[1], /agentId=tutor&page=2/);
+  assert.equal(page.data.existing.length, 21);
+  assert.equal(page.data.existingHasMore, false);
 });

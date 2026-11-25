@@ -69,6 +69,7 @@ function upload(path, file, onProgress) {
       url: base + path,
       filePath: file.path,
       name: 'file',
+      formData: { fileName: file.name || '' },
       header: { Authorization: 'Bearer ' + storage.getToken() },
       success: (r) => {
         let body;
@@ -179,7 +180,11 @@ function subscribe(runId, after, onEvent, onEnd) {
   });
   return task;
 }
+function openDocument(doc) {
+  go('/pages/question/detail?id=' + doc.resourceId + '&revisionId=' + doc.revisionId + '&document=1');
+}
 module.exports = {
+  openDocument,
   request,
   query,
   url,
@@ -190,6 +195,5 @@ module.exports = {
   pickFile,
   upload,
   renderMessage,
-  decoder,
   subscribe,
 };

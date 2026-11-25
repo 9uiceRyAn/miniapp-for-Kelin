@@ -84,3 +84,16 @@ npm run check:mini
 部署前备份原后端、MySQL、LiteLLM PostgreSQL 和盐密钥；保留原 `.env` 与上传目录。先执行迁移及构建，再更新服务。Nginx 的运行事件路径使用 `proxy_buffering off`、`proxy_read_timeout 60s`；前端在 25 秒流连接结束后按 sequence 续读。
 
 回退业务代码时保留新增表、学习媒体和网关数据；原文件/marks API 与新增表无反向依赖。不自动删除历史修订或撤销已知费用。生产部署、提交和推送不在本轮操作范围。
+
+
+## 题库管理（2026-11-01）
+
+按本轮产品决定，个人中心和侧栏的“资料首页”入口改为“题库管理”，原 pages/home/home 页面由题库管理替换。退出登录保留在个人中心；原 A–E 文件、索引与 marks API 和数据保留。
+
+- 需要现有 platform_admin 权限。学生与普通教师不显示管理入口；管理接口也检查该权限。
+- 支持按学科、数据集、发布状态、待审核状态和关键词筛选；新增／编辑标题、题干、文字答案、知识点标签、媒体及发布状态。
+- 媒体上传支持 PNG/JPG/WebP、PDF、MP3/M4A，沿用后端 MAX_DOCUMENT_MB 大小限制（默认 30 MB）。保存会建立不可变修订，历史题目引用保留原修订；并发编辑需重新打开最新版本。
+- 草稿不进入普通题库列表、知识点统计与 Agent 检索。已发布和暂定发布题目可浏览。删除会移入“已删除”，阻止浏览、媒体访问和检索；管理员可恢复同一题目身份。
+- 批量导入接受 UTF-8 JSON 数组（或含 items 数组的对象）和 ZIP 包。ZIP 内需要唯一的 items.json，媒体路径相对此文件，例如 metadata/items.json 引用 ../media/question.png。沿用现有题目字段 id/subject/collection/title/tags/gallery/audio；可附加 question_text/answer_text/release_status/review_required。
+- 每批最多 1000 道题，ZIP 最多 5000 个条目、解压后最多 200 MB。预览检查文件、来源编号冲突和缺失媒体，并展示新增／更新／相同题数；确认才写入。确认时若题目已被修改，整批回滚并要求重新预览。重复确认同一预览返回同一结果。
+- 管理接口位于 /api/question-bank/admin：题目 GET/POST/PATCH/DELETE、恢复、媒体上传、导入预览／确认／取消及筛选元数据。导入和编辑不改写 Alevel 源语料目录。

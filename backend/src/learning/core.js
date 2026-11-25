@@ -35,6 +35,12 @@ async function admin(user) {
 function teacher(user) {
   if (user.role !== 'teacher') fail(403, '需要教师权限');
 }
+function containsPattern(value) {
+  return '%' + String(value).replace(/[\\%_]/g, '\\$&') + '%';
+}
+function limitOffset({ pageSize, offset }) {
+  return ' LIMIT ' + pageSize + ' OFFSET ' + offset;
+}
 function page(query = {}) {
   const number = Math.max(1, Math.floor(Number(query.page) || 1));
   const size = Math.min(
@@ -87,5 +93,7 @@ module.exports = {
   admin,
   teacher,
   page,
+  containsPattern,
+  limitOffset,
   route,
 };

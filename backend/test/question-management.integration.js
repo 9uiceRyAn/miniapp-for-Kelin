@@ -1,0 +1,114 @@
+// 在现有独立 MySQL/HTTP 测试环境中验证完整题库管理生命周期。
+const assert = require('node:assert/strict');
+const { PassThrough } = require('node:stream');
+const archiver = require('archiver');
+
+module.exports = async function questionManagementTests({ t, api, origin, teacher, student, c }) {
+  const base = '/api/question-bank/admin';
+  const input = { sourceId: 'managed-001', subject: 'math', subjectLabel: '数学', collection: 'managed-test', collectionLabel: '管理测试', title: '管理测试题目', questionText: 'Calculate 2 + 2.', answerText: '4', tags: ['1.1'], tagNames: { '1.1': '基础运算' }, releaseStatus: 'draft', reviewRequired: true, attachments: [] };
+  let current, publishedRevision;
+  const upload = async (endpoint, bytes, name, token = teacher.token, expected = 200, opaqueTempName = false) => {
+    const form = new FormData(); form.append('file', new Blob([bytes]), opaqueTempName ? 'wx-opaque-temp' : name);
+    if (opaqueTempName) form.append('fileName', name);
+    const response = await fetch(origin + base + endpoint, { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+    const result = await response.json(); assert.equal(response.status, expected, JSON.stringify(result)); return result.data;
+  };
+  const asInput = item => ({ ...input, title: item.title, releaseStatus: item.release_status, reviewRequired: item.review_required, attachments: item.attachments.map(a => ({ id: a.id, kind: a.kind, label: a.label })), expectedRevisionId: item.revisionId });
+  const importItem = (id, extra = {}) => ({ id, subject: 'math', collection: 'managed-import', title: id, tags: ['1.1'], tag_names: { '1.1': '基础运算' }, question_text: 'How much is 2 + 2?', gallery: [], audio: [], release_status: 'published', ...extra });
+  await t.test('question management is administrator-only and drafts are absent from public lists and details', async () => {
+    await api('GET', base + '/items', null, student.token, 403);
+    await api('POST', base + '/items', input, student.token, 403);
+    await upload('/uploads', 'bytes', 'q.png', student.token, 403);
+    current = await api('POST', base + '/items', input, teacher.token);
+    assert.equal(current.release_status, 'draft');
+    const publicList = await api('GET', '/api/question-bank/items?collection=managed-test', null, student.token);
+    assert.equal(publicList.total, 0);
+    await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token, 403);
+    const managed = await api('GET', base + '/items?state=draft&collection=managed-test', null, teacher.token);
+    assert.equal(managed.total, 1);
+    await api('POST', base + '/items', input, teacher.token, 409);
+    await api('POST', base + '/items', { ...input, sourceId: 'bad-tags', tags: 'bad' }, teacher.token, 400);
+  });
+  await t.test('uploaded media, publication and editing create immutable revisions and reject stale saves', async () => {
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE1cAAAAASUVORK5CYII=', 'base64');
+    const staged = await upload('/uploads', png, '题面.png', teacher.token, 200, true);
+    assert.equal(staged.name, '题面.png');
+    await upload('/uploads', 'file', 'q.exe', teacher.token, 400);
+    await api('PATCH', base + '/items/' + current.resourceId, { ...asInput(current), attachments: [{ kind: 'question', token: staged.token + 'bad' }] }, teacher.token, 400);
+    current = await api('PATCH', base + '/items/' + current.resourceId, { ...asInput(current), releaseStatus: 'published', reviewRequired: false, attachments: [{ kind: 'question', token: staged.token }] }, teacher.token);
+    publishedRevision = current.revisionId;
+    const published = await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token);
+    assert.equal(published.media.length, 1);
+    const mediaResponse = await fetch(origin + published.media[0].path);
+    assert.equal(mediaResponse.status, 200); assert.deepEqual(Buffer.from(await mediaResponse.arrayBuffer()), png);
+    const before = current;
+    current = await api('PATCH', base + '/items/' + current.resourceId, { expectedRevisionId: current.revisionId, title: '管理测试题目修订', tags: ['1.2'], tagNames: { '1.2': '加法' } }, teacher.token);
+    assert.notEqual(current.revisionId, before.revisionId);
+    assert.equal(current.question_text, input.questionText); assert.equal(current.answer_text, input.answerText); assert.equal(current.attachments.length, 1); assert.equal(current.release_status, 'published');
+    const old = await api('GET', '/api/question-bank/items/' + current.resourceId + '/revisions/' + publishedRevision, null, student.token);
+    assert.equal(old.title, '管理测试题目'); assert.deepEqual(old.tags, ['1.1']);
+    await api('PATCH', base + '/items/' + current.resourceId, { ...asInput(before), title: '覆盖旧版本' }, teacher.token, 409);
+    const tags = await api('GET', '/api/question-bank/taxonomy?collection=managed-test', null, student.token);
+    assert.deepEqual(tags.map(x => x.code), ['1.2']);
+    const managed = await api('GET', base + '/items?state=published&collection=managed-test', null, teacher.token);
+    assert.ok(managed.items[0].thumbnail.path);
+  });
+  await t.test('deletion hides questions, media and taxonomy while restore keeps the same identity', async () => {
+    await api('DELETE', base + '/items/' + current.resourceId, { expectedRevisionId: 'stale' }, teacher.token, 409);
+    await api('DELETE', base + '/items/' + current.resourceId, { expectedRevisionId: current.revisionId }, teacher.token);
+    assert.equal((await api('GET', '/api/question-bank/items?collection=managed-test', null, student.token)).total, 0);
+    assert.equal((await api('GET', '/api/question-bank/taxonomy?collection=managed-test', null, student.token)).length, 0);
+    await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token, 410);
+    const deleted = await api('GET', base + '/items?state=deleted&collection=managed-test', null, teacher.token);
+    assert.equal(deleted.items[0].resourceId, current.resourceId);
+    await api('POST', base + '/items/' + current.resourceId + '/restore', { expectedRevisionId: current.revisionId }, teacher.token);
+    const restored = await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token);
+    assert.equal(restored.revisionId, current.revisionId);
+  });
+  await t.test('JSON import previews without writes, confirms once, and rejects missing media or invalid records', async () => {
+    await upload('/imports/preview', JSON.stringify([null]), 'bad.json', teacher.token, 400);
+    await upload('/imports/preview', JSON.stringify([importItem('missing', { gallery: [{ kind: 'question', path: 'missing.png' }] })]), 'bad.json', teacher.token, 400);
+    await upload('/imports/preview', JSON.stringify([importItem('escape', { gallery: [{ kind: 'question', path: '../../escape.png' }] })]), 'bad.json', teacher.token, 400);
+    const preview = await upload('/imports/preview', JSON.stringify([importItem('json-import')]), '题库.json', teacher.token, 200, true);
+    assert.equal(preview.name, '题库.json');
+    assert.equal(preview.summary.created, 1);
+    assert.equal(preview.summary.published, 1); assert.equal(preview.summary.drafts, 0);
+    assert.equal((await api('GET', base + '/items?collection=managed-import', null, teacher.token)).total, 0);
+    const report = await api('POST', base + '/imports/confirm', { token: preview.token }, teacher.token);
+    assert.equal(report.created, 1);
+    const repeated = await api('POST', base + '/imports/confirm', { token: preview.token }, teacher.token);
+    assert.deepEqual(repeated, report);
+    const unchanged = await upload('/imports/preview', JSON.stringify([importItem('json-import')]), '题库.json');
+    assert.equal(unchanged.summary.unchanged, 1);
+    await api('DELETE', base + '/imports/preview', { token: unchanged.token }, teacher.token);
+    await api('POST', base + '/imports/confirm', { token: unchanged.token }, teacher.token, 410);
+  });
+  await t.test('stale import confirmation rolls the entire batch back instead of overwriting intervening edits', async () => {
+    const original = (await api('GET', base + '/items?collection=managed-import', null, teacher.token)).items[0];
+    const preview = await upload('/imports/preview', JSON.stringify([importItem('must-rollback'), importItem('json-import', { title: '批量更新' })]), 'batch.json');
+    const editing = await api('GET', base + '/items/' + original.resourceId, null, teacher.token);
+    await api('PATCH', base + '/items/' + editing.resourceId, { ...input, sourceId: editing.id, title: '同时编辑的新标题', questionText: editing.question_text, releaseStatus: 'published', expectedRevisionId: editing.revisionId }, teacher.token);
+    await api('POST', base + '/imports/confirm', { token: preview.token }, teacher.token, 409);
+    const found = await api('GET', base + '/items?collection=managed-import', null, teacher.token);
+    assert.equal(found.total, 1); assert.equal(found.items[0].title, '同时编辑的新标题');
+    await api('DELETE', base + '/imports/preview', { token: preview.token }, teacher.token);
+  });
+  await t.test('ZIP import reads the manifest and packaged relative media and produces usable signed images', async () => {
+    const archive = archiver('zip'); const output = new PassThrough(); const chunks = [];
+    output.on('data', chunk => chunks.push(chunk)); archive.pipe(output);
+    const finished = new Promise((resolve, reject) => { output.on('end', resolve); archive.on('error', reject); });
+    archive.append(JSON.stringify([importItem('zip-import', { gallery: [{ kind: 'question', path: '../media/题面.png', label: '题目' }, { kind: 'in', path: '../media/题面.png', label: '插页' }] })]), { name: 'metadata/items.json' });
+    archive.append(Buffer.from('zip-media-bytes'), { name: 'media/题面.png' });
+    await archive.finalize(); await finished;
+    const preview = await upload('/imports/preview', Buffer.concat(chunks), '题库包.zip', teacher.token, 200, true);
+    assert.equal(preview.summary.media, 2);
+    await api('POST', base + '/imports/confirm', { token: preview.token }, teacher.token);
+    const row = (await api('GET', base + '/items?collection=managed-import&q=zip-import', null, teacher.token)).items[0];
+    const detail = await api('GET', '/api/question-bank/items/' + row.resourceId, null, student.token);
+    const response = await fetch(origin + detail.media[0].path);
+    assert.equal(response.status, 200); assert.equal(await response.text(), 'zip-media-bytes');
+    const edited = await api('PATCH', base + '/items/' + row.resourceId, { expectedRevisionId: row.revisionId, title: '编辑后保留原有插页媒体' }, teacher.token);
+    assert.deepEqual(edited.attachments.map(x => x.kind), ['question', 'in']);
+    assert.equal((await c.one('SELECT COUNT(*) n FROM kl_imports WHERE id=?', [JSON.parse(Buffer.from(preview.token.split('.')[0], 'base64url')).id])).n, 1);
+  });
+};

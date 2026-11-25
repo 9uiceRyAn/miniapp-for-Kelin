@@ -21,10 +21,7 @@ async function list(user, mine = false, query = {}) {
   const items = await c.rows(
     'SELECT a.id,a.owner_id,a.name,a.description,a.draft_skill_id,a.draft_model_id,a.published_version,a.status,u.display_name teacherName FROM kl_agents a JOIN users u ON u.id=a.owner_id WHERE ' +
       where +
-      ' ORDER BY a.created_at DESC,a.id LIMIT ' +
-      p.pageSize +
-      ' OFFSET ' +
-      p.offset,
+      ' ORDER BY a.created_at DESC,a.id' + c.limitOffset(p),
     args,
   );
   return { items, total: Number(total.total), ...p };
@@ -236,6 +233,9 @@ async function history(user, query = {}) {
     await owned(user, query.teacherAgentId);
     where = "c.agent_id=? AND c.mode='student'";
     args[0] = query.teacherAgentId;
+  } else if (query.agentId) {
+    where += " AND c.agent_id=? AND c.mode='student'";
+    args.push(query.agentId);
   }
   if (query.userId) {
     where += ' AND c.owner_id=?';
@@ -244,10 +244,7 @@ async function history(user, query = {}) {
   return c.rows(
     'SELECT c.id,c.owner_id,c.agent_id,c.mode,c.active_run,c.updated_at,a.name,u.display_name ownerName FROM kl_conversations c JOIN kl_agents a ON a.id=c.agent_id JOIN users u ON u.id=c.owner_id WHERE ' +
       where +
-      ' ORDER BY c.updated_at DESC,c.id LIMIT ' +
-      p.pageSize +
-      ' OFFSET ' +
-      p.offset,
+      ' ORDER BY c.updated_at DESC,c.id' + c.limitOffset(p),
     args,
   );
 }
@@ -257,7 +254,6 @@ module.exports = {
   create,
   detail,
   draft,
-  snapshot,
   publish,
   conversation,
   getConversation,

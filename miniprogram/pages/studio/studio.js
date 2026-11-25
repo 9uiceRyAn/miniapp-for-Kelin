@@ -11,6 +11,8 @@ Page({
     references: [],
     status: 'draft',
     saving: false,
+    openingBuilder: false,
+    editorReady: false,
   },
   async onLoad(options) {
     if (!l.guard()) return;
@@ -56,22 +58,32 @@ Page({
           models.findIndex((x) => x.id === agent.draft_model_id),
         ),
         status: agent.status,
+        editorReady: true,
       });
+      this._parameters = agent.draft_parameters;
+      this._savedDraft = JSON.stringify(this.draftInput());
     } catch (e) {
       l.error(e);
     }
   },
+  draftInput() {
+    return {
+      name: this.data.name,
+      description: this.data.description,
+      content: this.data.content,
+      toolInstructions: this.data.toolInstructions,
+      references: this.data.references,
+      modelId: this.data.models[this.data.modelIndex]?.id,
+      parameters: this._parameters,
+    };
+  },
   async save() {
+    if (!this.data.editorReady || this.data.saving) return false;
+    const draft = this.draftInput();
     this.setData({ saving: true });
     try {
-      await l.request('/api/ai/agents/' + this.data.id + '/draft', 'PUT', {
-        name: this.data.name,
-        description: this.data.description,
-        content: this.data.content,
-        toolInstructions: this.data.toolInstructions,
-        references: this.data.references,
-        modelId: this.data.models[this.data.modelIndex]?.id,
-      });
+      await l.request('/api/ai/agents/' + this.data.id + '/draft', 'PUT', draft);
+      this._savedDraft = JSON.stringify(draft);
       wx.showToast({ title: '草稿已保存' });
       return true;
     } catch (e) {
@@ -82,15 +94,26 @@ Page({
     }
   },
   async builder() {
+    if (!this.data.editorReady || this.data.saving || this.data.openingBuilder) return;
+    this.setData({ openingBuilder: true });
     try {
-      this._refreshOnReturn = true;
+      if (this.data.content.trim() && JSON.stringify(this.draftInput()) !== this._savedDraft && !(await this.save())) return;
       const conv = await l.request(
         '/api/ai/agents/' + this.data.id + '/builder-sessions',
         'POST',
       );
-      l.go('/pages/chat/chat?id=' + conv.id);
+      await new Promise((resolve, reject) => {
+        wx.navigateTo({
+          url: '/pages/chat/chat?id=' + encodeURIComponent(conv.id),
+          events: { draftApplied: () => { this._refreshOnReturn = true; } },
+          success: resolve,
+          fail: reject,
+        });
+      });
     } catch (e) {
       l.error(e);
+    } finally {
+      this.setData({ openingBuilder: false });
     }
   },
   async trial() {
@@ -144,13 +167,7 @@ Page({
           title: file.name,
         }),
       });
-      l.go(
-        '/pages/question/detail?id=' +
-          doc.resourceId +
-          '&revisionId=' +
-          doc.revisionId +
-          '&document=1',
-      );
+      l.openDocument(doc);
     } catch (e) {
       if (!String(e.errMsg || '').includes('cancel')) l.error(e);
     }

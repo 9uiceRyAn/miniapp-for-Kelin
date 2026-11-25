@@ -1,7 +1,5 @@
 const express = require('express'),
-  multer = require('multer'),
-  fs = require('node:fs/promises'),
-  path = require('node:path');
+  multer = require('multer');
 const { requireAuth } = require('../middleware/auth');
 const c = require('./core'),
   q = require('./questions'),
@@ -18,21 +16,44 @@ const upload = multer({
   },
 });
 const wrap = c.route;
+const { decodeUploadName } = require('../utils/upload-name');
+async function requireAdmin(req, res, next) {
+  await c.admin(req.user);
+  next();
+}
+function uploadName(file, preferred) {
+  return typeof preferred === 'string' && preferred.trim() ? preferred : decodeUploadName(file.originalname);
+}
 function install(app) {
   const bank = express.Router();
   bank.get('/content/:mediaId', async (req, res, next) => {
-    try {
-      const item = await media.verify(req.params.mediaId, req.query.ticket);
-      res.set('Cache-Control', 'private, no-store');
-      res.type(item.mime);
-      res.sendFile(media.absolute(item.storage_path), (error) => {
-        if (error) next(error);
-      });
-    } catch (e) {
-      next(e);
-    }
+    const item = await media.verify(req.params.mediaId, req.query.ticket);
+    res.set('Cache-Control', 'private, no-store');
+    res.type(item.mime);
+    res.sendFile(media.absolute(item.storage_path), (error) => {
+      if (error) next(error);
+    });
   });
   bank.use(requireAuth);
+  const management = require('./question-management');
+  bank.use('/admin', requireAdmin);
+  bank.get('/admin/facets', wrap(req => management.facets()));
+  bank.get('/admin/items', wrap(req => management.list({ ...req.query, sessionHash: req.authTokenHash })));
+  bank.get('/admin/items/:id', wrap(req => management.detail(req.params.id, req.authTokenHash)));
+  bank.post('/admin/uploads', upload.single('file'), wrap(req => {
+    if (!req.file) c.fail(400, '请选择媒体文件');
+    return management.upload(req.user, req.file.buffer, uploadName(req.file, req.body.fileName));
+  }));
+  bank.post('/admin/items', wrap(req => management.save(req.user, null, req.body)));
+  bank.patch('/admin/items/:id', wrap(req => management.save(req.user, req.params.id, req.body)));
+  bank.delete('/admin/items/:id', wrap(req => management.visibility(req.user, req.params.id, req.body, true)));
+  bank.post('/admin/items/:id/restore', wrap(req => management.visibility(req.user, req.params.id, req.body, false)));
+  bank.post('/admin/imports/preview', upload.single('file'), wrap(req => {
+    if (!req.file) c.fail(400, '请选择 JSON 或 ZIP 文件');
+    return management.previewImport(req.user, req.file.buffer, uploadName(req.file, req.body.fileName));
+  }));
+  bank.post('/admin/imports/confirm', wrap(req => management.confirmImport(req.user, req.body.token)));
+  bank.delete('/admin/imports/preview', wrap(req => management.cancelImport(req.user, req.body.token)));
   bank.get(
     '/facets',
     wrap((req) => q.facets(req.query)),
@@ -100,7 +121,7 @@ function install(app) {
       return docs.upload({
         user: req.user,
         bytes: req.file.buffer,
-        name: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+        name: decodeUploadName(req.file.originalname),
       });
     }),
   );
@@ -169,7 +190,7 @@ function install(app) {
         resource,
         req.user,
         req.file.buffer,
-        Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+        decodeUploadName(req.file.originalname),
       );
     }),
   );
@@ -295,7 +316,7 @@ function install(app) {
       return docs.upload({
         user: req.user,
         bytes: req.file.buffer,
-        name: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+        name: decodeUploadName(req.file.originalname),
         conversationId: req.params.id,
       });
     }),
@@ -384,14 +405,7 @@ function install(app) {
       };
     }),
   );
-  ai.use('/admin', async (req, res, next) => {
-    try {
-      await c.admin(req.user);
-      next();
-    } catch (e) {
-      next(e);
-    }
-  });
+  ai.use('/admin', requireAdmin);
   ai.get(
     '/admin/models',
     wrap(() => models.list(true)),
@@ -452,20 +466,16 @@ function install(app) {
     '/messages/:id/render',
     wrap((req) => require('./presentation').render(req.user, req.params.id)),
   );
-  ai.get('/messages/:id/formulas/:hash', async (req, res, next) => {
-    try {
-      res
-        .type('image/svg+xml')
-        .send(
-          await require('./presentation').formula(
-            req.user,
-            req.params.id,
-            req.params.hash,
-          ),
-        );
-    } catch (e) {
-      next(e);
-    }
+  ai.get('/messages/:id/formulas/:hash', async (req, res) => {
+    res
+      .type('image/svg+xml')
+      .send(
+        await require('./presentation').formula(
+          req.user,
+          req.params.id,
+          req.params.hash,
+        ),
+      );
   });
   app.use('/api/ai', ai);
 }

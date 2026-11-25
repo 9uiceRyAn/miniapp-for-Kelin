@@ -6,6 +6,7 @@ function validate(items) {
   if (!Array.isArray(items) || !items.length) c.fail(400, '题库必须为非空数组');
   const ids = new Set();
   for (const x of items) {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) c.fail(400, '题目条目必须为对象');
     for (const field of ['id', 'subject', 'collection', 'title'])
       if (typeof x[field] !== 'string' || !x[field].trim())
         c.fail(400, `条目缺少 ${field}`);
@@ -21,15 +22,19 @@ function validate(items) {
       c.fail(400, `条目数组字段无效: ${key}`);
     if (
       x.gallery.some(
-        (g) => typeof g.path !== 'string' || typeof g.kind !== 'string',
+        (g) => !g || typeof g.path !== 'string' || typeof g.kind !== 'string',
       ) ||
       x.audio.some((p) => typeof p !== 'string')
     )
       c.fail(400, `媒体字段无效: ${key}`);
   }
 }
-async function prepare(items, baseDirectory, allowedRoot) {
+function preparedHash(item, assets) {
+  return c.hash(JSON.stringify({ item, media: assets.map(a => [a.kind, a.path, a.digest]) }));
+}
+async function prepare(items, baseDirectory, allowedRoot, validateEntry) {
   validate(items);
+  if (validateEntry) items.forEach(validateEntry);
   const root = await fs.realpath(allowedRoot);
   const prepared = [];
   for (const item of items) {
@@ -62,26 +67,17 @@ async function prepare(items, baseDirectory, allowedRoot) {
     prepared.push({
       item,
       assets,
-      hash: c.hash(
-        JSON.stringify({
-          item,
-          media: assets.map((a) => [a.kind, a.path, a.digest]),
-        }),
-      ),
+      hash: preparedHash(item, assets),
     });
   }
   return prepared;
 }
-async function importQuestions({
-  items,
-  baseDirectory,
-  allowedRoot,
-  dryRun = false,
-  manifest = {},
-}) {
-  const prepared = await prepare(items, baseDirectory, allowedRoot);
-  const report = {
-    items: items.length,
+async function importQuestions({ items, baseDirectory, allowedRoot, ...options }) {
+  return storePrepared(await prepare(items, baseDirectory, allowedRoot), options);
+}
+async function storePrepared(prepared, { dryRun = false, manifest = {}, expectedResources = null, importId = null } = {}) {
+  let report = {
+    items: prepared.length,
     created: 0,
     revisions: 0,
     unchanged: 0,
@@ -105,12 +101,25 @@ async function importQuestions({
         ? await media.blob(asset.bytes, path.extname(asset.path))
         : null;
   await c.transaction(async (db) => {
+    if (importId) {
+      const inserted = await c.rows('INSERT IGNORE INTO kl_imports(id,manifest_hash,report) VALUES(?,?,?)', [importId, report.manifestHash, '{}'], db);
+      if (!inserted.affectedRows) {
+        report = c.json((await c.one('SELECT report FROM kl_imports WHERE id=?', [importId], db)).report);
+        return;
+      }
+    }
     for (const { item, assets, hash } of prepared) {
       let resource = await c.one(
         'SELECT * FROM kl_resources WHERE namespace=? AND source_id=? FOR UPDATE',
         ['alevel:' + item.collection, item.id],
         db,
       );
+      if (expectedResources) {
+        const key = item.collection + ':' + item.id;
+        const expected = expectedResources[key];
+        if (!Object.hasOwn(expectedResources, key) || (expected === null ? Boolean(resource) : !resource || resource.current_revision !== expected.revisionId || resource.visibility !== expected.visibility))
+          c.fail(409, '题目已更新，请重新打开编辑或重新预览导入：' + item.id);
+      }
       if (!resource) {
         resource = { id: c.id() };
         await c.rows(
@@ -148,7 +157,7 @@ async function importQuestions({
         for (const tag of [...new Set(item.tags)])
           await c.rows(
             'INSERT INTO kl_tags VALUES(?,?,?,?)',
-            [revision.id, item.collection, tag, item.tag_names?.[tag] || tag],
+            [revision.id, item.collection, tag, item.tag_names && Object.hasOwn(item.tag_names, tag) ? item.tag_names[tag] || tag : tag],
             db,
           );
         for (const [position, a] of assets.entries())
@@ -175,20 +184,29 @@ async function importQuestions({
         db,
       );
     }
-    await c.rows(
-      'INSERT INTO kl_imports(id,manifest_hash,report) VALUES(?,?,?)',
-      [c.id(), report.manifestHash, JSON.stringify(report)],
-      db,
-    );
+    if (importId) await c.rows('UPDATE kl_imports SET report=? WHERE id=?', [JSON.stringify(report), importId], db);
+    else await c.rows('INSERT INTO kl_imports(id,manifest_hash,report) VALUES(?,?,?)', [c.id(), report.manifestHash, JSON.stringify(report)], db);
   });
   return report;
 }
-function conditions(q, type = 'question') {
+function addSearchFilters(query, where, args) {
+  for (const [key, column] of [['subject', 'subject'], ['collection', 'collection_code']]) {
+    if (query[key]) {
+      where.push('v.' + column + '=?');
+      args.push(String(query[key]));
+    }
+  }
+  if (query.q) {
+    where.push('v.search_text LIKE ?');
+    args.push(c.containsPattern(query.q));
+  }
+}
+function conditions(q) {
   const where = ['r.type=?', "r.visibility='public'", "v.status='ready'"];
-  const args = [type];
+  const args = ['question'];
+  where.push("v.release_status<>'draft'");
+  addSearchFilters(q, where, args);
   for (const [field, column] of Object.entries({
-    subject: 'subject',
-    collection: 'collection_code',
     skill: 'skill',
     qualityStatus: 'quality_status',
     releaseStatus: 'release_status',
@@ -201,10 +219,6 @@ function conditions(q, type = 'question') {
     where.push('v.review_required=?');
     args.push(q.reviewRequired === true || q.reviewRequired === 'true');
   }
-  if (q.q) {
-    where.push('v.search_text LIKE ?');
-    args.push('%' + String(q.q).replace(/[\\%_]/g, '\\$&') + '%');
-  }
   if (q.tag) {
     if (!q.collection) c.fail(400, '标签筛选必须指定数据集');
     where.push(
@@ -214,9 +228,9 @@ function conditions(q, type = 'question') {
   }
   return { sql: where.join(' AND '), args };
 }
-async function list(q = {}, type = 'question') {
+async function list(q = {}) {
   const p = c.page(q),
-    w = conditions(q, type);
+    w = conditions(q);
   const from =
     'FROM kl_resources r JOIN kl_revisions v ON v.id=r.current_revision WHERE ' +
     w.sql;
@@ -224,10 +238,7 @@ async function list(q = {}, type = 'question') {
   const found = await c.rows(
     'SELECT r.id resourceId,r.source_id sourceId,v.id revisionId,v.content_hash contentHash,v.data ' +
       from +
-      ' ORDER BY r.source_id,r.id LIMIT ' +
-      p.pageSize +
-      ' OFFSET ' +
-      p.offset,
+      ' ORDER BY r.source_id,r.id' + c.limitOffset(p),
     w.args,
   );
   return {
@@ -250,6 +261,7 @@ async function detail(user, resourceId, revisionId, sessionHash) {
     [revisionId || resource.current_revision, resourceId],
   );
   if (!revision) c.fail(404, '资料修订不存在');
+  await media.requirePublishedQuestion(user, resource, revision.release_status);
   return {
     ...c.json(revision.data),
     ownerId: resource.owner_id,
@@ -280,14 +292,17 @@ async function facets(q = {}) {
 async function taxonomy(collection) {
   if (!collection) c.fail(400, '需要数据集');
   return c.rows(
-    'SELECT t.code,MAX(t.label) label,COUNT(*) count FROM kl_tags t JOIN kl_resources r ON r.current_revision=t.revision_id WHERE t.collection_code=? GROUP BY t.code ORDER BY t.code',
+    "SELECT t.code,MAX(t.label) label,COUNT(*) count FROM kl_tags t JOIN kl_resources r ON r.current_revision=t.revision_id JOIN kl_revisions v ON v.id=t.revision_id WHERE t.collection_code=? AND r.type='question' AND r.visibility='public' AND v.status='ready' AND v.release_status<>'draft' GROUP BY t.code ORDER BY t.code",
     [collection],
   );
 }
 module.exports = {
   validate,
+  preparedHash,
+  addSearchFilters,
   prepare,
   importQuestions,
+  storePrepared,
   list,
   detail,
   facets,

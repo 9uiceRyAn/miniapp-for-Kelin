@@ -16,4 +16,41 @@ function groupConversations(rows, previous, activeAgentId) {
   }
   return Array.from(groups.values());
 }
-module.exports = { groupConversations };
+const drawer = {
+  toggleDrawer() { this.setData({ drawerOpen: !this.data.drawerOpen }); },
+  closeDrawer() { this.setData({ drawerOpen: false }); },
+};
+function recentMethods(l, activeAgent = () => null) {
+  return {
+    async loadRecent(append = false) {
+      if (append && (this.data.recentLoading || !this.data.recentHasMore)) return;
+      const requestId = (this._recentRequestId || 0) + 1;
+      this._recentRequestId = requestId;
+      const page = append ? this.data.recentPage + 1 : 1;
+      this.setData({ recentLoading: true });
+      try {
+        const rows = await l.request('/api/ai/conversations?' + l.query({ page }));
+        if (requestId !== this._recentRequestId) return;
+        const unique = new Map((append ? this.data.recentConversations : []).concat(rows).map(row => [row.id, row]));
+        const recentConversations = Array.from(unique.values());
+        this.setData({ recentConversations, recentPage: page, recentHasMore: rows.length === 20,
+          conversationGroups: groupConversations(recentConversations, this.data.conversationGroups, activeAgent(this)) });
+      } catch (e) { if (requestId === this._recentRequestId) l.error(e); }
+      finally { if (requestId === this._recentRequestId) this.setData({ recentLoading: false }); }
+    },
+    moreRecent() { return this.loadRecent(true); },
+    toggleAgentGroup(e) {
+      const id = e.currentTarget.dataset.id;
+      this.setData({ conversationGroups: this.data.conversationGroups.map(group => group.id === id ? { ...group, expanded: !group.expanded } : group) });
+    },
+  };
+}
+async function returnToWorkspace(e, pages, wx) {
+  const id = e.currentTarget.dataset.id;
+  const index = pages.map(page => page.route).lastIndexOf('pages/learning/index');
+  if (index >= 0 && index < pages.length - 1) {
+    await pages[index].selectMain(e);
+    wx.navigateBack({ delta: pages.length - 1 - index });
+  } else wx.redirectTo({ url: '/pages/learning/index?section=' + (id === 'chat' ? 'agents' : id) });
+}
+module.exports = { groupConversations, drawer, recentMethods, returnToWorkspace };

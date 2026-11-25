@@ -1,76 +1,18 @@
-<view class="register-page">
-  <view class="safe-top"></view>
-
-  <view class="register-topbar">
-    <view class="back-button" bindtap="goBack">‹</view>
-    <view class="brand-lockup">
-      <view class="brand-mark"><text>C</text></view>
-      <view>
-        <text class="top-brand-name">Collins Resource Library</text>
-        <text class="top-brand-desc">创建内部账号</text>
-      </view>
-    </view>
-    <view class="top-space"></view>
+<view class="account-page">
+ <view class="safe-top"/>
+ <view class="account-header"><view class="account-brand"><image class="account-logo" src="/images/collins-logo.png" mode="aspectFit"/><text>COLLINS</text></view><text class="account-back" bindtap="goBack">‹ 返回登录</text></view>
+ <view class="account-body register-body">
+  <text class="account-title">创建账号</text><text class="account-summary">选择你的身份，开始使用学习工作台。</text>
+  <view class="account-roles"><view class="account-role {{role==='teacher'?'selected':''}}" data-role="teacher" bindtap="selectRole"><text class="account-role-title">教师</text><text class="account-role-desc">管理资料与教学助手</text></view><view class="account-role {{role==='student'?'selected':''}}" data-role="student" bindtap="selectRole"><text class="account-role-title">学生</text><text class="account-role-desc">练习题目与获取作业辅导</text></view></view>
+  <view class="account-field-grid">
+   <view class="account-group"><text class="account-label">用户名</text><view class="account-input-wrap"><input class="account-input" aria-label="用户名，3–30 位英文字母、数字或下划线" value="{{username}}" maxlength="30" data-field="username" bindinput="onInput"/></view><text class="account-field-hint">3–30 位英文字母、数字或下划线</text></view>
+   <view class="account-group"><text class="account-label">显示名称</text><view class="account-input-wrap"><input data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="account-input" value="{{displayName}}" placeholder="{{inputHintFocus==='hint1'?'':'你的姓名或称呼'}}" maxlength="30" data-field="displayName" bindinput="onInput"/></view></view>
+   <view class="account-group"><text class="account-label">密码</text><view class="account-input-wrap"><input class="account-input" aria-label="密码，6–72 位" value="{{password}}" password="{{true}}" maxlength="72" data-field="password" bindinput="onInput"/></view><text class="account-field-hint">6–72 位</text></view>
+   <view class="account-group"><text class="account-label">确认密码</text><view class="account-input-wrap"><input data-hint-id="hint3" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="account-input" value="{{confirmPassword}}" password="{{true}}" placeholder="{{inputHintFocus==='hint3'?'':'再次输入密码'}}" maxlength="72" data-field="confirmPassword" bindinput="onInput"/></view></view>
   </view>
-
-  <view class="register-shell">
-    <view class="register-intro">
-      <text class="eyebrow">COLLINS ACCOUNT</text>
-      <text class="intro-title">创建账号，</text>
-      <text class="intro-title">进入同一个资料入口。</text>
-      <text class="intro-summary">请选择身份并完成注册。教师账号可上传与管理资料，学生账号可查看、标记与导出。</text>
-    </view>
-
-    <view class="register-card">
-      <text class="card-kicker">CREATE ACCOUNT</text>
-      <text class="card-title">注册账号</text>
-      <text class="card-subtitle">选择账号类型并填写内部注册信息</text>
-
-      <view class="role-selector">
-        <view class="role-option {{role === 'teacher' ? 'active' : ''}}" data-role="teacher" bindtap="selectRole">
-          <view class="role-icon">师</view>
-          <view><text class="role-title">教师账号</text><text class="role-desc">可导入、删除、下载和 ZIP 导出</text></view>
-        </view>
-        <view class="role-option {{role === 'student' ? 'active' : ''}}" data-role="student" bindtap="selectRole">
-          <view class="role-icon">生</view>
-          <view><text class="role-title">学生账号</text><text class="role-desc">可查看、标记、下载和 ZIP 导出</text></view>
-        </view>
-      </view>
-
-      <view class="field-grid">
-        <view class="field-group">
-          <text class="field-label">用户名</text>
-          <input class="field-input" value="{{username}}" placeholder="3–30 位字母、数字或下划线" maxlength="30" data-field="username" bindinput="onInput" />
-        </view>
-
-        <view class="field-group">
-          <text class="field-label">显示名称</text>
-          <input class="field-input" value="{{displayName}}" placeholder="例如：张老师" maxlength="30" data-field="displayName" bindinput="onInput" />
-        </view>
-
-        <view class="field-group">
-          <text class="field-label">密码</text>
-          <input class="field-input" value="{{password}}" password placeholder="至少 6 位" maxlength="72" data-field="password" bindinput="onInput" />
-        </view>
-
-        <view class="field-group">
-          <text class="field-label">确认密码</text>
-          <input class="field-input" value="{{confirmPassword}}" password placeholder="再次输入密码" maxlength="72" data-field="confirmPassword" bindinput="onInput" />
-        </view>
-      </view>
-
-      <view class="field-group">
-        <text class="field-label">{{role === 'teacher' ? '教师' : '学生'}}注册码</text>
-        <input class="field-input" value="{{registerCode}}" password placeholder="请输入内部注册码" maxlength="64" data-field="registerCode" bindinput="onInput" />
-      </view>
-
-      <view wx:if="{{errorMessage}}" class="error-box">{{errorMessage}}</view>
-
-      <button class="submit-button" loading="{{loading}}" disabled="{{loading}}" bindtap="submitRegister">
-        {{loading ? '正在创建' : '创建账号'}}
-      </button>
-    </view>
-  </view>
-
-  <view class="safe-bottom"></view>
+  <view class="account-group"><text class="account-label">{{role==='teacher'?'教师':'学生'}}注册码</text><view class="account-input-wrap"><input data-hint-id="hint4" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="account-input" value="{{registerCode}}" password="{{true}}" placeholder="{{inputHintFocus==='hint4'?'':'请输入内部注册码'}}" maxlength="64" data-field="registerCode" bindinput="onInput"/></view></view>
+  <view wx:if="{{errorMessage}}" class="account-error">{{errorMessage}}</view>
+  <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" loading="{{loading}}" disabled="{{loading}}" bindtap="submitRegister">{{loading?'正在创建':'创建账号'}}</button>
+  <view class="account-switch"><text>已有账号？</text><text class="account-link" bindtap="goBack">返回登录</text></view>
+ </view>
 </view>

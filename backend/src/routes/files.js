@@ -12,19 +12,12 @@ const {
   requireTeacher,
 } = require('../middleware/auth');
 
+const { decodeUploadName } = require('../utils/upload-name');
 const router = express.Router();
 
-const CATEGORIES = new Set([
-  'A',
-  'B',
-  'C',
-  'D',
-  'E',
-]);
+const { CATEGORIES, cleanCategory } = require('../utils/file-category');
 
-const UPLOAD_ROOT =
-  process.env.UPLOAD_ROOT ||
-  '/var/www/file-manager/uploads/files';
+const { UPLOAD_ROOT, storedFilePath } = require('../utils/file-storage');
 
 const TEMP_ROOT = path.join(
   UPLOAD_ROOT,
@@ -39,12 +32,6 @@ fs.mkdirSync(TEMP_ROOT, {
   recursive: true,
 });
 
-
-function cleanCategory(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase();
-}
 
 
 function safeOriginalName(name) {
@@ -109,29 +96,6 @@ function publicFile(row) {
 }
 
 
-function absolutePathFromRow(row) {
-  const relativePath =
-    String(row.storage_path || '');
-
-  const root =
-    path.resolve(UPLOAD_ROOT);
-
-  const absolute =
-    path.resolve(root, relativePath);
-
-  if (
-    absolute !== root &&
-    !absolute.startsWith(
-      `${root}${path.sep}`,
-    )
-  ) {
-    throw new Error(
-      '非法文件存储路径',
-    );
-  }
-
-  return absolute;
-}
 
 
 async function findFileById(id) {
@@ -288,7 +252,7 @@ router.get(
 
         try {
           const filePath =
-            absolutePathFromRow(row);
+            storedFilePath(row.storage_path);
 
           await fsp.access(filePath);
 
@@ -532,16 +496,12 @@ router.post(
       }
 
       const multipartOriginalName =
-        Buffer.from(
-          req.file.originalname || '',
-          'latin1',
-        ).toString('utf8');
+        decodeUploadName(req.file.originalname);
 
       const originalName =
         safeOriginalName(
           req.body.clientFileName ||
-          multipartOriginalName ||
-          '未命名文件',
+          multipartOriginalName,
         );
 
       const storedName =
@@ -643,17 +603,6 @@ router.post(
         error,
       );
 
-      if (
-        error &&
-        error.code ===
-          'LIMIT_FILE_SIZE'
-      ) {
-        return res.status(413).json({
-          success: false,
-          message:
-            `文件不能超过 ${MAX_UPLOAD_MB} MB`,
-        });
-      }
 
       return res.status(500).json({
         success: false,
@@ -727,7 +676,7 @@ router.get(
       }
 
       const filePath =
-        absolutePathFromRow(row);
+        storedFilePath(row.storage_path);
 
       try {
         await fsp.access(filePath);
@@ -788,7 +737,7 @@ router.delete(
       }
 
       const filePath =
-        absolutePathFromRow(row);
+        storedFilePath(row.storage_path);
 
       await fsp.unlink(
         filePath,

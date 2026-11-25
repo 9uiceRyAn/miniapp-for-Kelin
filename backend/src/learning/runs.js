@@ -193,6 +193,7 @@ async function execute(runId, engineOverride) {
   let context,
     text = '',
     operation = 0,
+    snap,
     pricing;
   try {
     const claimed = await c.rows(
@@ -207,7 +208,7 @@ async function execute(runId, engineOverride) {
     const user = await c.one('SELECT id,role FROM users WHERE id=?', [
       conv.owner_id,
     ]);
-    const snap = c.json(conv.snapshot);
+    snap = c.json(conv.snapshot);
     await models.resolve(snap.model.id);
     pricing = await models.price(snap.model.id);
     const sources = new Map();
@@ -318,7 +319,7 @@ async function execute(runId, engineOverride) {
             .href
         )
       ).execute;
-    text = await engine({
+    await engine({
       model: snap.model,
       libraryManagement: conv.mode === 'library' && user.role === 'teacher',
       visionAvailable: Boolean((await models.settings()).visionModelId),
@@ -376,13 +377,7 @@ async function execute(runId, engineOverride) {
       await models.record(
         context,
         runId + ':incomplete',
-        c.json(
-          (
-            await c.one('SELECT snapshot FROM kl_conversations WHERE id=?', [
-              context.conversationId,
-            ])
-          ).snapshot,
-        ).model.id,
+        snap.model.id,
         null,
         pricing,
         { incomplete: true },
@@ -428,4 +423,4 @@ async function recover() {
   const queued = await c.rows("SELECT id FROM kl_runs WHERE status='queued'");
   for (const run of queued) setImmediate(() => execute(run.id));
 }
-module.exports = { send, execute, events, cancel, recover, event, finish };
+module.exports = { send, execute, events, cancel, recover };

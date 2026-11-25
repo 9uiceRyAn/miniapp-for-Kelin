@@ -5,19 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-const CATEGORIES = new Set([
-  'A',
-  'B',
-  'C',
-  'D',
-  'E',
-]);
-
-function cleanCategory(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase();
-}
+const { CATEGORIES, cleanCategory } = require('../utils/file-category');
 
 async function fileExists(fileId) {
   const [rows] = await pool.execute(

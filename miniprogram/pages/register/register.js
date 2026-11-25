@@ -1,7 +1,8 @@
+const withInputHints = require('../../utils/input-hints');
 const api = require('../../utils/api');
 const storage = require('../../utils/storage');
 
-Page({
+Page(withInputHints({
   data: {
     role: 'student',
     username: '',
@@ -24,11 +25,11 @@ Page({
 
   async submitRegister() {
     if (this.data.loading) return;
-    const username = String(this.data.username || '').trim();
-    const displayName = String(this.data.displayName || '').trim();
-    const password = String(this.data.password || '');
-    const confirmPassword = String(this.data.confirmPassword || '');
-    const registerCode = String(this.data.registerCode || '');
+    const username = this.data.username.trim();
+    const displayName = this.data.displayName.trim();
+    const password = this.data.password;
+    const confirmPassword = this.data.confirmPassword;
+    const registerCode = this.data.registerCode;
 
     if (!/^[A-Za-z0-9_]{3,30}$/.test(username)) {
       this.setData({ errorMessage: '用户名只能包含字母、数字、下划线，长度 3–30 位' });
@@ -73,4 +74,4 @@ Page({
   goBack() {
     wx.navigateBack();
   },
-});
+}));

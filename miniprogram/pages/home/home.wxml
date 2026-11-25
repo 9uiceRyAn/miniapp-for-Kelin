@@ -1,183 +1,77 @@
-<view class="home-page">
-  <view class="safe-top"></view>
-
-  <view class="topbar">
-    <view class="brand-lockup">
-      <image class="brand-logo" src="/images/collins-logo.png" mode="aspectFit"></image>
-      <view class="brand-copy">
-        <text class="brand-name">Collins Resource Library</text>
-        <text class="brand-desc">科林留学资料库</text>
-      </view>
+<view class="workspace-shell management-shell" style="--ws-safe-top:{{safeTop}}px">
+ <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
+ <include src="../../templates/workspace-sidebar.wxml"/>
+ <view class="workspace-main">
+  <view class="workspace-header"><view class="header-start"><text>题库管理</text></view></view>
+  <view class="workspace-content management-content">
+   <button class="manage-back" bindtap="back">‹ 返回个人中心</button>
+   
+   <view class="heading-row"><text class="workspace-title">题库管理</text><view wx:if="{{admin}}" class="manage-actions"><button class="manage-import" bindtap="importQuestions" loading="{{importBusy}}" disabled="{{importBusy}}">导入题库</button><button class="manage-primary manage-new" bindtap="newQuestion">＋ 新建题目</button></view></view>
+   <text class="workspace-subtitle">维护题目、知识点与发布状态</text>
+   <view wx:if="{{checking}}" class="manage-empty">正在验证管理权限…</view>
+   <view wx:elif="{{!admin}}" class="manage-empty">仅管理员可管理题库</view>
+   <block wx:else>
+    <text class="manage-import-hint">支持上传题目与答案图片、PDF、音频；批量导入支持 JSON 或 ZIP，每包最多 1000 道题目。</text>
+    <view class="workspace-search"><input data-hint-id="hint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" bindinput="searchInput" bindconfirm="search" placeholder="{{inputHintFocus==='hint0'?'':'搜索题目、原题编号或知识点'}}" confirm-type="search"/><button bindtap="search" aria-label="搜索题目">搜索</button></view>
+    <view class="manage-filters">
+     <picker range="{{subjects}}" range-key="label" value="{{subjectIndex}}" data-field="subjectIndex" bindchange="filter"><view class="manage-filter">{{subjects[subjectIndex].label}}<text>⌄</text></view></picker>
+     <picker range="{{collections}}" range-key="label" value="{{collectionIndex}}" data-field="collectionIndex" bindchange="filter"><view class="manage-filter">{{collections[collectionIndex].label}}<text>⌄</text></view></picker>
+     <picker range="{{states}}" range-key="label" value="{{stateIndex}}" data-field="stateIndex" bindchange="filter"><view class="manage-filter">{{states[stateIndex].label}}<text>⌄</text></view></picker>
+     <view class="manage-review-filter"><text>待审核</text><switch checked="{{reviewRequired}}" bindchange="review" color="#242424"/></view>
     </view>
-
-    <view class="topbar-actions">
-      <view class="service-status desktop-only-inline">
-        <view class="status-dot"></view>
-        <text>资料服务已连接</text>
+    <text wx:if="{{error}}" class="error">{{error}}</text>
+    <text wx:if="{{importResult}}" class="manage-import-result">{{importResult}}</text>
+    <view class="results-summary"><text>共 {{total}} 道题目</text><text>编辑会保留历史修订</text></view>
+    <view class="manage-list">
+     <view wx:for="{{items}}" wx:key="resourceId" class="manage-row">
+      <view class="manage-row-main" data-id="{{item.resourceId}}" bindtap="openQuestion">
+       <image wx:if="{{item.thumbnailUrl}}" class="manage-thumbnail" src="{{item.thumbnailUrl}}" mode="aspectFit"/>
+       <view class="manage-row-copy"><text class="manage-title">{{item.title}}</text><text class="manage-meta">{{item.subject_label}} · {{item.collection_label}}</text><text class="manage-topic" wx:if="{{item.primary_tag_name}}">{{item.primary_tag_name}}</text><view class="manage-badges"><text class="manage-state state-{{item.release_status}}">{{item.stateLabel}}</text><text wx:if="{{item.review_required}}" class="manage-review-badge">待审核</text></view></view>
       </view>
-      <view class="role-badge {{user.role}}">{{roleText}}</view>
-      <text class="logout-link" bindtap="logout">退出</text>
+      <view class="manage-row-actions"><button wx:if="{{item.visibility==='withdrawn'}}" class="manage-restore" data-id="{{item.resourceId}}" bindtap="restoreQuestion">恢复题目</button><block wx:else><button class="manage-edit" data-id="{{item.resourceId}}" bindtap="editQuestion">编辑</button><button class="manage-delete" data-id="{{item.resourceId}}" bindtap="deleteQuestion">删除</button></block></view>
+     </view>
     </view>
+    <view wx:if="{{loading}}" class="manage-empty">正在读取题目…</view><view wx:elif="{{!items.length}}" class="manage-empty">当前条件下暂无题目</view>
+    <button wx:if="{{total > items.length}}" class="manage-more" bindtap="more" loading="{{loading}}">加载更多题目</button>
+   </block>
   </view>
-
-  <view class="main-content">
-    <view class="hero-section">
-      <text class="eyebrow">COLLINS LEARNING RESOURCES · {{currentCategory.name}}</text>
-
-      <view class="hero-row">
-        <view class="hero-copy">
-          <text class="hero-title">熟能生巧。</text>
-          <text class="hero-summary">集中管理备课文档与学习资源，按分类浏览、关键词检索，并保留每个账号自己的使用标记。</text>
-        </view>
-
-        <view class="hero-actions">
-          <button class="action-button secondary" disabled="{{loading}}" bindtap="refreshFiles">{{loading ? '刷新中' : '刷新资料'}}</button>
-          <button class="action-button secondary" disabled="{{exporting || files.length === 0}}" bindtap="exportCategory">{{exporting ? '导出中' : '导出当前分类'}}</button>
-          <button wx:if="{{isTeacher}}" class="action-button primary" disabled="{{uploading}}" bindtap="chooseFiles">{{uploading ? '正在导入' : '+ 导入文件'}}</button>
-        </view>
-      </view>
-
+ </view>
+ <include src="../../templates/workspace-bottom.wxml"/>
+ <block wx:if="{{formOpen}}">
+  <view class="manage-overlay" bindtap="closeForm"/>
+  <view class="manage-sheet" role="dialog" aria-label="{{editingId?'编辑题目':'新建题目'}}">
+   <view class="manage-sheet-header"><view><text class="manage-sheet-title">{{editingId?'编辑题目':'新建题目'}}</text><text class="manage-sheet-subtitle">题干可填写文字，也可上传图片或 PDF</text></view><button class="manage-sheet-close" bindtap="closeForm" disabled="{{saving||uploading}}" aria-label="关闭编辑">×</button></view>
+   <scroll-view scroll-y class="manage-sheet-body">
+    <text class="manage-field-label">题目标题</text><input data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-input" value="{{form.title}}" data-field="title" bindinput="formInput" maxlength="1000" placeholder="{{inputHintFocus==='hint1'?'':'例如：2025 数学 Paper 1 · 第 3 题'}}"/>
+    <view class="manage-form-grid">
+     <view><text class="manage-field-label">学科</text><picker range="{{formSubjects}}" range-key="label" value="{{formSubjectIndex}}" data-field="formSubjectIndex" bindchange="formPick" disabled="{{!!editingId}}"><view class="manage-input manage-picker">{{formSubjects[formSubjectIndex].label}}<text wx:if="{{!editingId}}">⌄</text></view></picker></view>
+     <view><text class="manage-field-label">数据集</text><picker range="{{formCollections}}" range-key="label" value="{{formCollectionIndex}}" data-field="formCollectionIndex" bindchange="formPick" disabled="{{!!editingId}}"><view class="manage-input manage-picker">{{formCollections[formCollectionIndex].label}}<text wx:if="{{!editingId}}">⌄</text></view></picker></view>
     </view>
-
-    <view class="actions"><button class="action-button primary" bindtap="openLearning">题库 · 教学助手</button></view>
-    <view class="browse-card">
-      <view class="section-heading">
-        <view>
-          <text class="section-kicker">浏览方式</text>
-          <text class="section-title">按分类进入资料库</text>
-        </view>
-        <text class="section-note desktop-only-inline">选择分类后，搜索与标记筛选只作用于当前分类。</text>
-      </view>
-
-      <scroll-view class="category-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
-        <view class="category-track">
-          <view
-            wx:for="{{categories}}"
-            wx:key="code"
-            class="category-tile {{activeCategory === item.code ? 'active' : ''}}"
-            data-code="{{item.code}}"
-            bindtap="selectCategory"
-          >
-            <text class="category-code">{{item.code}}</text>
-            <view class="category-copy">
-              <text class="category-name">{{item.name}}</text>
-              <text class="category-meta">{{item.count}} 个文件</text>
-            </view>
-          </view>
-        </view>
-      </scroll-view>
-    </view>
-
-    <view class="content-card">
-      <view class="content-heading">
-        <view>
-          <text class="content-title">{{currentCategory.name}}</text>
-          <text class="content-subtitle">浏览、搜索并管理当前分类中的资料</text>
-        </view>
-        <view class="current-code">{{activeCategory}}</view>
-      </view>
-
-      <view class="table-toolbar">
-        <view class="search-box">
-          <text class="search-icon">⌕</text>
-          <input class="search-input" value="{{keyword}}" placeholder="搜索文件名或关键词" bindinput="onKeywordInput" />
-        </view>
-
-        <view class="toolbar-right">
-          <checkbox-group bindchange="onHideMarkedChange">
-            <label class="hide-marked-option {{hideMarked ? 'active' : ''}}">
-              <checkbox
-                class="native-checkbox"
-                value="hideMarked"
-                checked="{{hideMarked}}"
-                color="#9b1f58"
-              />
-              <text>隐藏已标记</text>
-            </label>
-          </checkbox-group>
-          <text class="toolbar-count">显示 {{filteredFiles.length}} / {{files.length}}</text>
-        </view>
-      </view>
-
-      <view wx:if="{{uploading}}" class="progress-wrap">
-        <view class="progress-line"><text>正在上传 {{uploadFileCount}} 个文件</text><text class="progress-number">{{uploadProgress}}%</text></view>
-        <view class="progress-track"><view class="progress-bar" style="width: {{uploadProgress}}%;"></view></view>
-      </view>
-
-      <view class="desktop-table desktop-only">
-        <view class="table-head table-grid">
-          <text>标记</text><text>文件</text><text>类型</text><text>大小</text><text>上传者</text><text>导入时间</text><text>操作</text>
-        </view>
-        <view wx:if="{{!loading && filteredFiles.length > 0}}">
-          <view wx:for="{{filteredFiles}}" wx:key="id" class="table-row table-grid">
-            <checkbox-group class="mark-cell" data-id="{{item.id}}" bindchange="onFileMarkChange">
-              <label class="mark-option {{item.marked ? 'active' : ''}}">
-                <checkbox class="native-checkbox" value="marked" checked="{{item.marked}}" disabled="{{item.markSaving}}" color="#9b1f58" />
-                <text>{{item.marked ? '已标记' : '标记'}}</text>
-              </label>
-            </checkbox-group>
-
-            <view class="file-name-cell">
-              <view class="file-icon {{item.iconType}}"><text>{{item.iconText}}</text></view>
-              <view class="file-meta"><text class="file-name">{{item.original_name}}</text></view>
-            </view>
-            <text class="cell-text">{{item.readableType}}</text>
-            <text class="cell-text">{{item.formattedSize}}</text>
-            <text class="cell-text">{{item.uploaderName}}</text>
-            <text class="cell-text time-text">{{item.formattedDate}}</text>
-            <view class="row-actions">
-              <button class="mini-button download" data-index="{{index}}" bindtap="downloadFile">导出</button>
-              <button wx:if="{{isTeacher}}" class="mini-button delete" data-index="{{index}}" bindtap="deleteFile">删除</button>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <view class="mobile-file-list mobile-only" wx:if="{{!loading && filteredFiles.length > 0}}">
-        <view wx:for="{{filteredFiles}}" wx:key="id" class="file-card">
-          <view class="file-card-main">
-            <view class="file-icon {{item.iconType}}"><text>{{item.iconText}}</text></view>
-            <view class="file-card-copy">
-              <text class="file-name">{{item.original_name}}</text>
-              <text class="mobile-meta-line">{{item.readableType}} · {{item.formattedSize}}</text>
-            </view>
-            <checkbox-group class="mobile-mark-cell" data-id="{{item.id}}" bindchange="onFileMarkChange">
-              <label class="mark-option compact {{item.marked ? 'active' : ''}}">
-                <checkbox class="native-checkbox" value="marked" checked="{{item.marked}}" disabled="{{item.markSaving}}" color="#9b1f58" />
-                <text>{{item.marked ? '已标记' : '标记'}}</text>
-              </label>
-            </checkbox-group>
-          </view>
-
-          <view class="file-detail-grid">
-            <view><text class="detail-label">上传者</text><text class="detail-value">{{item.uploaderName}}</text></view>
-            <view><text class="detail-label">导入时间</text><text class="detail-value">{{item.formattedDate}}</text></view>
-          </view>
-
-          <view class="mobile-row-actions">
-            <button class="mini-button download" data-index="{{index}}" bindtap="downloadFile">导出</button>
-            <button wx:if="{{isTeacher}}" class="mini-button delete" data-index="{{index}}" bindtap="deleteFile">删除</button>
-          </view>
-        </view>
-      </view>
-
-      <view wx:if="{{loading}}" class="state-panel">
-        <view class="loading-spinner"></view>
-        <text>正在读取文件列表…</text>
-      </view>
-
-      <view wx:elif="{{filteredFiles.length === 0}}" class="state-panel empty-state">
-        <view class="empty-mark">C</view>
-        <text class="empty-title">{{keyword ? '没有匹配的文件' : hideMarked && files.length > 0 ? '没有未标记的文件' : '当前分类还没有文件'}}</text>
-        <text class="empty-copy">{{keyword ? '请更换搜索关键词或关闭“隐藏已标记”' : hideMarked && files.length > 0 ? '当前分类中的文件都已被你标记，可关闭隐藏选项查看' : isTeacher ? '点击“导入文件”开始上传' : '请等待教师上传文件'}}</text>
-      </view>
-    </view>
-
-    <view class="page-footer">
-      <text>© 2026 COLLINS 科林</text>
-      <text>Learning Resource Library</text>
-    </view>
+    <block wx:if="{{!editingId}}"><text class="manage-field-label">原题编号（选填）</text><input data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-input" value="{{form.sourceId}}" data-field="sourceId" bindinput="formInput" maxlength="191" placeholder="{{inputHintFocus==='hint2'?'':'留空则自动生成'}}"/></block>
+    <text class="manage-field-label">知识点标签</text><textarea data-hint-id="hint3" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-textarea manage-tags-input" value="{{form.tagsText}}" data-field="tagsText" bindinput="formInput" maxlength="30000" placeholder="{{inputHintFocus==='hint3'?'':'每行一个：编号 | 名称，例如 1.1 | 二次函数'}}"/>
+    <text class="manage-field-label">题干</text><textarea data-hint-id="hint4" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-textarea" value="{{form.questionText}}" data-field="questionText" bindinput="formInput" maxlength="100000" placeholder="{{inputHintFocus==='hint4'?'':'输入题目文字，或在下方上传题目图片／PDF'}}"/>
+    <text class="manage-field-label">参考答案（选填）</text><textarea data-hint-id="hint5" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-textarea" value="{{form.answerText}}" data-field="answerText" bindinput="formInput" maxlength="100000" placeholder="{{inputHintFocus==='hint5'?'':'输入答案或评分要点'}}"/>
+    <view class="manage-attachment-heading"><text class="manage-field-label">题目与答案文件</text><text wx:if="{{uploading}}">正在上传…</text></view>
+    <view class="manage-attachment-actions"><button data-kind="question" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 题目</button><button data-kind="answer" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 答案</button><button data-kind="source" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 附件／音频</button></view>
+    <view wx:for="{{form.attachments}}" wx:key="key" class="manage-attachment"><view class="manage-attachment-name" data-index="{{index}}" bindtap="previewAttachment"><text>{{item.kindLabel}}</text><text>{{item.label}}</text><text wx:if="{{item.available===false}}" class="error">原文件不可用</text></view><button data-index="{{index}}" bindtap="removeAttachment" disabled="{{saving||uploading}}" aria-label="移除文件">×</button></view>
+    <view class="manage-form-grid manage-publish-fields"><view><text class="manage-field-label">发布状态</text><picker range="{{releases}}" range-key="label" value="{{releaseIndex}}" data-field="releaseIndex" bindchange="formPick"><view class="manage-input manage-picker">{{releases[releaseIndex].label}}<text>⌄</text></view></picker></view><view class="manage-review-control"><text>待审核</text><switch checked="{{form.reviewRequired}}" bindchange="formReview" color="#242424"/></view></view>
+    <text wx:if="{{formError}}" class="error manage-form-error">{{formError}}</text><view class="manage-sheet-spacer"/>
+   </scroll-view>
+   <view class="manage-sheet-footer"><button class="manage-cancel" bindtap="closeForm" disabled="{{saving||uploading}}">取消</button><button class="manage-primary manage-save" bindtap="saveQuestion" loading="{{saving}}" disabled="{{saving||uploading}}">保存题目</button></view>
   </view>
-
-  <view class="safe-bottom"></view>
+ </block>
+ <block wx:if="{{importPreview}}">
+  <view class="manage-overlay" bindtap="cancelImport"/>
+  <view class="manage-sheet manage-import-sheet" role="dialog" aria-label="导入预览">
+   <view class="manage-sheet-header"><view><text class="manage-sheet-title">导入预览</text><text class="manage-sheet-subtitle">{{importPreview.name}}</text></view><button class="manage-sheet-close" bindtap="cancelImport" disabled="{{importBusy}}" aria-label="取消导入">×</button></view>
+   <scroll-view scroll-y class="manage-sheet-body">
+    <view class="manage-import-stats"><view><text>{{importPreview.summary.items}}</text><text>题目总数</text></view><view><text>{{importPreview.summary.created}}</text><text>新增题目</text></view><view><text>{{importPreview.summary.updated}}</text><text>更新题目</text></view><view><text>{{importPreview.summary.unchanged}}</text><text>内容相同</text></view></view>
+    <text class="manage-import-description">已检查 {{importPreview.summary.media}} 个媒体文件。确认后按清单中的发布状态导入。</text>
+    <text class="manage-import-description">已发布 {{importPreview.summary.published}} 道 · 草稿 {{importPreview.summary.drafts}} 道 · 暂定发布 {{importPreview.summary.provisional}} 道</text>
+    <text class="manage-field-label">题目预览</text><view wx:for="{{importPreview.samples}}" wx:key="key" class="manage-import-sample"><text>{{item.title}}</text><text>{{item.collection}} · {{item.sourceId}}</text></view>
+    <text wx:if="{{error}}" class="error manage-form-error">{{error}}</text><view class="manage-sheet-spacer"/>
+   </scroll-view>
+   <view class="manage-sheet-footer"><button class="manage-cancel" bindtap="cancelImport" disabled="{{importBusy}}">取消</button><button class="manage-primary manage-confirm-import" bindtap="confirmImport" loading="{{importBusy}}" disabled="{{importBusy}}">确认导入</button></view>
+  </view>
+ </block>
 </view>

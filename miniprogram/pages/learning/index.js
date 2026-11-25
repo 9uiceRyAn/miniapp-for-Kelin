@@ -1,8 +1,11 @@
+const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
 const workspace = require('../../utils/workspace');
-Page({
+const usageView = require('../../utils/usage');
+Page(withInputHints({
   data: {
     section: 'bank',
+    motionRevision: 0,
     mainTab: 'bank',
     drawerOpen: false,
     filtersOpen: false,
@@ -17,14 +20,8 @@ Page({
     landingText: '',
     agentIndex: 0,
     startingChat: false,
-    sections: [
-      { id: 'bank', name: '题库' },
-      { id: 'agents', name: '教学助手' },
-      { id: 'library', name: '公共教学资料' },
-      { id: 'history', name: '会话历史' },
-      { id: 'usage', name: '费用统计' },
-    ],
     user: {},
+    profileInitial: 'C',
     admin: false,
     teacher: false,
     items: [],
@@ -36,18 +33,20 @@ Page({
     collection: '',
     skill: '',
     tag: '',
-    qualityStatus: '',
     usableOnly: false,
     reviewRequired: '',
     subjects: [{ id: '', label: '全部学科' }],
     collections: [{ id: '', label: '全部数据集' }],
     skills: [{ id: '', label: '全部技能' }],
     tags: [{ code: '', label: '全部标签' }],
-    subjectIndex: 0,
     collectionIndex: 0,
     skillIndex: 0,
     tagIndex: 0,
-    summary: [],
+    usageOverview: { currencies: [], cnyAmount: null, cnyExcludedCalls: 0, exchangeNote: '', totalCalls: 0, pendingCalls: 0, unpricedCalls: 0 },
+    usagePeriod: '全部日期',
+    usageFiltersOpen: false,
+    usageFilterError: '',
+    expandedUsageId: '',
     scope: 'self',
     agentId: '',
     from: '',
@@ -57,6 +56,10 @@ Page({
     publicTitle: '',
     uploading: false,
     existingFiles: [],
+    existingLoading: false,
+    existingLoaded: false,
+    indexingFile: '',
+    submittingText: false,
     category: 'A',
     chooseExisting: false,
   },
@@ -64,6 +67,7 @@ Page({
     if (this.data.teacher) l.go('/pages/accounts/accounts');
   },
   onLoad(options) {
+    this.setData({ safeTop: wx.getWindowInfo ? wx.getWindowInfo().statusBarHeight : 0 });
     if (!l.guard()) return;
     this.setData({
       section: options.section || 'bank',
@@ -78,14 +82,11 @@ Page({
   async initialize() {
     try {
       const me = await l.request('/api/ai/me');
-      const sections = [...this.data.sections];
-      if (me.user.role === 'teacher')
-        sections.push({ id: 'teacher', name: '我的教学助手' });
       this.setData({
         user: me.user,
+        profileInitial: Array.from(me.user.display_name || me.user.name || me.user.username || 'C')[0].toUpperCase(),
         admin: me.admin,
         teacher: me.user.role === 'teacher',
-        sections,
       });
       this._ready = true;
       if (this.data.section === 'library' && this.data.teacher) {
@@ -106,10 +107,7 @@ Page({
       l.error(e);
     }
   },
-  back() {
-    wx.navigateBack();
-  },
-  home() { wx.reLaunch({ url: '/pages/home/home' }); },
+  home() { if (this.data.admin) l.go('/pages/home/home'); },
   openAdmin() {
     l.go('/pages/admin/admin');
   },
@@ -119,30 +117,9 @@ Page({
   titleFor(section) {
     return { bank: '题库', agents: '学习助手', history: '会话历史', profile: '个人中心', library: '公共教学资料', teacher: '我的教学助手', usage: '用量与费用' }[section] || '学习工作台';
   },
-  toggleDrawer() { this.setData({ drawerOpen: !this.data.drawerOpen }); },
-  closeDrawer() { this.setData({ drawerOpen: false }); },
+  ...workspace.drawer,
   toggleFilters() { this.setData({ filtersOpen: !this.data.filtersOpen }); },
-  async loadRecent(append = false) {
-    if (append && (this.data.recentLoading || !this.data.recentHasMore)) return;
-    const requestId = (this._recentRequestId || 0) + 1;
-    this._recentRequestId = requestId;
-    const page = append ? this.data.recentPage + 1 : 1;
-    this.setData({ recentLoading: true });
-    try {
-      const rows = await l.request('/api/ai/conversations?' + l.query({ page }));
-      if (requestId !== this._recentRequestId) return;
-      const unique = new Map((append ? this.data.recentConversations : []).concat(rows).map(row => [row.id, row]));
-      const recentConversations = Array.from(unique.values());
-      this.setData({ recentConversations, recentPage: page, recentHasMore: rows.length === 20,
-        conversationGroups: workspace.groupConversations(recentConversations, this.data.conversationGroups, this.data.conversation && this.data.conversation.agent_id) });
-    } catch (e) { if (requestId === this._recentRequestId) l.error(e); }
-    finally { if (requestId === this._recentRequestId) this.setData({ recentLoading: false }); }
-  },
-  moreRecent() { return this.loadRecent(true); },
-  toggleAgentGroup(e) {
-    const id = e.currentTarget.dataset.id;
-    this.setData({ conversationGroups: this.data.conversationGroups.map(group => group.id === id ? { ...group, expanded: !group.expanded } : group) });
-  },
+  ...workspace.recentMethods(l),
   async selectMain(e) {
     const id = e.currentTarget.dataset.id;
     const section = id === 'chat' ? 'agents' : id;
@@ -157,6 +134,8 @@ Page({
     this._facetRequestId = (this._facetRequestId || 0) + 1;
     this.setData({
       section,
+      inputHintFocus: '',
+      motionRevision: this.data.motionRevision + 1,
       mainTab: this.tabFor(section),
       sectionTitle: this.titleFor(section),
       drawerOpen: false,
@@ -304,7 +283,7 @@ Page({
   async selectSubject(e) {
     const index = Number(e.currentTarget.dataset.index), subject = this.data.subjects[index];
     if (!subject) return;
-    this.setData({ subject: subject.id, subjectLabel: subject.label, subjectIndex: index, collection: '', skill: '', tag: '', q: '', collectionIndex: 0, skillIndex: 0, tagIndex: 0, reviewRequired: '', drawerOpen: false, items: [], questionGroups: [], page: 1 });
+    this.setData({ subject: subject.id, subjectLabel: subject.label, collection: '', skill: '', tag: '', q: '', collectionIndex: 0, skillIndex: 0, tagIndex: 0, reviewRequired: '', drawerOpen: false, items: [], questionGroups: [], page: 1 });
     this.updateFacetOptions();
     if (await this.refreshTags()) await this.load(true);
   },
@@ -334,7 +313,6 @@ Page({
       collectionIndex: 0,
       skillIndex: 0,
       tagIndex: 0,
-      tags: [{ code: '', label: '全部标签' }],
     });
     this.updateFacetOptions();
     if (await this.refreshTags()) await this.load(true);
@@ -406,8 +384,8 @@ Page({
               page,
               agentId: this.data.agentId,
               userId: this.data.userId,
-              from: this.data.from,
-              to: this.data.to,
+              from: this.data.from ? this.data.from + 'T00:00:00+08:00' : '',
+              to: this.data.to ? this.data.to + 'T23:59:59.999+08:00' : '',
             }),
         );
         result = {
@@ -424,7 +402,7 @@ Page({
         ...x,
         id: x.id || x.resourceId,
         thumbnailUrl: x.thumbnail ? l.url(x.thumbnail.path) : '',
-        dataText: x.data ? JSON.stringify(x.data) : '',
+        ...(section === 'usage' ? { usage: usageView.row(x) } : {}),
       }));
       const items = reset ? mapped : this.data.items.concat(mapped);
       const groups = new Map();
@@ -439,7 +417,7 @@ Page({
         questionGroups: Array.from(groups.values()),
         total: result.total,
         page,
-        summary,
+        ...(section === 'usage' ? { usageOverview: usageView.overview(summary), usagePeriod: usageView.period(this.data.from, this.data.to) } : {}),
       });
     } catch (e) {
       l.error(e);
@@ -461,16 +439,6 @@ Page({
         (this.data.section === 'library' ? '1' : '0'),
     );
   },
-  async startAgent(e) {
-    try {
-      const conv = await l.request('/api/ai/conversations', 'POST', {
-        agentId: e.currentTarget.dataset.id,
-      });
-      l.go('/pages/chat/chat?id=' + conv.id);
-    } catch (e) {
-      l.error(e);
-    }
-  },
   create() {
     l.go('/pages/studio/studio');
   },
@@ -485,13 +453,7 @@ Page({
       const file = await l.pickFile();
       this.setData({ uploading: true });
       const doc = await l.upload('/api/library/upload', file);
-      l.go(
-        '/pages/question/detail?id=' +
-          doc.resourceId +
-          '&revisionId=' +
-          doc.revisionId +
-          '&document=1',
-      );
+      l.openDocument(doc);
     } catch (e) {
       if (!String(e.errMsg || '').includes('cancel')) l.error(e);
     } finally {
@@ -499,34 +461,44 @@ Page({
     }
   },
   async addText() {
+    const { publicTitle, publicText, submittingText } = this.data;
+    if (submittingText || !publicText.trim()) return;
+    this.setData({ submittingText: true });
     try {
-      if (!this.data.publicText.trim()) return;
       const doc = await l.request('/api/library/text', 'POST', {
-        title: this.data.publicTitle || '教学资料',
-        text: this.data.publicText,
+        title: publicTitle || '教学资料',
+        text: publicText,
       });
-      this.setData({ publicText: '', publicTitle: '' });
-      l.go(
-        '/pages/question/detail?id=' +
-          doc.resourceId +
-          '&revisionId=' +
-          doc.revisionId +
-          '&document=1',
-      );
+      if (this.data.publicText === publicText && this.data.publicTitle === publicTitle)
+        this.setData({ publicText: '', publicTitle: '' });
+      l.openDocument(doc);
     } catch (e) {
       l.error(e);
+    } finally {
+      this.setData({ submittingText: false });
     }
   },
   async existing() {
     this.setData({ chooseExisting: !this.data.chooseExisting });
     if (this.data.chooseExisting) await this.loadExisting();
+    else {
+      this._existingFilesRequest = (this._existingFilesRequest || 0) + 1;
+      this.setData({ existingLoading: false, existingLoaded: false, existingFiles: [] });
+    }
   },
   async loadExisting() {
+    const request = (this._existingFilesRequest || 0) + 1;
+    this._existingFilesRequest = request;
+    const category = this.data.category;
+    this.setData({ existingLoading: true, existingLoaded: false, existingFiles: [] });
     try {
       const api = require('../../utils/api');
-      this.setData({ existingFiles: await api.files(this.data.category) });
+      const existingFiles = await api.files(category);
+      if (request === this._existingFilesRequest) this.setData({ existingFiles, existingLoaded: true });
     } catch (e) {
-      l.error(e);
+      if (request === this._existingFilesRequest) l.error(e);
+    } finally {
+      if (request === this._existingFilesRequest) this.setData({ existingLoading: false });
     }
   },
   async category(e) {
@@ -536,27 +508,60 @@ Page({
     await this.loadExisting();
   },
   async indexFile(e) {
+    const id = e.currentTarget.dataset.id;
+    if (this.data.indexingFile || this.data.existingLoading || !this.data.existingFiles.some(file => String(file.id) === String(id))) return;
+    this.setData({ indexingFile: id });
     try {
       const doc = await l.request(
-        '/api/library/files/' + e.currentTarget.dataset.id + '/index',
+        '/api/library/files/' + id + '/index',
         'POST',
       );
-      l.go(
-        '/pages/question/detail?id=' +
-          doc.resourceId +
-          '&revisionId=' +
-          doc.revisionId +
-          '&document=1',
-      );
+      l.openDocument(doc);
     } catch (e) {
       l.error(e);
+    } finally {
+      this.setData({ indexingFile: '' });
     }
   },
   scope(e) {
-    this.setData({ scope: e.currentTarget.dataset.id });
+    this.setData({ scope: e.currentTarget.dataset.id, expandedUsageId: '',...(e.currentTarget.dataset.id === 'self' ? { userId: '' } : {}) });
     this.load(true);
+  },
+  toggleUsageFilters() { this.setData({ usageFiltersOpen: !this.data.usageFiltersOpen }); },
+  toggleUsageDetails(e) { this.setData({ expandedUsageId: this.data.expandedUsageId === e.currentTarget.dataset.id ? '' : e.currentTarget.dataset.id }); },
+  async applyUsageFilters() {
+    if (this.data.from && this.data.to && this.data.from > this.data.to) {
+      this.setData({ usageFilterError: '结束日期不能早于开始日期' });
+      return;
+    }
+    this.setData({ usageFiltersOpen: false, usageFilterError: '', expandedUsageId: '' });
+    await this.load(true);
+  },
+  async resetUsageFilters() {
+    this.setData({ from: '', to: '', userId: '', usageFilterError: '', expandedUsageId: '' });
+    await this.load(true);
   },
   date(e) {
     this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
   },
-});
+  logout() {
+    const api = require('../../utils/api');
+    const storage = require('../../utils/storage');
+    wx.showModal({
+      title: '退出登录',
+      content: '退出后将返回登录页面；已记住的设备也会失效。',
+      confirmText: '退出',
+      success: async (result) => {
+        if (!result.confirm) return;
+        const rememberToken = storage.getRememberToken();
+        try {
+          await api.logout(rememberToken);
+        } catch (error) {
+          console.warn('后端退出失败，继续清理本地登录状态:', error);
+        }
+        storage.clearSession();
+        wx.reLaunch({ url: '/pages/login/login' });
+      },
+    });
+  },
+}));

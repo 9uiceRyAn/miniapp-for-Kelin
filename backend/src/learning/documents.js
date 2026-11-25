@@ -1,9 +1,45 @@
+const { storedFilePath } = require('../utils/file-storage');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const c = require('./core');
 const media = require('./media');
 const models = require('./models');
 const busy = new Set();
+async function insertRevision(db, resourceId, revisionId, stored, data) {
+  const name = data.title;
+  await c.rows(
+    'INSERT INTO kl_revisions(id,resource_id,content_hash,data,search_text,status) VALUES(?,?,?,?,?,?)',
+    [
+      revisionId,
+      resourceId,
+      stored.hash,
+      JSON.stringify(data),
+      name,
+      'queued',
+    ],
+    db,
+  );
+  await c.rows(
+    'INSERT INTO kl_media(id,revision_id,kind,label,storage_path,mime,original_path,content_hash) VALUES(?,?,?,?,?,?,?,?)',
+    [
+      c.id(),
+      revisionId,
+      'original',
+      name,
+      stored.path,
+      media.mime(name),
+      name,
+      stored.hash,
+    ],
+    db,
+  );
+}
+function documentExtension(name, message) {
+  const extension = path.extname(name).toLowerCase();
+  if (!['.pdf', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp'].includes(extension))
+    c.fail(400, message);
+  return extension;
+}
 async function upload({
   user,
   bytes,
@@ -11,13 +47,7 @@ async function upload({
   conversationId = null,
   fileId = null,
 }) {
-  const extension = path.extname(name).toLowerCase();
-  if (
-    !['.pdf', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp'].includes(
-      extension,
-    )
-  )
-    c.fail(400, '支持文字、图片、PDF、DOCX');
+  const extension = documentExtension(name, '支持文字、图片、PDF、DOCX');
   const stored = await media.blob(bytes, extension),
     resourceId = c.id(),
     revisionId = c.id();
@@ -36,32 +66,7 @@ async function upload({
       ],
       db,
     );
-    await c.rows(
-      'INSERT INTO kl_revisions(id,resource_id,content_hash,data,search_text,status) VALUES(?,?,?,?,?,?)',
-      [
-        revisionId,
-        resourceId,
-        stored.hash,
-        JSON.stringify({ title: name, extension, parseError: null }),
-        name,
-        'queued',
-      ],
-      db,
-    );
-    await c.rows(
-      'INSERT INTO kl_media(id,revision_id,kind,label,storage_path,mime,original_path,content_hash) VALUES(?,?,?,?,?,?,?,?)',
-      [
-        c.id(),
-        revisionId,
-        'original',
-        name,
-        stored.path,
-        media.mime(name),
-        name,
-        stored.hash,
-      ],
-      db,
-    );
+    await insertRevision(db, resourceId, revisionId, stored, { title: name, extension, parseError: null });
     if (conversationId)
       await c.rows(
         'INSERT INTO kl_assets VALUES(?,?,?)',
@@ -242,7 +247,7 @@ async function search(q = {}, user) {
     ];
   if (q.q) {
     where.push('(v.search_text LIKE ?)');
-    args.push('%' + String(q.q).replace(/[\\%_]/g, '\\$&') + '%');
+    args.push(c.containsPattern(q.q));
   }
   const p = c.page(q),
     from =
@@ -252,10 +257,7 @@ async function search(q = {}, user) {
   const found = await c.rows(
     'SELECT r.id resourceId,v.id revisionId,v.data ' +
       from +
-      ' ORDER BY v.created_at DESC,r.id LIMIT ' +
-      p.pageSize +
-      ' OFFSET ' +
-      p.offset,
+      ' ORDER BY v.created_at DESC,r.id' + c.limitOffset(p),
     args,
   );
   const items = [];
@@ -264,7 +266,7 @@ async function search(q = {}, user) {
       'SELECT position,label,LEFT(body,600) body FROM kl_chunks WHERE revision_id=?' +
         (q.q ? ' AND body LIKE ?' : '') +
         ' ORDER BY position LIMIT 3',
-      q.q ? [row.revisionId, '%' + q.q + '%'] : [row.revisionId],
+      q.q ? [row.revisionId, c.containsPattern(q.q)] : [row.revisionId],
     );
     items.push({
       ...c.json(row.data),
@@ -292,57 +294,21 @@ async function replace(resource, user, bytes, name, options = {}) {
         c.fail(409, '资料已被其他操作更新或撤下，本次修订未替换当前资料');
     }
   }
-  if (
-    !['.pdf', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp'].includes(
-      path.extname(name).toLowerCase(),
-    )
-  )
-    c.fail(400, '不支持的资料格式');
+  const extension = documentExtension(name, '不支持的资料格式');
   const stored = await media.blob(bytes, path.extname(name)),
     revisionId = c.id();
   const old = await c.one(
-    'SELECT id FROM kl_revisions WHERE resource_id=? AND content_hash=?',
+    'SELECT id,status FROM kl_revisions WHERE resource_id=? AND content_hash=?',
     [resource.id, stored.hash],
   );
   if (old) {
-    if (
-      (await c.one('SELECT status FROM kl_revisions WHERE id=?', [old.id]))
-        .status === 'ready'
-    )
+    if (old.status === 'ready')
       await activate(old.id);
     else if (options.awaitReady) c.fail(409, '相同内容正在解析或解析未成功，请先核对该修订');
     return { resourceId: resource.id, revisionId: old.id };
   }
   await c.transaction(async (db) => {
-    await c.rows(
-      'INSERT INTO kl_revisions(id,resource_id,content_hash,data,search_text,status) VALUES(?,?,?,?,?,?)',
-      [
-        revisionId,
-        resource.id,
-        stored.hash,
-        JSON.stringify({
-          title: name,
-          extension: path.extname(name).toLowerCase(),
-        }),
-        name,
-        'queued',
-      ],
-      db,
-    );
-    await c.rows(
-      'INSERT INTO kl_media(id,revision_id,kind,label,storage_path,mime,original_path,content_hash) VALUES(?,?,?,?,?,?,?,?)',
-      [
-        c.id(),
-        revisionId,
-        'original',
-        name,
-        stored.path,
-        media.mime(name),
-        name,
-        stored.hash,
-      ],
-      db,
-    );
+    await insertRevision(db, resource.id, revisionId, stored, { title: name, extension });
   });
   const processing = parse(revisionId, { user, purpose: 'parse' }).then(() => activate(revisionId));
   if (options.awaitReady) {
@@ -359,9 +325,7 @@ async function indexFile(user, fileId) {
   if (!file) c.fail(404, '文件不存在');
   const existing = await c.one('SELECT id,current_revision FROM kl_resources WHERE namespace=? AND source_id=?', ['kelin-files', String(file.id)]);
   if (existing) return { resourceId: existing.id, revisionId: existing.current_revision };
-  const base = path.resolve(process.env.UPLOAD_ROOT || '/var/www/file-manager/uploads/files');
-  const absolute = path.resolve(base, file.storage_path);
-  if (!absolute.startsWith(base + path.sep)) c.fail(400, '文件路径无效');
+  const absolute = storedFilePath(file.storage_path);
   return upload({user, bytes: await fs.readFile(absolute), name: file.original_name, fileId: file.id});
 }
-module.exports = { replace, upload, vision, extract, parse, search, resume, indexFile };
+module.exports = { replace, upload, vision, parse, search, resume, indexFile };

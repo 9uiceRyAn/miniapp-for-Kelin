@@ -46,7 +46,7 @@ test(
       runs = require('../src/learning/runs'),
       docs = require('../src/learning/documents'),
       media = require('../src/learning/media');
-    await require('../scripts/learning').migrate();
+    require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, '../scripts/learning.js'), 'migrate']);
     const { encrypt } = require('../src/registration-codes');
     for (const role of ['teacher', 'student']) {
       await testPool.execute(
@@ -656,13 +656,23 @@ test(
               '\n%%EOF';
             return Buffer.from(body);
           }
-          const text = await docs.extract(
+          async function parsedChunks(bytes, extension, { user }) {
+            const doc = await docs.upload({ user, bytes, name: 'fixture' + extension });
+            for (let attempt = 0; attempt < 250; attempt++) {
+              const detail = await questions.detail(user, doc.resourceId, doc.revisionId);
+              if (detail.status === 'ready') return detail.chunks;
+              if (detail.status === 'failed') assert.fail(detail.parseError);
+              await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            assert.fail('Timed out waiting for imported document');
+          }
+          const text = await parsedChunks(
             pdf('Public reading lesson with sufficient text for parsing.'),
             '.pdf',
             { user: tu, purpose: 'parse' },
           );
           assert.match(text[0].body, /Public reading/);
-          const scanned = await docs.extract(pdf(''), '.pdf', {
+          const scanned = await parsedChunks(pdf(''), '.pdf', {
             user: tu,
             purpose: 'parse',
           });
@@ -689,7 +699,7 @@ test(
           );
           await zip.finalize();
           await ended;
-          const docx = await docs.extract(Buffer.concat(parts), '.docx', {
+          const docx = await parsedChunks(Buffer.concat(parts), '.docx', {
             user: su,
             purpose: 'parse',
           });
@@ -698,7 +708,7 @@ test(
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE1cAAAAASUVORK5CYII=',
             'base64',
           );
-          const imageText = await docs.extract(image, '.png', {
+          const imageText = await parsedChunks(image, '.png', {
             user: su,
             purpose: 'parse',
           });
@@ -771,7 +781,7 @@ test(
             await new Promise((resolve) =>
               input.signal.addEventListener('abort', resolve, { once: true }),
             );
-            return 'Known partial answer $x^2$';
+            return;
           });
           await signal;
           await runs.cancel(su, sent.runId);
@@ -906,7 +916,7 @@ test(
           assert.equal(input.libraryManagement, true);
           const proposal = await input.invoke('propose_library_change', { action: 'add_text', title: '管家测试笔记', text: '积分用于求原函数。' });
           assert.equal(proposal.awaitingConfirmation, true);
-          return '请确认资料操作。';
+          await input.emit('text-delta', { text: '请确认资料操作。' });
         });
         const cards = await manager.cards(tu, conv.id);
         assert.equal(cards.length, 1);
@@ -918,9 +928,9 @@ test(
         assert.equal(first.outcome.resourceId, second.outcome.resourceId);
         const resource = await media.requireResource(tu, first.outcome.resourceId);
         assert.equal(resource.visibility, 'public');
-        await assert.rejects(manager.validate(tu,conv.id,{action:'withdraw',resourceId:resource.id,revisionId:'stale'}),/已更新/);
-        await assert.rejects(manager.validate(su,conv.id,{action:'withdraw',resourceId:resource.id,revisionId:resource.current_revision}),/教师权限/);
-        await assert.rejects(manager.validate(tu,conv.id,{action:'publish_attachment',attachmentId:resource.id,attachmentRevisionId:resource.current_revision}),/当前会话/);
+        await assert.rejects(manager.propose({action:'withdraw',resourceId:resource.id,revisionId:'stale'},{user:tu,conversationId:conv.id}),/已更新/);
+        await assert.rejects(manager.propose({action:'withdraw',resourceId:resource.id,revisionId:resource.current_revision},{user:su,conversationId:conv.id}),/教师权限/);
+        await assert.rejects(manager.propose({action:'publish_attachment',attachmentId:resource.id,attachmentRevisionId:resource.current_revision},{user:tu,conversationId:conv.id}),/当前会话/);
         // A model change creates a new snapshot without losing the old conversation.
         const originalModel=(await modelsForManager()).builderModelId;
         async function modelsForManager(){return require('../src/learning/models').settings();}
@@ -947,7 +957,7 @@ test(
         const found=await manager.searchFiles({query:'manager-existing',category:'A'},{user:tu,conversationId:conv.id});
         assert.equal(found.items[0].fileId,inserted.insertId);
         const importRun=await runs.send(tu,conv.id,{requestId:c.id(),text:'索引已有讲义'});
-        await runs.execute(importRun.runId,async input=>{await input.invoke('propose_library_change',{action:'index_file',fileId:inserted.insertId});return '请确认索引。';});
+        await runs.execute(importRun.runId,async input=>{await input.invoke('propose_library_change',{action:'index_file',fileId:inserted.insertId});await input.emit('text-delta', { text: '请确认索引。' });});
         const importCard=(await manager.cards(tu,conv.id)).find(x=>x.status==='completed');
         await manager.confirm(tu,conv.id,importCard.id);
         const imported=await applied(conv.id,importCard.id);
@@ -956,7 +966,7 @@ test(
         await runs.execute(withdrawal.runId, async input => {
           const result = await input.invoke('propose_library_change',{action:'withdraw',resourceId:resource.id,revisionId:resource.current_revision});
           assert.ok(['first.txt','second.txt'].includes(result.proposal.previousTitle));
-          return '请确认撤下。';
+          await input.emit('text-delta', { text: '请确认撤下。' });
         });
         const pending = (await manager.cards(tu,conv.id)).find(x=>x.status==='completed');
         await manager.confirm(tu,conv.id,pending.id);
@@ -967,6 +977,7 @@ test(
         assert.equal(detail.libraryActions.filter(x=>x.status==='applied').length,3);
       });
 
+      await require('./question-management.integration')({ t, api, origin, teacher, student, c });
       await t.test(
         'existing files, marks and logout remain isolated and operational',
         async () => {

@@ -7,7 +7,7 @@ const root=process.env.MINIPROGRAM_ROOT||path.join(__dirname,'../../miniprogram'
 function load(file,learning={},pages=[],drafts={}) {
  let config; const calls=[];
  const l={query:o=>new URLSearchParams(Object.entries(o).filter(([,v])=>v!==''&&v!==undefined)).toString(),url:x=>x,error:e=>{throw e},go:p=>calls.push(p),guard:()=>true,...learning};
- vm.runInNewContext(fs.readFileSync(path.join(root,'pages',file+'.js'),'utf8'),{Page:x=>config=x,require:n=>n.includes('workspace')?require(path.join(root,'utils/workspace.js')):n.includes('learning')?l:n.includes('storage')?{getUser:()=>({id:1,role:'student'})}:{},getCurrentPages:()=>pages,wx:{redirectTo:x=>calls.push(x.url),navigateBack:x=>calls.push(x),setStorageSync:(k,v)=>drafts[k]=v,getStorageSync:k=>drafts[k],showToast:()=>{}},console,setTimeout:()=>0,clearTimeout:()=>{},Math,Date,JSON});
+ vm.runInNewContext(fs.readFileSync(path.join(root,'pages',file+'.js'),'utf8'),{Page:x=>config=x,require:n=>n.includes('input-hints')?require(path.join(root,'utils/input-hints.js')):n.includes('usage')?require(path.join(root,'utils/usage.js')):n.includes('workspace')?require(path.join(root,'utils/workspace.js')):n.includes('learning')?l:n.includes('storage')?{getUser:()=>({id:1,role:'student'})}:{},getCurrentPages:()=>pages,wx:{redirectTo:x=>calls.push(x.url),navigateBack:x=>calls.push(x),setStorageSync:(k,v)=>drafts[k]=v,getStorageSync:k=>drafts[k],showToast:()=>{}},console,setTimeout:()=>0,clearTimeout:()=>{},Math,Date,JSON});
  return {...config,data:structuredClone(config.data),calls,setData(values){for(const[k,v]of Object.entries(values)){const parts=k.replace(/\[(\d+)\]/g,'.$1').split('.');let n=this.data;for(const p of parts.slice(0,-1))n=n[p];n[parts.at(-1)]=v;}}};
 }
 const facets=[{subject:'math',subjectLabel:'数学',collection:'math-a',collectionLabel:'数学 A',skill:'p1'},{subject:'math',subjectLabel:'数学',collection:'math-b',collectionLabel:'数学 B',skill:'p2'},{subject:'physics',subjectLabel:'物理',collection:'physics',skill:'p1'}];
@@ -72,4 +72,69 @@ test('a dataset selected under all subjects still has taxonomy',async()=>{
 test('the assistant picker retains access to later pages',async()=>{
  const p=load('learning/index',{request:async u=>({items:[{id:new URL(u,'http://test').searchParams.get('page')}],total:21})});p.data.section='agents';await p.load(true);await p.more();assert.equal(p.data.items.length,2);
  const wxml=fs.readFileSync(path.join(root,'pages/learning/index.wxml'),'utf8');assert.match(wxml,/class="agent-more"[^>]*bindtap="more"/);
+});
+
+const usageView=require(path.join(root,'utils/usage.js'));
+test('fee display preserves small decimals and distinguishes zero from unknown',()=>{
+ const displayAmount = amount => usageView.row({status:'estimated', currency:'USD', amount}).amount;
+ assert.equal(displayAmount('0.000094200000'),'0.0000942');
+ assert.equal(displayAmount('0.000000000001'),'0.000000000001');
+ assert.equal(displayAmount('9007199254740993.120000'),'9007199254740993.12');
+ assert.equal(displayAmount('0.000000000000'),'0');
+ assert.equal(displayAmount(null),null);
+});
+test('fee overview separates currencies and excludes pending amounts',()=>{
+ const view=usageView.overview([{currency:'USD',status:'estimated',amount:'0.000094200000',calls:3},{currency:'USD',status:'pending',amount:null,calls:8},{currency:'CNY',status:'estimated',amount:'1.230000',calls:2},{currency:null,status:'pending',amount:null,calls:2}]);
+ assert.equal(view.totalCalls,15);assert.equal(view.pendingCalls,10);assert.equal(view.unpricedCalls,2);
+ assert.deepEqual(view.currencies.map(x=>[x.currency,x.amount]),[['USD','0.0000942'],['CNY','1.23']]);
+ const pending=usageView.row({status:'pending',amount:null,currency:'USD',purpose:'student',created_at:'2026-10-31T12:41:21.000Z'});
+ assert.equal(pending.amount,null);assert.equal(pending.status,'待核实');assert.equal(pending.purpose,'作业辅导');assert.equal(pending.time,'2026/10/31 8:41 PM');
+ assert.equal(usageView.row({status:'estimated',amount:'0.000000',currency:'USD'}).amount,'0');
+});
+test('fee date filter includes the selected end day in Beijing time and rejects reversed dates',async()=>{
+ const urls=[];const p=load('learning/index',{request:async u=>{urls.push(u);return{items:[],summary:[]}}});
+ p.setData({section:'usage',from:'2026-11-02',to:'2026-11-01'});await p.applyUsageFilters();assert.equal(urls.length,0);assert.ok(p.data.usageFilterError);
+ p.setData({from:'2026-10-31',to:'2026-10-31'});await p.applyUsageFilters();
+ const q=new URL(urls[0],'http://test').searchParams;assert.equal(q.get('from'),'2026-10-31T00:00:00+08:00');assert.equal(q.get('to'),'2026-10-31T23:59:59.999+08:00');
+ assert.equal(p.data.usagePeriod,'2026-10-31 至 2026-10-31');assert.equal(p.data.usageFiltersOpen,false);
+});
+test('fee rows format actual data and returning to self clears hidden user filters',async()=>{
+ const urls=[];const p=load('learning/index',{request:async u=>{urls.push(u);return{summary:[{currency:'USD',status:'estimated',amount:'0.10',calls:1}],items:[{id:'record',purpose:'parse',amount:'0.10',currency:'USD',status:'estimated',created_at:'2026-10-31T12:41:21.000Z',data:{usage:{input:10,output:2,cached:0}}}]}}});
+ p.setData({section:'usage',scope:'admin',userId:'42'});p.scope({currentTarget:{dataset:{id:'self'}}});await p.load(true);
+ assert.equal(p.data.userId,'');assert.ok(urls.every(u=>u.startsWith('/api/ai/usage?')));assert.equal(p.data.items[0].usage.purpose,'资料识别');assert.equal(p.data.items[0].usage.amount,'0.1');
+ p.toggleUsageDetails({currentTarget:{dataset:{id:'record'}}});assert.equal(p.data.expandedUsageId,'record');
+});
+
+test('RMB reference conversion retains tiny amounts, zero and large decimal precision',()=>{
+ const displayCny = (amount,currency) => usageView.row({status:'estimated', currency, amount}).cnyAmount;
+ assert.equal(displayCny('0.000094200000','USD'),'0.00063243996');
+ assert.equal(displayCny('0.000000000001','USD'),'0.0000000000067138');
+ assert.equal(displayCny('9007199254740993.12','USD'),'60472534356480079.609056');
+ assert.equal(displayCny('0.000000','USD'),'0');
+ assert.equal(displayCny('1.230000','CNY'),'1.23');
+ assert.equal(displayCny(null,'USD'),null);
+ assert.equal(displayCny('1.00','EUR'),null);
+});
+test('RMB total combines supported estimates and exposes unsupported currency coverage',()=>{
+ const view=usageView.overview([{currency:'USD',status:'estimated',amount:'0.1',calls:1},{currency:'CNY',status:'estimated',amount:'1.23',calls:2},{currency:'USD',status:'pending',amount:'9',calls:3},{currency:'EUR',status:'estimated',amount:'4',calls:5}]);
+ assert.equal(view.cnyAmount,'1.90138');assert.equal(view.cnyExcludedCalls,5);assert.equal(view.pendingCalls,3);
+ assert.match(view.exchangeNote,/6.7138/);assert.match(view.exchangeNote,/2026-10-30/);
+ assert.equal(usageView.overview([]).cnyAmount,null);
+ assert.equal(usageView.overview([{currency:'USD',status:'pending',amount:null,calls:1}]).cnyAmount,null);
+ assert.equal(usageView.overview([{currency:'USD',status:'estimated',amount:'0',calls:1}]).cnyAmount,'0');
+ assert.equal(usageView.row({status:'pending',amount:'1',currency:'USD'}).cnyAmount,null);
+ assert.equal(usageView.row({status:'estimated',amount:'0.1',currency:'USD'}).cnyAmount,'0.67138');
+});
+
+test('question management does not query managed questions for a non-admin account',async()=>{
+ const urls=[];const page=load('home/home',{request:async url=>{urls.push(url);return{user:{id:2,role:'student'},admin:false}}});
+ await page.onLoad();assert.equal(page.data.admin,false);assert.deepEqual(urls,['/api/ai/me']);
+});
+test('a stale management filter response cannot replace the latest question results',async()=>{
+ let release;let requests=0;const urls=[];
+ const page=load('home/home',{request:async url=>{urls.push(url);if(++requests===1)return new Promise(resolve=>release=resolve);return{items:[{resourceId:'new',title:'new'}],total:1}}});
+ page.setData({admin:true});const first=page.load(true);page.setData({q:'latest'});await page.load(true);
+ release({items:[{resourceId:'old',title:'old'}],total:99});await first;
+ assert.equal(page.data.items[0].resourceId,'new');assert.equal(page.data.total,1);assert.equal(page.data.loading,false);
+ assert.equal(new URL(urls[1],'http://test').searchParams.get('q'),'latest');
 });

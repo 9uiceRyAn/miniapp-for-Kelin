@@ -207,4 +207,3 @@ if (require.main === module)
       process.exitCode = 1;
     })
     .finally(() => c.pool.end());
-module.exports = { migrate, sample };

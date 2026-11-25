@@ -1,5 +1,6 @@
+const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
-Page({
+Page(withInputHints({
   data: {
     models: [],
     prices: [],
@@ -9,7 +10,6 @@ Page({
     apiKey: '',
     vision: false,
     tools: true,
-    text: true,
     saving: false,
     settings: {},
     selected: 0,
@@ -160,4 +160,4 @@ Page({
   usage() {
     l.go('/pages/learning/index?section=usage&scope=admin');
   },
-});
+}));

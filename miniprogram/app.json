@@ -12,7 +12,7 @@
   ],
   "window": {
     "navigationStyle": "custom",
-    "backgroundColor": "#f7f6f2",
+    "backgroundColor": "#ffffff",
     "backgroundTextStyle": "dark",
     "enablePullDownRefresh": false
   },

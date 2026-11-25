@@ -1,7 +1,5 @@
-const fs = require('node:fs/promises');
 const c = require('./core'),
-  agents = require('./agents'),
-  media = require('./media');
+  agents = require('./agents');
 let renderer;
 function mathSvg(tex, display) {
   if (!renderer) {
@@ -24,12 +22,16 @@ function mathSvg(tex, display) {
   const node = renderer.document.convert(tex, { display });
   return renderer.adaptor.outerHTML(renderer.adaptor.firstChild(node));
 }
-async function render(user, messageId) {
+async function readableMessage(user, messageId) {
   const message = await c.one('SELECT * FROM kl_messages WHERE id=?', [
     messageId,
   ]);
   if (!message) c.fail(404, '消息不存在');
   await agents.getConversation(user, message.conversation_id);
+  return message;
+}
+async function render(user, messageId) {
+  const message = await readableMessage(user, messageId);
   const data = c.json(message.data),
     formulas = [],
     text = String(data.text || '').replace(/\[\[cite:[a-f0-9-]+\]\]/g, '');
@@ -103,13 +105,9 @@ async function render(user, messageId) {
   };
 }
 async function formula(user, messageId, hash) {
-  const message = await c.one('SELECT * FROM kl_messages WHERE id=?', [
-    messageId,
-  ]);
-  if (!message) c.fail(404, '消息不存在');
-  await agents.getConversation(user, message.conversation_id);
+  const message = await readableMessage(user, messageId);
   const item = c.json(message.data).formulas?.find((x) => x.hash === hash);
   if (!item) c.fail(404, '公式不存在');
   return item.svg;
 }
-module.exports = { render, formula, mathSvg };
+module.exports = { render, formula };

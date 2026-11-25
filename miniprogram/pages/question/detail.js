@@ -1,3 +1,10 @@
+const workspace = require('../../utils/workspace');
+function visibleMedia(images, otherMedia, answers, document) {
+  return {
+    visibleImages: images.filter(image => document || image.answer === answers),
+    visibleOtherMedia: otherMedia.filter(entry => document || ['answer', 'ms', 'sm'].includes(entry.kind) === answers),
+  };
+}
 const l = require('../../utils/learning'),
   api = require('../../utils/api'),
   storage = require('../../utils/storage');
@@ -9,6 +16,15 @@ Page({
     document: false,
     item: null,
     images: [],
+    visibleImages: [],
+    previewImages: [],
+    previewIndex: 0,
+    previewOpen: false,
+    visibleOtherMedia: [],
+    questionHeading: '',
+    paperSummary: '',
+    topicLabel: '',
+    detailsOpen: false,
     otherMedia: [],
     audio: [],
     original: null,
@@ -20,7 +36,13 @@ Page({
     tutors: [],
     tutorIndex: 0,
     choosing: false,
+    loadingTutors: false,
+    startingConversation: false,
+    existingLoaded: false,
     existing: [],
+    existingPage: 0,
+    existingHasMore: false,
+    existingLoading: false,
     audioIndex: -1,
     playing: false,
     duration: 0,
@@ -56,13 +78,18 @@ Page({
         this.data.id +
         (this.data.revisionId ? '/revisions/' + this.data.revisionId : '');
       const item = await l.request(path);
-      const source = item.source_ref || {};
+      const source = item.source_ref || {}, details = item.details || {};
+      const sourcePages = source.pages || source.question_pages || details.question_pages;
       item.sourceText =
-        (source.document || source.file || source.id || '未提供来源名称') +
-        (source.pages?.length
-          ? ' · 第 ' + source.pages.join('、') + ' 页'
-          : '');
-      item.hasAnswer = item.media.some((m) =>
+        (source.document || source.question_document || source.file || details.question_document || source.id || '来源未标注') +
+        (Array.isArray(sourcePages) && sourcePages.length ? ' · 第 ' + sourcePages.join('、') + ' 页' : '');
+      const range = item.question_range || {};
+      const first = range.start || details.question_number;
+      const last = range.end || first;
+      const questionHeading = this.data.document || !first ? item.title : '第 ' + first + (last !== first ? '–' + last : '') + ' 题';
+      const paperParts = [details.syllabus_code, details.year ? String(details.year) + (details.session ? ' ' + details.session : '') : '', details.paper ? 'Paper ' + details.paper : ''].filter(Boolean);
+      const paperSummary = this.data.document ? (item.extension || '').replace('.', '').toUpperCase() : paperParts.length ? paperParts.join(' · ') : String(item.title || '').replace(/\s*·?\s*(?:Questions?\s*\d+.*|第\s*\d+.*题)$/i, '').trim();
+      item.hasAnswer = Boolean(item.answer_text) || item.media.some((m) =>
         ['answer', 'ms', 'sm'].includes(m.kind),
       );
       const images = item.media
@@ -75,23 +102,26 @@ Page({
       const audio = item.media
         .filter((m) => m.kind === 'audio')
         .map((m) => ({ ...m, url: l.url(m.path) }));
+      const user = storage.getUser();
+      const answers = !this.data.document && item.hasAnswer && this.data.answers;
+      const otherMedia = item.media.filter((m) => !m.mime.startsWith('image/') && m.kind !== 'audio' && m.kind !== 'original').map((m, originalIndex) => ({ ...m, originalIndex }));
       this.setData({
         item,
+        questionHeading,
+        paperSummary,
+        topicLabel: item.primary_tag_name || item.subtitle || '',
+        answers,
+        ...visibleMedia(images, otherMedia, answers, this.data.document),
         revisionId: item.revisionId,
         images,
         audio,
-        otherMedia: item.media.filter(
-          (m) =>
-            !m.mime.startsWith('image/') &&
-            m.kind !== 'audio' &&
-            m.kind !== 'original',
-        ),
+        otherMedia,
         original: item.media.find((m) => m.kind === 'original') || null,
-        canRetry: String(item.ownerId) === String(storage.getUser()?.id),
+        canRetry: String(item.ownerId) === String(user?.id),
         canManage:
           item.visibility === 'public' &&
-          String(item.ownerId) === String(storage.getUser()?.id) &&
-          storage.getUser()?.role === 'teacher',
+          String(item.ownerId) === String(user?.id) &&
+          user?.role === 'teacher',
         loading: false,
         error: '',
       });
@@ -103,17 +133,22 @@ Page({
     }
   },
   toggleAnswers() {
-    this.setData({ answers: !this.data.answers });
-  },
-  preview(e) {
-    const current = e.currentTarget.dataset.url;
-    wx.previewImage({
-      current,
-      urls: this.data.images
-        .filter((x) => x.available && (this.data.answers || !x.answer))
-        .map((x) => x.url),
+    if (!this.data.item?.hasAnswer) return;
+    const answers = !this.data.answers;
+    this.setData({
+      answers,
+      ...visibleMedia(this.data.images, this.data.otherMedia, answers, false),
     });
   },
+  toggleDetails() { this.setData({ detailsOpen: !this.data.detailsOpen }); },
+  closeTutor() { this.resetExisting(); this.setData({ choosing: false }); },
+  preview(e) {
+    const previewImages = this.data.visibleImages.filter((image) => image.available);
+    const previewIndex = previewImages.findIndex((image) => image.url === e.currentTarget.dataset.url);
+    if (previewIndex < 0) return;
+    this.setData({ previewImages, previewIndex, previewOpen: true });
+  },
+  closePreview() { this.setData({ previewOpen: false, previewImages: [] }); },
   async imageError(e) {
     const id = e.currentTarget.dataset.id;
     this._renewed = this._renewed || {};
@@ -203,26 +238,30 @@ Page({
     }
   },
   async ask() {
+    if (this.data.loadingTutors) return;
+    this.resetExisting();
+    this.setData({ choosing: true, loadingTutors: true });
     try {
       const result = await l.request('/api/ai/agents?pageSize=100');
-      this.setData({ tutors: result.items, choosing: true });
+      this.setData({ tutors: result.items, tutorIndex: 0 });
     } catch (e) {
       l.error(e);
-    }
+    } finally { this.setData({ loadingTutors: false }); }
   },
   async selectMain(e) {
-    const id = e.currentTarget.dataset.id;
-    const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : [];
-    const index = pages.map(page => page.route).lastIndexOf('pages/learning/index');
-    if (index >= 0 && index < pages.length - 1) {
-      await pages[index].selectMain(e);
-      wx.navigateBack({ delta: pages.length - 1 - index });
-    } else wx.redirectTo({ url: '/pages/learning/index?section=' + (id === 'chat' ? 'agents' : id) });
+    return workspace.returnToWorkspace(e, getCurrentPages(), wx);
   },
   tutor(e) {
-    this.setData({ tutorIndex: Number(e.detail.value), existing: [] });
+    this.resetExisting();
+    this.setData({ tutorIndex: Number(e.detail.value) });
+  },
+  resetExisting() {
+    this._existingRequest = (this._existingRequest || 0) + 1;
+    this.setData({ existing: [], existingPage: 0, existingHasMore: false, existingLoading: false, existingLoaded: false });
   },
   async newConversation() {
+    if (this.data.startingConversation) return;
+    this.setData({ startingConversation: true });
     try {
       const tutor = this.data.tutors[this.data.tutorIndex];
       if (!tutor) return;
@@ -232,25 +271,38 @@ Page({
       this.enter(conv.id);
     } catch (e) {
       l.error(e);
-    }
+    } finally { this.setData({ startingConversation: false }); }
   },
   async chooseExisting() {
+    if (this.data.existingLoading || (this.data.existingLoaded && !this.data.existingHasMore)) return;
+    const tutor = this.data.tutors[this.data.tutorIndex];
+    if (!tutor) return;
+    const request = (this._existingRequest || 0) + 1;
+    this._existingRequest = request;
+    const page = this.data.existingPage + 1;
+    const pageSize = 20;
+    this.setData({ existingLoading: true });
     try {
-      const tutor = this.data.tutors[this.data.tutorIndex];
-      const history = await l.request('/api/ai/conversations');
+      const history = await l.request('/api/ai/conversations?' + l.query({ agentId: tutor.id, page, pageSize }));
+      if (request !== this._existingRequest) return;
+      const seen = new Set(this.data.existing.map(row => row.id));
       this.setData({
-        existing: history.filter(
-          (x) => x.agent_id === tutor?.id && x.mode === 'student',
-        ),
+        existingLoaded: true,
+        existingPage: page,
+        existingHasMore: history.length === pageSize,
+        existing: this.data.existing.concat(history.filter(row => !seen.has(row.id))),
       });
     } catch (e) {
-      l.error(e);
+      if (request === this._existingRequest) l.error(e);
+    } finally {
+      if (request === this._existingRequest) this.setData({ existingLoading: false });
     }
   },
   existing(e) {
     this.enter(e.currentTarget.dataset.id);
   },
   enter(id) {
+    this.closeTutor();
     l.go(
       '/pages/chat/chat?id=' +
         id +
@@ -284,11 +336,25 @@ Page({
     }
   },
   async withdraw() {
+    if (this._withdrawing) return;
+    this._withdrawing = true;
     try {
+      const confirmed = await new Promise((resolve, reject) => {
+        wx.showModal({
+          title: '撤下公共资料',
+          content: '撤下后，教学助手将无法检索这份公共资料。',
+          confirmText: '撤下',
+          success: result => resolve(result.confirm),
+          fail: reject,
+        });
+      });
+      if (!confirmed) return;
       await l.request('/api/library/' + this.data.id, 'DELETE');
       wx.navigateBack();
     } catch (e) {
       l.error(e);
+    } finally {
+      this._withdrawing = false;
     }
   },
 });

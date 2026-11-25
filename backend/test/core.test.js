@@ -1,7 +1,7 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { calculate } = require('../src/learning/tools');
-const { estimate } = require('../src/learning/models');
+const { estimate } = require('../src/learning/pricing');
 test('calculator supports arithmetic and refuses assignment, import and property access', () => {
   assert.equal(calculate('sqrt(81)+2^3'), '17');
   assert.equal(calculate('0.1+0.2'), '0.3');
