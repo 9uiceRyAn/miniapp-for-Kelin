@@ -12,10 +12,13 @@ router.use((req, res, next) => {
   next();
 }, requireAuth, requireTeacher);
 router.post('/unlock', wrap(async (req, res) => {
-  const data = adminGate.unlock(req);
+  const data = await adminGate.unlock(req);
   res.json({ success: true, data });
 }));
 router.use(adminGate.authorize);
+router.put('/password', wrap(async (req, res) => {
+  res.json({ success: true, data: await adminGate.changePassword(req) });
+}));
 router.get('/users', wrap(async (req, res) => {
   const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
   const where = ['1=1'];

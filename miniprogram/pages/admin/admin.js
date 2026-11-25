@@ -19,6 +19,7 @@ function viewStorage(raw) {
     totalLabel: formatBytes(raw.disk.totalBytes),
     usedPercent,
     highUsage: usedPercent >= 85,
+    questionBankLabel: raw.questionBank ? formatBytes(raw.questionBank.bytes) : '暂无数据',
     activeCount: Number(raw.uploads?.activeCount || 0),
     activeLabel: formatBytes(raw.uploads?.activeBytes || 0),
     trashCount: Number(raw.uploads?.trashCount || 0),

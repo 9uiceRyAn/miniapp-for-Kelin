@@ -1,0 +1,4 @@
+interface:
+  display_name: "构建雅思听力阅读题库"
+  short_description: "将剑桥雅思 PDF 转换为带标签与答案的可移植 JSON/CSV 题库"
+  default_prompt: "使用 $build-ielts-question-database 处理剑桥雅思 Academic 听力与阅读 PDF，并生成可交付题库。"

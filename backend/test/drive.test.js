@@ -26,11 +26,12 @@ test('server storage summary reports disk capacity and upload breakdown', async 
   const { getStorageSummary } = require('../src/utils/server-storage');
   const origQuery = pool.query;
   t.after(() => { pool.query = origQuery; });
-  pool.query = async () => [[
+  pool.query = async sql => sql.includes('kl_media') ? [[]] : [[
     { in_trash: 0, cnt: 12, bytes: 5242880 },
     { in_trash: 1, cnt: 2, bytes: 1048576 },
   ]];
   const summary = await getStorageSummary(__dirname);
+  assert.equal(summary.questionBank.bytes, 0);
   assert.ok(summary.disk.totalBytes > 0);
   assert.ok(summary.disk.freeBytes >= 0);
   assert.ok(summary.disk.usedPercent >= 0 && summary.disk.usedPercent <= 100);

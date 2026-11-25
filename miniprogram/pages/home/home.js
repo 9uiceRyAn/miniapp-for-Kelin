@@ -1,5 +1,6 @@
 const workspace = require('../../utils/workspace');
 const withInputHints = require('../../utils/input-hints');
+const drive = require('../../utils/drive');
 // 题库管理：筛选题目、编辑修订、上传媒体、预览导入和删除恢复。
 const l = require('../../utils/learning');
 const states = [
@@ -18,6 +19,7 @@ Page(withInputHints({
     formOpen: false, editingId: '', editingRevision: '', form: {}, formError: '', saving: false, uploading: false,
     formSubjects: [], formSubjectIndex: 0, formCollections: [], formCollectionIndex: 0,
     importPreview: null, importBusy: false, importResult: '',
+    zipSheetOpen: false, downloadingSkill: false,
     batchMode: false, selectedCount: 0,
     taxonomyOpen: false, taxSubjects: [], taxCollections: [], taxTags: [], collectionTagOptions: [],
     newSubjectCode: '', newSubjectLabel: '', newColSubject: '', newColCode: '', newColLabel: '', newTagCol: '', newTagCode: '', newTagLabel: '',
@@ -37,6 +39,7 @@ Page(withInputHints({
       this._ready = true;
       if (options.action === 'new') this.newQuestion();
       else if (options.action === 'taxonomy') this.openTaxonomy();
+      else if (options.action === 'zip') this.openZipImportSheet();
     } catch (error) { this.setData({ checking: false, error: error.message }); l.error(error); }
   },
   onShow() { if (this._ready) this.load(true); },
@@ -115,12 +118,33 @@ Page(withInputHints({
   openAddQuestionMenu() {
     if (!this.data.admin) return;
     wx.showActionSheet({
-      itemList: ['AI 导入', '人工导入（单题）'],
+      itemList: ['AI 导入', '人工导入（单题）', 'ZIP 导入'],
       success: (res) => {
         if (res.tapIndex === 0) this.openCurator();
         else if (res.tapIndex === 1) this.newQuestion();
+        else if (res.tapIndex === 2) this.openZipImportSheet();
       },
     });
+  },
+  openZipImportSheet() {
+    if (!this.data.admin) return;
+    this.setData({ zipSheetOpen: true, drawerOpen: false, error: '' });
+  },
+  closeZipImportSheet() {
+    if (!this.data.importBusy) this.setData({ zipSheetOpen: false });
+  },
+  async downloadSkillBundle() {
+    if (this.data.downloadingSkill) return;
+    this.setData({ downloadingSkill: true });
+    try {
+      await drive.downloadAndSave('/api/question-bank/admin/skills/export', 'kelin-question-bank-skill.zip');
+    } finally {
+      this.setData({ downloadingSkill: false });
+    }
+  },
+  async startZipImport() {
+    this.setData({ zipSheetOpen: false });
+    await this.importQuestions();
   },
   newQuestion() {
     if (!this.data.admin) return;

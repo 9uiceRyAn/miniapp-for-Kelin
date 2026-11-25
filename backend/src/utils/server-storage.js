@@ -47,8 +47,30 @@ async function queryUploads() {
 }
 
 async function getStorageSummary(targetDir) {
-  const [disk, uploads] = await Promise.all([statDisk(targetDir), queryUploads()]);
-  return { disk, uploads };
+  const [disk, uploads, questionBank] = await Promise.all([
+    statDisk(targetDir), queryUploads(), questionMediaUsage().catch(() => null),
+  ]);
+  return { disk, uploads, questionBank };
+}
+
+async function questionMediaUsage() {
+  const media = require('../learning/media');
+  const [files] = await pool.query(
+    "SELECT DISTINCT BINARY m.storage_path AS path FROM kl_media m JOIN kl_revisions v ON v.id=m.revision_id JOIN kl_resources r ON r.id=v.resource_id WHERE r.type='question' AND m.storage_path IS NOT NULL AND m.storage_path<>''",
+  );
+  let bytes = 0;
+  for (let start = 0; start < files.length; start += 32) {
+    const sizes = await Promise.all(files.slice(start, start + 32).map(async file => {
+      try {
+        return (await fsp.stat(media.absolute(file.path.toString()))).size;
+      } catch (error) {
+        if (error.code === 'ENOENT') return 0;
+        throw error;
+      }
+    }));
+    for (const size of sizes) bytes += size;
+  }
+  return { bytes };
 }
 
 module.exports = { getStorageSummary, statDisk };

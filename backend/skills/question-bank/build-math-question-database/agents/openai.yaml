@@ -1,0 +1,4 @@
+interface:
+  display_name: "构建数学题目数据库"
+  short_description: "将提纲和真题转换为带标签的题目数据库"
+  default_prompt: "使用 $build-math-question-database 将提纲、真题和评分方案 PDF 转换为可移植的 JSON 和 CSV 题目数据库。"

@@ -43,6 +43,7 @@
           <view class="storage-bar-fill {{storage.highUsage?'is-danger':''}}" style="width: {{storage.usedPercent}}%;"/>
         </view>
         <text class="storage-meta">网盘资料 {{storage.activeLabel}}（{{storage.activeCount}} 个） · 回收站 {{storage.trashLabel}}（{{storage.trashCount}} 个）</text>
+        <view class="storage-meta">题库媒体文件 {{storage.questionBankLabel}}</view>
       </view>
       <text class="subpage-subtitle">所有新接入与存量模型默认支持文字、工具调用与视觉识别；更换上游模型请新增配置以保留历史会话版本。</text>
 

@@ -7,7 +7,7 @@ const root=process.env.MINIPROGRAM_ROOT||path.join(__dirname,'../../miniprogram'
 function load(file,learning={},pages=[],drafts={}) {
  let config; const calls=[];
  const l={query:o=>new URLSearchParams(Object.entries(o).filter(([,v])=>v!==''&&v!==undefined)).toString(),url:x=>x,error:e=>{throw e},go:p=>calls.push(p),guard:()=>true,...learning};
- vm.runInNewContext(fs.readFileSync(path.join(root,'pages',file+'.js'),'utf8'),{Page:x=>config=x,require:n=>n.includes('input-hints')?require(path.join(root,'utils/input-hints.js')):n.includes('usage')?require(path.join(root,'utils/usage.js')):n.includes('workspace')?require(path.join(root,'utils/workspace.js')):n.includes('learning')?l:n.includes('storage')?{getUser:()=>({id:1,role:'student'})}:{},getCurrentPages:()=>pages,wx:{redirectTo:x=>calls.push(x.url),navigateBack:x=>calls.push(x),setStorageSync:(k,v)=>drafts[k]=v,getStorageSync:k=>drafts[k],showToast:()=>{}},console,setTimeout:()=>0,clearTimeout:()=>{},Math,Date,JSON});
+ vm.runInNewContext(fs.readFileSync(path.join(root,'pages',file+'.js'),'utf8'),{Page:x=>config=x,require:n=>n.includes('input-hints')?require(path.join(root,'utils/input-hints.js')):n.includes('usage')?require(path.join(root,'utils/usage.js')):n.includes('workspace')?require(path.join(root,'utils/workspace.js')):n.includes('markdown')?require(path.join(root,'utils/markdown.js')):n.includes('utils/file')?require(path.join(root,'utils/file.js')):n.includes('learning')?l:n.includes('storage')?{getUser:()=>({id:1,role:'student'})}:{},getCurrentPages:()=>pages,wx:{redirectTo:x=>calls.push(x.url),navigateBack:x=>calls.push(x),setStorageSync:(k,v)=>drafts[k]=v,getStorageSync:k=>drafts[k],showToast:()=>{}},console,setTimeout:()=>0,clearTimeout:()=>{},Math,Date,JSON});
  return {...config,data:structuredClone(config.data),calls,setData(values){for(const[k,v]of Object.entries(values)){const parts=k.replace(/\[(\d+)\]/g,'.$1').split('.');let n=this.data;for(const p of parts.slice(0,-1))n=n[p];n[parts.at(-1)]=v;}}};
 }
 const facets=[{subject:'math',subjectLabel:'数学',collection:'math-a',collectionLabel:'数学 A',skill:'p1'},{subject:'math',subjectLabel:'数学',collection:'math-b',collectionLabel:'数学 B',skill:'p2'},{subject:'physics',subjectLabel:'物理',collection:'physics',skill:'p1'}];
@@ -137,4 +137,83 @@ test('a stale management filter response cannot replace the latest question resu
  release({items:[{resourceId:'old',title:'old'}],total:99});await first;
  assert.equal(page.data.items[0].resourceId,'new');assert.equal(page.data.total,1);assert.equal(page.data.loading,false);
  assert.equal(new URL(urls[1],'http://test').searchParams.get('q'),'latest');
+});
+
+test('chat landing attaches, removes, and uploads pending files on startChat',async()=>{
+ const uploaded=[];let seq=0;
+ const p=load('learning/index',{
+  id:()=>'id-'+(++seq),
+  pickFiles:async()=>[{path:'/tmp/a.pdf',name:'讲义.pdf'},{path:'/tmp/b.png',name:'题图.png'}],
+  request:async(u,m,b)=>({id:'conv-99'}),
+  upload:async(u,f)=>{uploaded.push({u,f});return{resourceId:'res-'+uploaded.length};},
+ });
+ p.setData({items:[{id:'agent-1'}],agentIndex:0,landingText:'帮我看看'});
+ await p.attachLandingFiles();
+ assert.equal(p.data.landingFiles.length,2);
+ p.removeLandingFile({currentTarget:{dataset:{index:0}}});
+ assert.equal(p.data.landingFiles.length,1);
+ assert.equal(p.data.landingFiles[0].name,'题图.png');
+ await p.startChat();
+ assert.equal(uploaded.length,1);
+ assert.equal(uploaded[0].u,'/api/ai/conversations/conv-99/assets');
+ assert.match(p.calls[0],/initialAssets=res-1/);
+ assert.equal(p.data.landingFiles.length,0);
+});
+
+test('chat page selects initialAssets and attaches multiple files via pickFiles',async()=>{
+ const sent=[];const uploaded=[];
+ const p=load('chat/chat',{
+  id:()=>'req-1',
+  pickFiles:async()=>[{path:'/tmp/1.pdf',name:'1.pdf'},{path:'/tmp/2.png',name:'2.png'}],
+  upload:async(u,f)=>{uploaded.push(f.name);return{resourceId:'r-'+uploaded.length,revisionId:'v-'+uploaded.length};},
+  request:async(u,m,b)=>{
+   if(m==='POST'&&u.endsWith('/messages')){sent.push(b);return{runId:'run-1'};}
+   if(u.startsWith('/api/library/'))return{status:'ready'};
+   if(u==='/api/ai/conversations'||u.startsWith('/api/ai/conversations?'))return[];
+   return{conversation:{owner_id:1,agent_id:'a1'},messages:[],assets:[{resourceId:'r0',revisionId:'v0',status:'ready',data:{title:'附件0'}}]};
+  },
+  subscribe:()=>({abort:()=>{}}),
+  renderMessage:async x=>x,
+ });
+ await p.onLoad({id:'c1',initialAssets:'r0'});
+ assert.equal(sent.length,1);
+ assert.deepEqual(sent[0].assets,['r0']);
+ p.setData({running:false,sending:false,uploading:false});
+ await p.attach();
+ assert.deepEqual(uploaded,['1.pdf','2.png']);
+});
+
+test('chat UI removes speaker label, hides arrow during send loading, and enables rich-text user-select',()=>{
+ const landingWxml=fs.readFileSync(path.join(root,'pages/learning/index.wxml'),'utf8');
+ assert.match(landingWxml,/bindtap="attachLandingFiles"/);
+ assert.match(landingWxml,/wx:if="\{\{!startingChat\}\}">↑/);
+ const chatJson=JSON.parse(fs.readFileSync(path.join(root,'pages/chat/chat.json'),'utf8'));
+ assert.equal(chatJson.usingComponents['mp-html'],'../../components/mp-html/index');
+ const chatWxml=fs.readFileSync(path.join(root,'pages/chat/chat.wxml'),'utf8');
+ assert.doesNotMatch(chatWxml,/class="speaker"/);
+ assert.match(chatWxml,/<mp-html[^>]*markdown="\{\{true\}\}"[^>]*selectable="\{\{true\}\}"/);
+ assert.match(chatWxml,/loading="\{\{sending\}\}"[^>]*><text wx:if="\{\{!sending\}\}">↑<\/text>/);
+ assert.match(chatWxml,/pendingText/);
+});
+
+test('chat run-completed renders pendingText immediately with completion timestamp and clears on mergeMessages',async()=>{
+ const p=load('chat/chat',{
+  request:async()=>({conversation:{owner_id:1,agent_id:'a1'},messages:[],assets:[]}),
+  renderMessage:async x=>x,
+ });
+ p._sequence=1;
+ p.setData({running:true,partial:'# 标题\\(x^2\\)\n\n**加粗**'});
+ p.consume({seq:2,type:'run-completed',created_at:'2026-11-25T14:47:00.000Z',data:{}});
+ assert.equal(p.data.running,false);
+ assert.equal(p.data.pendingText,'# 标题$x^2$\n\n**加粗**');
+ assert.equal(p.data.progress,'2026/11/25 10:47 PM');
+ assert.notEqual(p.data.progress,'回答完成');
+ await p.mergeMessages({messages:[{id:'m1',seq:1,role:'assistant',created_at:'2026-11-25T14:47:00.000Z',data:{text:'# 标题\\(x^2\\)\n\n**加粗**'}}]});
+ assert.equal(p.data.pendingText,'');
+ assert.equal(p.data.messages[0].renderText,'# 标题$x^2$\n\n**加粗**');
+});
+
+test('miniprogram learning.js renders assistant messages locally without calling backend /render',()=>{
+ const learningJs=fs.readFileSync(path.join(root,'utils/learning.js'),'utf8');
+ assert.doesNotMatch(learningJs,/\/render/);
 });

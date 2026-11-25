@@ -1,6 +1,7 @@
 const workspace = require('../../utils/workspace');
 const learning = require('../../utils/learning');
 const withInputHints = require('../../utils/input-hints');
+const blankPasswords = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
 function api(path, method = 'GET', data = {}) {
   return learning.managementRequest('/api/teacher-admin' + path, method, data);
@@ -23,6 +24,7 @@ Page(withInputHints({
     drawerOpen: false,
     teacher: false,
     authorized: false,
+    ...blankPasswords,
     password: '',
     users: [],
     codes: [],
@@ -93,7 +95,7 @@ Page(withInputHints({
       if (error.statusCode === 401) learning.error(error);
       if (error.statusCode === 403 && error.payload?.code === 'MANAGEMENT_LOCKED') {
         learning.clearManagementToken();
-        this.setData({ authorized: false, sheetMode: '', codes: [], users: [] });
+        this.setData({ authorized: false, sheetMode: '', codes: [], users: [], ...blankPasswords });
       }
       this.setData({ error: error.message });
     } finally {
@@ -147,8 +149,21 @@ Page(withInputHints({
   openCodes() {
     this.setData({ sheetMode: 'codes', error: '' });
   },
+  openManagementPassword() {
+    this.setData({ sheetMode: 'password', error: '', ...blankPasswords });
+  },
+  changeManagementPassword() {
+    return this.run(async () => {
+      const { currentPassword, newPassword, confirmPassword } = this.data;
+      if (newPassword !== confirmPassword) throw new Error('两次输入的新密码不一致');
+      await api('/password', 'PUT', { currentPassword, newPassword });
+      learning.clearManagementToken();
+      this.setData({ authorized: false, sheetMode: '', users: [], codes: [], ...blankPasswords });
+      wx.showToast({ title: '管理员密码已更新' });
+    });
+  },
   closeSheet() {
-    if (!this.data.busy) this.setData({ sheetMode: '', editingUser: null, error: '' });
+    if (!this.data.busy) this.setData({ sheetMode: '', editingUser: null, error: '', ...blankPasswords });
   },
   copy(event) {
     wx.setClipboardData({ data: this.data.codes[event.currentTarget.dataset.index].code });

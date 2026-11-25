@@ -3,7 +3,7 @@
   <include src="../../templates/workspace-sidebar.wxml"/>
   <view class="workspace-main">
     <view class="workspace-header">
-      <view class="header-start"><text>账号管理</text></view>
+      <view class="header-start"><text>教师管理</text></view>
     </view>
     <view class="workspace-content">
     <view wx:if="{{!authorized}}" class="ws-gate-wrap">
@@ -30,6 +30,7 @@
     <block wx:else>
       <view class="ws-toolbar-secondary">
         <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="openCodes">管理注册码</button>
+        <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="openManagementPassword">修改管理员密码</button>
         <text class="ws-section-meta">共 {{total}} 个账号</text>
       </view>
       <view class="ws-search-row">
@@ -88,6 +89,29 @@
   <include src="../../templates/workspace-bottom.wxml"/>
 
   <!-- 编辑账号抽屉 -->
+  <block wx:if="{{sheetMode==='password'}}">
+    <view class="ws-overlay" bindtap="closeSheet"/>
+    <view class="ws-sheet" role="dialog" aria-label="修改管理员密码">
+      <view class="ws-sheet-header">
+        <view><text class="ws-sheet-title">修改管理员密码</text>
+          <text class="ws-sheet-subtitle">保存后，教师管理和平台管理都需要用新密码重新解锁。</text></view>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{busy}}" aria-label="关闭">×</button>
+      </view>
+      <scroll-view scroll-y class="ws-sheet-body">
+        <label class="ws-field-label" for="currentAdmin">当前管理员密码</label>
+        <input id="currentAdmin" class="ws-input" password="{{true}}" maxlength="-1" data-field="currentPassword" value="{{currentPassword}}" bindinput="input"/>
+        <label class="ws-field-label" for="newAdmin">新管理员密码（8–72 位）</label>
+        <input id="newAdmin" class="ws-input" password="{{true}}" maxlength="72" data-field="newPassword" value="{{newPassword}}" bindinput="input"/>
+        <label class="ws-field-label" for="confirmAdmin">再次输入新密码</label>
+        <input id="confirmAdmin" class="ws-input" password="{{true}}" maxlength="72" data-field="confirmPassword" value="{{confirmPassword}}" bindinput="input" bindconfirm="changeManagementPassword"/>
+        <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
+      </scroll-view>
+      <view class="ws-sheet-footer">
+        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{busy}}">取消</button>
+        <button class="ws-btn ws-btn-primary" bindtap="changeManagementPassword" loading="{{busy}}" disabled="{{busy||!currentPassword||newPassword.length<8||!confirmPassword}}">保存新密码</button>
+      </view>
+    </view>
+  </block>
   <block wx:if="{{sheetMode==='user' && editingUser}}">
     <view class="ws-overlay" bindtap="closeSheet"/>
     <view class="ws-sheet" role="dialog" aria-label="管理账号">

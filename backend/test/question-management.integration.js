@@ -1,7 +1,7 @@
 // 在现有独立 MySQL/HTTP 测试环境中验证完整题库管理生命周期。
 const assert = require('node:assert/strict');
 const { PassThrough } = require('node:stream');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 
 module.exports = async function questionManagementTests({ t, api, origin, teacher, student, c }) {
   const base = '/api/question-bank/admin';
@@ -95,7 +95,7 @@ module.exports = async function questionManagementTests({ t, api, origin, teache
     await api('DELETE', base + '/imports/preview', { token: preview.token }, teacher.token);
   });
   await t.test('ZIP import reads the manifest and packaged relative media and produces usable signed images', async () => {
-    const archive = archiver('zip'); const output = new PassThrough(); const chunks = [];
+    const archive = new ZipArchive(); const output = new PassThrough(); const chunks = [];
     output.on('data', chunk => chunks.push(chunk)); archive.pipe(output);
     const finished = new Promise((resolve, reject) => { output.on('end', resolve); archive.on('error', reject); });
     archive.append(JSON.stringify([importItem('zip-import', { gallery: [{ kind: 'question', path: '../media/题面.png', label: '题目' }, { kind: 'in', path: '../media/题面.png', label: '插页' }] })]), { name: 'metadata/items.json' });

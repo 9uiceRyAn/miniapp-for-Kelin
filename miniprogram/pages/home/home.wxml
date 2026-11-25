@@ -9,7 +9,6 @@
     <button class="ws-btn ws-btn-secondary" bindtap="openTaxonomy">标签管理</button>
    </view>
    <view wx:if="{{admin}}" class="ws-toolbar-secondary">
-    <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="importQuestions" loading="{{importBusy}}" disabled="{{importBusy}}">JSON / ZIP 导入</button>
     <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="toggleBatchMode">{{batchMode?'退出批量':'批量管理'}}</button>
    </view>
    <text class="subpage-subtitle">题库录入即生效；批量导入支持 JSON 或 ZIP（每包最多 1000 题）</text>
@@ -85,6 +84,24 @@
     <text wx:if="{{error}}" class="error manage-form-error">{{error}}</text><view class="manage-sheet-spacer"/>
    </scroll-view>
    <view class="manage-sheet-footer"><button class="manage-cancel" bindtap="cancelImport" disabled="{{importBusy}}">取消</button><button class="manage-primary manage-confirm-import" bindtap="confirmImport" loading="{{importBusy}}" disabled="{{importBusy}}">确认导入</button></view>
+  </view>
+ </block>
+
+ <!-- ZIP 批量导入与 Skill 下载抽屉 -->
+ <block wx:if="{{zipSheetOpen}}">
+  <view class="ws-overlay" bindtap="closeZipImportSheet"/>
+  <view class="ws-sheet" role="dialog" aria-label="ZIP 批量导入">
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">ZIP 批量导入</text><text class="ws-sheet-subtitle">配合外部 AI 工具按规范导出题库包后直接上传</text></view><button class="ws-sheet-close" bindtap="closeZipImportSheet" disabled="{{importBusy}}" aria-label="关闭">×</button></view>
+   <scroll-view scroll-y class="ws-sheet-body">
+    <view class="ws-section-head"><text class="ws-section-title">1. 下载题库制作 Skill 压缩包</text></view>
+    <text class="manage-import-description">可将压缩包导入 Claude Code、Codex、Cursor 等外部 Agent 工具；内含整卷拆题/审图大 Skill、10 科分类规范与可直接导入服务器的 ZIP 格式说明。</text>
+    <button class="ws-btn ws-btn-secondary" bindtap="downloadSkillBundle" loading="{{downloadingSkill}}" disabled="{{downloadingSkill}}">下载 Skill 压缩包</button>
+    <view class="ws-section-head" style="margin-top:24rpx;"><text class="ws-section-title">2. 上传题库 ZIP / JSON</text></view>
+    <text class="manage-import-description">使用上述 Skill 导出的题库 ZIP（或 items.json）可在此预览并直接写入题库，每包最多 1000 题。</text>
+    <button class="ws-btn ws-btn-primary" bindtap="startZipImport" loading="{{importBusy}}" disabled="{{importBusy}}">选择 ZIP / JSON 文件</button>
+    <view class="ws-sheet-spacer"/>
+   </scroll-view>
+   <view class="ws-sheet-footer"><button class="ws-btn ws-btn-secondary" bindtap="closeZipImportSheet" disabled="{{importBusy}}">关闭</button></view>
   </view>
  </block>
 

@@ -39,6 +39,16 @@ function install(app) {
   bank.use('/admin', requireTeacherAccess);
   bank.get('/admin/facets', wrap(req => management.facets()));
   bank.get('/admin/taxonomy', wrap(() => management.taxonomyTree()));
+  bank.get('/admin/skills/export', async (req, res, next) => {
+    try {
+      const buffer = await require('./question-skills').buildSkillBundleBuffer();
+      res.set('Content-Type', 'application/zip');
+      res.set('Content-Disposition', 'attachment; filename="kelin-question-bank-skill.zip"');
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  });
   bank.post('/admin/subjects', wrap(req => management.saveSubject(req.body)));
   bank.patch('/admin/subjects/:code', wrap(req => management.saveSubject({ ...req.body, code: req.params.code })));
   bank.delete('/admin/subjects/:code', wrap(req => management.deleteSubject(req.params.code)));

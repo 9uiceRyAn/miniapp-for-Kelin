@@ -1,12 +1,11 @@
 const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
 const workspace = require('../../utils/workspace');
-async function renderOrOriginal(message) {
-  try {
-    return await l.renderMessage(message);
-  } catch {
-    return message;
-  }
+const markdown = require('../../utils/markdown');
+const fileUtil = require('../../utils/file');
+function renderInstant(message) {
+  if (message.role !== 'assistant' || message.renderText !== undefined) return message;
+  return { ...message, renderText: markdown.prepareMarkdown(message.data?.text || '') };
 }
 const toolNames = {
   propose_library_change: '准备资料操作',
@@ -54,6 +53,7 @@ Page(withInputHints({
     sending: false,
     runId: '',
     partial: '',
+    pendingText: '',
     streamHead: '',
     streamTail: '',
     streamTick: 0,
@@ -90,17 +90,27 @@ Page(withInputHints({
       }
     }
     await this.load();
+    let initialAssetIds = [];
+    if (options.initialAssets) {
+      let rawAssets = options.initialAssets;
+      try { rawAssets = decodeURIComponent(rawAssets); }
+      catch (e) { /* Keep raw value if not URI-encoded. */ }
+      initialAssetIds = rawAssets.split(',').map(x => x.trim()).filter(Boolean);
+    }
     if (!this.data.readOnly) {
       const draft = wx.getStorageSync(this.draftKey());
-      if (draft) this.setData({
-        text: draft.text || '',
-        ...(options.questionId ? {} : { question: draft.question || null, questionTitle: draft.questionTitle || '' }),
-        assets: this.data.assets.map(asset => ({ ...asset, selected: (draft.selectedAssets || []).includes(asset.resourceId) })),
-      });
+      if (draft || initialAssetIds.length) {
+        const selectedSet = new Set([...(draft?.selectedAssets || []), ...initialAssetIds]);
+        this.setData({
+          text: draft?.text || '',
+          ...(options.questionId ? {} : { question: draft?.question || null, questionTitle: draft?.questionTitle || '' }),
+          assets: this.data.assets.map(asset => ({ ...asset, selected: selectedSet.has(asset.resourceId) })),
+        });
+      }
     }
     await this.loadRecent();
-    if (options.initialText && !this.data.readOnly) {
-      let initialText = options.initialText;
+    if ((options.initialText || initialAssetIds.length) && !this.data.readOnly) {
+      let initialText = options.initialText || '';
       try { initialText = decodeURIComponent(initialText); }
       catch (e) { /* Already plain text can contain a literal percent sign. */ }
       this.setData({ text: initialText });
@@ -110,7 +120,7 @@ Page(withInputHints({
   onShow() {
     this._visible = true;
     if (this.data.conversation) {
-      this.setData({ running: false, partial: '' });
+      this.setData({ running: false, partial: '', pendingText: '' });
       this.load();
     }
   },
@@ -279,6 +289,7 @@ Page(withInputHints({
         running: true,
         runId: result.runId,
         partial: '',
+        pendingText: '',
         progress: '正在准备回答',
         error: '',
         assets: this.data.assets.map(x => assets.includes(x.resourceId) ? { ...x, selected: false } : x),
@@ -315,13 +326,22 @@ Page(withInputHints({
   },
   async mergeMessages(result) {
     const known = new Set(this.data.messages.map(message => message.id));
-    const incoming = await Promise.all(
-      result.messages.filter(message => !known.has(message.id)).map(renderOrOriginal),
-    );
+    const incomingRaw = result.messages.filter(message => !known.has(message.id));
+    const incoming = incomingRaw.map(renderInstant);
     const messages = new Map(this.data.messages.map(message => [message.id, message]));
     incoming.forEach(message => messages.set(message.id, message));
     const merged = [...messages.values()].sort((a, b) => a.seq - b.seq);
-    this.setData({ messages: merged, hasOlder: merged.length > 0 && merged[0].seq > 1 });
+    const update = {
+      messages: merged,
+      hasOlder: merged.length > 0 && merged[0].seq > 1,
+      pendingText: '',
+      ...(this.data.running ? {} : { partial: '' }),
+    };
+    const latest = merged[merged.length - 1];
+    if (!this.data.running && latest && latest.role === 'assistant' && latest.created_at) {
+      update.progress = fileUtil.formatDate(latest.created_at);
+    }
+    this.setData(update);
   },
   consume(event) {
     if (event.seq <= this._sequence) return;
@@ -351,16 +371,21 @@ Page(withInputHints({
         'run-interrupted',
       ].includes(event.type)
     ) {
+      const completed = event.type === 'run-completed';
+      const pendingText = completed && this.data.partial
+        ? markdown.prepareMarkdown(this.data.partial)
+        : '';
       this.setData({
         running: false,
-        progress:
-          event.data.message ||
-          {
-            'run-completed': '回答完成',
-            'run-cancelled': '已取消',
-            'run-interrupted': '运行已中断',
-            'run-failed': '生成失败',
-          }[event.type],
+        pendingText,
+        progress: completed
+          ? fileUtil.formatDate(event.created_at || new Date().toISOString())
+          : event.data.message ||
+            {
+              'run-cancelled': '已取消',
+              'run-interrupted': '运行已中断',
+              'run-failed': '生成失败',
+            }[event.type],
       });
       this._terminal = true;
       this.load();
@@ -421,27 +446,34 @@ Page(withInputHints({
   async attach() {
     if (this.data.sending || this.data.running || this.data.uploading || this.data.readOnly) return;
     try {
-      const file = await l.pickFile(true);
+      const files = l.pickFiles ? await l.pickFiles(true) : [await l.pickFile(true)];
+      if (!files || !files.length) return;
       this.setData({ uploading: true });
-      const result = await l.upload(
-        '/api/ai/conversations/' + this.data.id + '/assets',
-        file,
-      );
-      const detail = await l.request(
-        '/api/library/' +
-          result.resourceId +
-          '?revisionId=' +
-          result.revisionId,
-      );
-      this.setData({
-        assets: this.data.assets.concat({
-          resourceId: result.resourceId,
-          revisionId: result.revisionId,
-          status: detail.status,
-          data: { title: file.name },
-          selected: true,
-        }),
-      });
+      for (const file of files) {
+        try {
+          const result = await l.upload(
+            '/api/ai/conversations/' + this.data.id + '/assets',
+            file,
+          );
+          const detail = await l.request(
+            '/api/library/' +
+              result.resourceId +
+              '?revisionId=' +
+              result.revisionId,
+          );
+          this.setData({
+            assets: this.data.assets.concat({
+              resourceId: result.resourceId,
+              revisionId: result.revisionId,
+              status: detail.status,
+              data: { title: file.name },
+              selected: true,
+            }),
+          });
+        } catch (e) {
+          l.error(e);
+        }
+      }
       await this.refreshAssets();
     } catch (e) {
       if (!String(e.errMsg || '').includes('cancel')) l.error(e);

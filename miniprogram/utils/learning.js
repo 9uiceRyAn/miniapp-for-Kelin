@@ -1,5 +1,6 @@
 const api = require('./api'),
-  storage = require('./storage');
+  storage = require('./storage'),
+  markdown = require('./markdown');
 const base = api.API_BASE_URL;
 const MANAGEMENT_TOKEN_KEY = 'kl_management_token';
 const MANAGEMENT_EXPIRES_KEY = 'kl_management_expires';
@@ -187,33 +188,7 @@ function upload(path, file, onProgress) {
 }
 async function renderMessage(message) {
   if (message.role !== 'assistant') return message;
-  const rendered = await request(
-    '/api/ai/messages/' + message.id + '/render',
-    'POST',
-  );
-  const replacements = {};
-  for (const formula of rendered.formulas) {
-    const local = await api.download({
-      path: formula.path,
-      fileName: formula.hash + '.svg',
-    });
-    replacements['formula:' + formula.hash] = local.filePath;
-  }
-  function visit(nodes) {
-    return nodes.map((n) => ({
-      ...n,
-      ...(n.attrs
-        ? {
-            attrs: {
-              ...n.attrs,
-              src: replacements[n.attrs.src] || n.attrs.src,
-            },
-          }
-        : {}),
-      ...(n.children ? { children: visit(n.children) } : {}),
-    }));
-  }
-  return { ...message, nodes: visit(rendered.nodes) };
+  return { ...message, renderText: markdown.prepareMarkdown(message.data?.text || '') };
 }
 // Stateful UTF-8 decoding keeps split multibyte characters intact in native chunk callbacks.
 function decoder() {

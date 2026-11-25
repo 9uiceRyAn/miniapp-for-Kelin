@@ -144,10 +144,11 @@ Page(withInputHints({
   openAddQuestionMenu() {
     if (!this.data.teacher) return;
     wx.showActionSheet({
-      itemList: ['AI 导入', '人工导入（单题）'],
+      itemList: ['AI 导入', '人工导入（单题）', 'ZIP 导入'],
       success: (res) => {
         if (res.tapIndex === 0) this.selectAgentPreset('question_curator');
         else if (res.tapIndex === 1) l.go('/pages/home/home?action=new');
+        else if (res.tapIndex === 2) l.go('/pages/home/home?action=zip');
       },
     });
   },

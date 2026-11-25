@@ -1,0 +1,291 @@
+{
+  "patch_version": "1.0",
+  "target": "output/ielts_question_database_v2/metadata/items.json",
+  "batch": "C",
+  "selection": {
+    "volume_min": 19,
+    "volume_max": 21,
+    "review_required": true,
+    "affected_item_count": 13
+  },
+  "apply_rules": [
+    "Match item records by exact id.",
+    "For source_text replacements, apply the replacement to every listed affected_item_id whose source_text_id matches the specified source_text_id.",
+    "Require every old_substring to match exactly once in each affected record before replacement; abort that replacement on zero or multiple matches.",
+    "Replace each answer object by exact question_number within the matched item, preserving its existing source_page and images fields.",
+    "Apply question-image crop boxes as left, top, right, bottom pixel coordinates with an exclusive right and bottom edge.",
+    "Do not alter primary_tag, question_start, question_end, source image arrays or main answer ordering except as explicitly specified."
+  ],
+  "prompt_text_updates": [
+    {
+      "item_id": "IELTS-C19-T02-L-S01-Q07-10",
+      "expected_prompt_text": "Questions 7–10\nComplete the table below.\nWrite ONE WORD ONLY for each answer.\n\nA typical 45-minute guitar lesson\n\nTime | Activity | Notes\n5 minutes | tuning guitars | using an app or by 7 ____________________\n10 minutes | strumming chords using our thumbs | keeping time while the teacher is 8 ____________________\n15 minutes | playing songs | often listening to a 9 ____________________ of a song\n10 minutes | playing single notes and simple tunes | playing together, then 10 ____________________\n5 minutes | noting things to practise at home |"
+    },
+    {
+      "item_id": "IELTS-C19-T03-L-S01-Q07-10",
+      "expected_prompt_text": "Questions 7–10\nComplete the table below.\nWrite ONE WORD ONLY for each answer.\n\nShopping\n\nShop | To buy | Other ideas\nFish market | a dozen prawns | a handful of 7 ____________________ (type of seaweed)\nOrganic shop | beans and a 8 ____________________ for dessert | spices and 9 ____________________\nBakery | a brown loaf | a 10 ____________________ tart"
+    },
+    {
+      "item_id": "IELTS-C19-T04-L-S01-Q07-10",
+      "expected_prompt_text": "Questions 7–10\nComplete the table below.\nWrite ONE WORD ONLY for each answer.\n\nResponsibilities\n\nWork area | Task 1 | Task 2 | Notes\nBakery section | Check sell-by dates | Change price labels | Use 7 ____________________ labels\nSushi takeaway counter | Re-stock with 8 ____________________ boxes if needed | Wipe preparation area and clean the sink | Do not clean any knives\nMeat and fish counters | Clean the serving area, including the weighing scales | Collect 9 ____________________ for the fish from the cold-room | Must wear special 10 ____________________"
+    },
+    {
+      "item_id": "IELTS-C19-T04-L-S02-Q15-18",
+      "expected_prompt_text": "Questions 15–18\nWhat reason prevented each of the following members of the Compton Park Runners Club from joining until recently?\nWrite the correct letter, A, B, or C next to Questions 15–18.\n\nReasons\nA  a lack of confidence\nB  a dislike of running\nC  a lack of time\n\nClub members\n15  Ceri\n16  James\n17  Leo\n18  Mark"
+    },
+    {
+      "item_id": "IELTS-C20-T01-L-S01-Q01-10",
+      "expected_prompt_text": "PART 1    Questions 1–10\nComplete the table below.\nWrite ONE WORD AND/OR A NUMBER for each answer.\n\nName of restaurant | Location | Reason for recommendation | Other comments\nThe Junction | Greyson Street, near the station | Good for people who are especially keen on 1 ____________________ | Quite expensive; The 2 ____________________ is a good place for a drink\nPaloma | In Bow Street next to the cinema | 3 ____________________ food, good for sharing | Staff are very friendly; Need to pay £50 deposit; A limited selection of 4 ____________________ food on the menu\nThe 5 ____________________ | At the top of a 6 ____________________ | A famous chef; All the 7 ____________________ are very good; Only uses 8 ____________________ ingredients | Set lunch costs 9 £ ____________________ per person; Portions probably of 10 ____________________ size"
+    },
+    {
+      "item_id": "IELTS-C20-T03-L-S01-Q01-10",
+      "expected_prompt_text": "PART 1    Questions 1–10\nComplete the table below.\nWrite ONE WORD AND/OR A NUMBER for each answer.\n\nFurniture Rental Companies\n\nName of company | Information about costs | Additional notes\nPeak Rentals | Prices range from $105 to 1 $ ____________________ per room per month | The furniture is very 2 ____________________; Delivers in 1–2 days; Special offer: free 3 ____________________ with every living room set\n4 ____________________ and Oliver | Mid-range prices; 12% monthly fee for 5 ____________________ | Also offers a cleaning service\nLarch Furniture | Offers cheapest prices for renting furniture and 6 ____________________ items | Must have own 7 ____________________; Minimum contract length: six months\n8 ____________________ Rentals | See the 9 ____________________ for the most up-to-date prices | 10 ____________________ are allowed within 7 days of delivery"
+    },
+    {
+      "item_id": "IELTS-C21-T01-L-S02-Q17-20",
+      "expected_prompt_text": "Questions 17–20\nWhat ability is required for each of the following duties?\nWrite the correct letter, A, B, or C, next to Questions 17–20.\n\nA  being well-organised\nB  being flexible\nC  working quickly\n\nDuties\n17  Prepping an actor\n18  Continuity\n19  General\n20  Applying makeup"
+    },
+    {
+      "item_id": "IELTS-C21-T03-L-S01-Q01-10",
+      "expected_prompt_text": "PART 1    Questions 1–10\nComplete the notes below.\nWrite ONE WORD AND/OR A NUMBER for each answer.\n\nFerry to Shetland Islands\n• Name of ferry company: 1 ____________________ Ferries\n• Ferries depart seven times per 2 ____________________ in summer\n• Cost for four people with car: a little less than 3 £ ____________________\n• Cancellation policy: receive a 4 ____________________ (if cancelled a month in advance)\n\nAdvice\n• Cabins:\n  – book one with a 5 ____________________\n  – luxury cabins have a TV\n• Bring snacks and 6 ____________________ for the children\n• A 7 ____________________ is required for the dog kennels\n• Try to see 8 ____________________ in the morning\n• If time, visit 9 ____________________ Castle\n• The 10 ____________________ restaurant in a nearby village is recommended"
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S01-Q01-10",
+      "expected_prompt_text": "PART 1    Questions 1–10\nComplete the form below.\nWrite ONE WORD ONLY for each answer.\n\nSurvey about shopping in Broadbeach\n\nName: Martyn 1 ____________________\nToday's journey to Broadbeach town centre: used his 2 ____________________\nPurpose of today's trip:\n• has visited the 3 ____________________\n• looking for a new 4 ____________________\n• collecting 5 ____________________ (after repair)\nPreferred day for shopping: 6 ____________________\n\nOpinions about shopping in the town centre\nFinds the service in shops is excellent\nThinks there are too many places selling 7 ____________________\nWould like more places to buy 8 ____________________\n\nOpinions about new out-of-town Shopping Centre\nLikes the 9 ____________________ best\nBelieves the 10 ____________________ is unnecessary"
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q15-20",
+      "expected_prompt_text": "Questions 15–20\nWhich topic will each of the following speakers focus on?\nChoose SIX answers from the box and write the correct letter, A–G, next to Questions 15–20.\n\nTopics\nA  Supporting job seekers\nB  Dealing with personal problems\nC  Effects of an unexpectedly rapid expansion\nD  A global range of business experiences\nE  Coping with financial set-backs\nF  Developing a company in response to changing markets\nG  Combining business success with contributions to charities\n\nSpeakers\n15  Jim Clowrie\n16  David France\n17  Oliver Stanton\n18  Francesca Heptonstall\n19  Salman Khan\n20  Annie Craven"
+    }
+  ],
+  "source_text_replacements": [
+    {
+      "source_text_id": "IELTS-C19-T03-L-S01-SOURCE",
+      "affected_item_ids": [
+        "IELTS-C19-T03-L-S01-Q01-06",
+        "IELTS-C19-T03-L-S01-Q07-10"
+      ],
+      "old_substring": "it.I t's � and the number is 289. Q6",
+      "new_substring": "it. It's purple and the number is 289. Q6",
+      "expected_match_count_per_item": 1
+    },
+    {
+      "source_text_id": "IELTS-C20-T03-L-S01-SOURCE",
+      "affected_item_ids": [
+        "IELTS-C20-T03-L-S01-Q01-10"
+      ],
+      "old_substring": "Saisie OK.\nMAN: | don’t have any information",
+      "new_substring": "SHELLEY: OK.\nMAN: I don’t have any information",
+      "expected_match_count_per_item": 1
+    },
+    {
+      "source_text_id": "IELTS-C21-T04-L-S01-SOURCE",
+      "affected_item_ids": [
+        "IELTS-C21-T04-L-S01-Q01-10"
+      ],
+      "old_substring": "MAN: Yeah. Well, I've got to go and pick up my @m.QRIt. broke a couple of days 05",
+      "new_substring": "MAN: Yeah. Well, I've got to go and pick up my laptop. It broke a couple of days Q5",
+      "expected_match_count_per_item": 1
+    }
+  ],
+  "answer_updates": [
+    {
+      "item_id": "IELTS-C19-T03-L-S01-Q01-06",
+      "question_number": 3,
+      "answer_text": "3.30",
+      "accepted_variants": [
+        "three thirty",
+        "½",
+        "half 3",
+        "three"
+      ]
+    },
+    {
+      "item_id": "IELTS-C20-T03-L-S01-Q01-10",
+      "question_number": 1,
+      "answer_text": "($)239",
+      "accepted_variants": [
+        "($) two hundred (and) thirty-nine"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q11-12",
+      "question_number": 11,
+      "answer_text": "C",
+      "accepted_variants": [
+        "E"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q11-12",
+      "question_number": 12,
+      "answer_text": "E",
+      "accepted_variants": [
+        "C"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q13-14",
+      "question_number": 13,
+      "answer_text": "A",
+      "accepted_variants": [
+        "B"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q13-14",
+      "question_number": 14,
+      "answer_text": "B",
+      "accepted_variants": [
+        "A"
+      ]
+    }
+  ],
+  "question_image_crops": [
+    {
+      "item_id": "IELTS-C19-T03-L-S01-Q07-10",
+      "path": "images/items/C19/T03/listening/q07-10.png",
+      "source_dimensions": [
+        1348,
+        1734
+      ],
+      "keep_box_pixels": [
+        0,
+        0,
+        1348,
+        820
+      ],
+      "reason": "Complete table ends above row 764; footer starts at row 1552. The keep box retains more than 50 pixels of lower white margin."
+    },
+    {
+      "item_id": "IELTS-C19-T04-L-S01-Q07-10",
+      "path": "images/items/C19/T04/listening/q07-10.png",
+      "source_dimensions": [
+        1348,
+        832
+      ],
+      "keep_box_pixels": [
+        0,
+        0,
+        1348,
+        635
+      ],
+      "reason": "Complete table ends at row 618; page/footer material starts at row 643."
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S01-Q01-10",
+      "path": "images/items/C21/T04/listening/q01-10.png",
+      "source_dimensions": [
+        1545,
+        1340
+      ],
+      "keep_box_pixels": [
+        0,
+        0,
+        1545,
+        1230
+      ],
+      "reason": "Complete form border ends at row 1210; partial footer/navigation material begins below row 1230."
+    }
+  ],
+  "item_patch_summary": [
+    {
+      "item_id": "IELTS-C19-T02-L-S01-Q07-10",
+      "operations": [
+        "replace_prompt_text"
+      ]
+    },
+    {
+      "item_id": "IELTS-C19-T03-L-S01-Q01-06",
+      "operations": [
+        "replace_source_text_substring",
+        "replace_answer_q3"
+      ]
+    },
+    {
+      "item_id": "IELTS-C19-T03-L-S01-Q07-10",
+      "operations": [
+        "replace_prompt_text",
+        "replace_source_text_substring",
+        "crop_question_image"
+      ]
+    },
+    {
+      "item_id": "IELTS-C19-T04-L-S01-Q07-10",
+      "operations": [
+        "replace_prompt_text",
+        "crop_question_image"
+      ]
+    },
+    {
+      "item_id": "IELTS-C19-T04-L-S02-Q15-18",
+      "operations": [
+        "replace_prompt_text"
+      ]
+    },
+    {
+      "item_id": "IELTS-C20-T01-L-S01-Q01-10",
+      "operations": [
+        "replace_prompt_text"
+      ]
+    },
+    {
+      "item_id": "IELTS-C20-T03-L-S01-Q01-10",
+      "operations": [
+        "replace_prompt_text",
+        "replace_source_text_substring",
+        "replace_answer_q1"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T01-L-S02-Q17-20",
+      "operations": [
+        "replace_prompt_text"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T03-L-S01-Q01-10",
+      "operations": [
+        "replace_prompt_text"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S01-Q01-10",
+      "operations": [
+        "replace_prompt_text",
+        "replace_source_text_substring",
+        "crop_question_image"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q11-12",
+      "operations": [
+        "replace_answer_q11",
+        "replace_answer_q12"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q13-14",
+      "operations": [
+        "replace_answer_q13",
+        "replace_answer_q14"
+      ]
+    },
+    {
+      "item_id": "IELTS-C21-T04-L-S02-Q15-20",
+      "operations": [
+        "replace_prompt_text"
+      ]
+    }
+  ],
+  "post_apply_assertions": {
+    "affected_item_count": 13,
+    "prompt_text_update_count": 10,
+    "source_text_replacement_count": 3,
+    "answer_object_update_count": 6,
+    "question_image_crop_count": 3,
+    "all_primary_tags_unchanged": true,
+    "all_question_ranges_unchanged": true,
+    "all_main_answer_values_supported_by_answer_images": true
+  }
+}
