@@ -1,4 +1,4 @@
-<view class="workspace-shell management-shell" style="--ws-safe-top:{{safeTop}}px">
+<view class="device-nav workspace-shell management-shell" style="{{navigationStyle}}">
  <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
  <include src="../../templates/workspace-sidebar.wxml"/>
  <view class="workspace-main">

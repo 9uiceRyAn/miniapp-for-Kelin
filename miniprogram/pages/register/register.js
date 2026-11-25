@@ -1,8 +1,12 @@
+const workspace = require('../../utils/workspace');
 const withInputHints = require('../../utils/input-hints');
 const api = require('../../utils/api');
 const storage = require('../../utils/storage');
 
 Page(withInputHints({
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
+  onLoad() {
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });},
   data: {
     role: 'student',
     username: '',

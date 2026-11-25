@@ -1,3 +1,4 @@
+const workspace = require('../../utils/workspace');
 const withInputHints = require('../../utils/input-hints');
 const api = require('../../utils/api');
 const storage = require('../../utils/storage');
@@ -19,7 +20,9 @@ Page(withInputHints({
     wechatStatus: '正在检查微信登录服务…',
   },
 
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   onLoad() {
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     api.request({ path: '/api/auth/wechat/config', auth: false })
       .then(config => {
         if (this._left) return;

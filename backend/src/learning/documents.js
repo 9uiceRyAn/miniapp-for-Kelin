@@ -87,8 +87,8 @@ async function upload({
   }).catch(() => {});
   return { resourceId, revisionId, status: 'queued' };
 }
-async function vision(bytes, mime, context) {
-  const visionId = (await models.settings()).visionModelId;
+async function vision(bytes, mime, context, selectedModelId) {
+  const visionId = selectedModelId || (await models.settings()).visionModelId;
   if (!visionId) c.fail(503, '尚未配置视觉识别模型');
   const model = await models.resolve(visionId);
   if (!model.capabilities.vision || !model.capabilities.verified?.vision)

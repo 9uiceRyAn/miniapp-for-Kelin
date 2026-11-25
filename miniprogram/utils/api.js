@@ -42,6 +42,7 @@ function request({
   method = 'GET',
   data = {},
   auth = true,
+  header = {},
   showLoading = false,
   loadingText = '加载中',
 }) {
@@ -63,6 +64,7 @@ function request({
         data,
 
         header: {
+          ...header,
           'Content-Type':
             'application/json',
 

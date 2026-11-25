@@ -66,8 +66,9 @@ Page(withInputHints({
   openTeacherManagement() {
     if (this.data.teacher) l.go('/pages/accounts/accounts');
   },
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   onLoad(options) {
-    this.setData({ safeTop: wx.getWindowInfo ? wx.getWindowInfo().statusBarHeight : 0 });
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     this.setData({
       section: options.section || 'bank',
@@ -90,7 +91,6 @@ Page(withInputHints({
       });
       this._ready = true;
       if (this.data.section === 'library' && this.data.teacher) {
-        this.setData({ section: 'profile', mainTab: 'profile', sectionTitle: '个人中心' });
         await this.openLibraryManager();
         return;
       }
@@ -108,11 +108,12 @@ Page(withInputHints({
     }
   },
   home() { if (this.data.admin) l.go('/pages/home/home'); },
+  openConnections() { l.go('/pages/admin/admin?mode=connections'); },
   openAdmin() {
     l.go('/pages/admin/admin');
   },
   tabFor(section) {
-    return ['agents', 'history'].includes(section) ? 'chat' : section === 'bank' ? 'bank' : 'profile';
+    return ['agents', 'teacher', 'history'].includes(section) ? 'chat' : ['bank', 'library'].includes(section) ? section : 'profile';
   },
   titleFor(section) {
     return { bank: '题库', agents: '学习助手', history: '会话历史', profile: '个人中心', library: '公共教学资料', teacher: '我的教学助手', usage: '用量与费用' }[section] || '学习工作台';
@@ -145,18 +146,20 @@ Page(withInputHints({
       scope: 'self',
       q: this._queries[section] || '',
     });
+    if (section === 'bank' && !this._facets) await this.facets();
     if (section === 'bank' && this._tagsPending && !(await this.refreshTags())) return;
     await this.load(true);
     if (this.data.mainTab === 'chat') await this.loadRecent();
   },
   async openLibraryManager() {
     if (this.data.startingChat) return;
-    this.setData({ startingChat: true });
+    this._requestId = (this._requestId || 0) + 1;
+    this.setData({ startingChat: true, section: 'library', mainTab: 'library', sectionTitle: '教学资料管家', libraryError: '', drawerOpen: false, items: [], loading: false });
     try {
       const conversation = await l.request('/api/ai/library-manager/conversation', 'POST', {});
-      l.go('/pages/chat/chat?id=' + encodeURIComponent(conversation.id));
+      if (this.data.section === 'library') l.go('/pages/chat/chat?id=' + encodeURIComponent(conversation.id) + '&mode=library');
       this.closeDrawer();
-    } catch (e) { l.error(e); }
+    } catch (e) { this.setData({ libraryError: e.message || '资料管家暂时无法打开' }); }
     finally { this.setData({ startingChat: false }); }
   },
   chooseAgent(e) { this.setData({ agentIndex: Number(e.detail.value) }); },
@@ -329,7 +332,7 @@ Page(withInputHints({
       const section = this.data.section;
       let result,
         summary = [];
-      if (section === 'profile') result = { items: [], total: 0 };
+      if (section === 'profile' || (section === 'library' && this.data.teacher)) result = { items: [], total: 0 };
       else if (section === 'bank')
         result = await l.request(
           '/api/question-bank/items?' +

@@ -405,21 +405,24 @@ function install(app) {
       };
     }),
   );
+  const access = require('./connection-access');
+  ai.post('/connections/unlock', wrap(access.unlock));
+  ai.use('/connections', access.authorize);
   ai.use('/admin', requireAdmin);
   ai.get(
-    '/admin/models',
+    ['/admin/models', '/connections/models'],
     wrap(() => models.list(true)),
   );
   ai.post(
-    '/admin/models',
+    ['/admin/models', '/connections/models'],
     wrap((req) => models.create(req.body)),
   );
   ai.patch(
-    '/admin/models/:id',
+    ['/admin/models/:id', '/connections/models/:id'],
     wrap((req) => models.update(req.params.id, req.body)),
   );
   ai.post(
-    '/admin/models/:id/test',
+    ['/admin/models/:id/test', '/connections/models/:id/test'],
     wrap((req) =>
       models.probe(req.user, req.params.id, req.body.kind || 'text'),
     ),
@@ -438,7 +441,7 @@ function install(app) {
     }),
   );
   ai.put(
-    '/admin/settings',
+    ['/admin/settings', '/connections/settings'],
     wrap(async (req) => {
       for (const key of ['builderModelId', 'visionModelId'])
         if (req.body[key] !== undefined) {

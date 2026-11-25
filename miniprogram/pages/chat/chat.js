@@ -55,10 +55,11 @@ Page(withInputHints({
     hasOlder: false,
     loadingOlder: false,
   },
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   async onLoad(options) {
-    this.setData({ safeTop: wx.getWindowInfo ? wx.getWindowInfo().statusBarHeight : 0 });
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
-    this.setData({ id: options.id });
+    this.setData({ id: options.id, mainTab: options.mode === 'library' ? 'library' : 'chat' });
     this._visible = true;
     if (options.questionId) {
       try {
@@ -124,16 +125,18 @@ Page(withInputHints({
   home() { wx.reLaunch({ url: '/pages/home/home' }); },
   async selectMain(e) {
     const id = e.currentTarget.dataset.id;
-    if (id === 'chat') { this.closeDrawer(); return; }
+    if (id === this.data.mainTab) { this.closeDrawer(); return; }
+    if (id === 'library') return this.selectSection(e);
     return workspace.returnToWorkspace(e, getCurrentPages(), wx);
   },
+  openConnections() { l.go('/pages/admin/admin?mode=connections'); },
   async selectSection(e) {
     if (e.currentTarget.dataset.id === 'library' && this.data.teacher) {
       try {
         const conversation = await l.request('/api/ai/library-manager/conversation', 'POST', {});
         if (conversation.id === this.data.id) { this.closeDrawer(); return; }
-        wx.redirectTo({ url: '/pages/chat/chat?id=' + encodeURIComponent(conversation.id) });
-      } catch (e) { l.error(e); }
+        wx.redirectTo({ url: '/pages/chat/chat?id=' + encodeURIComponent(conversation.id) + '&mode=library' });
+      } catch (e) { wx.redirectTo({ url: '/pages/learning/index?section=library' }); }
       return;
     }
     wx.redirectTo({ url: '/pages/learning/index?section=' + e.currentTarget.dataset.id });
@@ -158,7 +161,9 @@ Page(withInputHints({
       const user = require('../../utils/storage').getUser();
       this.setData({
         conversation: result.conversation,
+        mainTab: result.conversation.mode === 'library' ? 'library' : 'chat',
         teacher: user.role === 'teacher',
+        libraryError: '',
         libraryActions: result.libraryActions || [],
         assets: result.assets.map((x) => ({
           ...x,
@@ -188,7 +193,8 @@ Page(withInputHints({
       )
         this._timer = setTimeout(() => this.load(), 1200);
     } catch (e) {
-      l.error(e);
+      if (this.data.mainTab === 'library') this.setData({ libraryError: e.message });
+      else l.error(e);
     }
   },
   async confirmLibraryAction(e) {
@@ -200,6 +206,11 @@ Page(withInputHints({
       await this.load();
     } catch (e) { l.error(e); await this.load(); }
     finally { this.setData({ confirmingAction: '' }); }
+  },
+  async retryAnswer() {
+    if (this.data.running || this.data.sending) return;
+    this.setData({ text: this.data.text || '请重新回答上一题。', retryAvailable: false });
+    await this.send();
   },
   async send() {
     if (this.data.running || this.data.sending || this.data.uploading || this.data.readOnly) return;

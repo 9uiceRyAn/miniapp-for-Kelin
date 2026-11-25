@@ -48,9 +48,24 @@ function recentMethods(l, activeAgent = () => null) {
 async function returnToWorkspace(e, pages, wx) {
   const id = e.currentTarget.dataset.id;
   const index = pages.map(page => page.route).lastIndexOf('pages/learning/index');
+  if (id === 'library') {
+    wx.redirectTo({ url: '/pages/learning/index?section=library' });
+    return;
+  }
   if (index >= 0 && index < pages.length - 1) {
     await pages[index].selectMain(e);
     wx.navigateBack({ delta: pages.length - 1 - index });
   } else wx.redirectTo({ url: '/pages/learning/index?section=' + (id === 'chat' ? 'agents' : id) });
 }
-module.exports = { groupConversations, drawer, recentMethods, returnToWorkspace };
+function navigationStyle(api) {
+  let info = {}, capsule;
+  try { info = api.getWindowInfo ? api.getWindowInfo() : api.getSystemInfoSync(); } catch {}
+  try { capsule = api.getMenuButtonBoundingClientRect(); } catch {}
+  const status = Math.max(Number(info.statusBarHeight) || 0, Number(info.safeArea?.top) || 0);
+  const valid = capsule && capsule.top >= status && capsule.height > 0 && capsule.left > 0 && capsule.left < info.windowWidth;
+  const top = status > 0 ? status + 'px' : 'env(safe-area-inset-top, 0px)';
+  const height = valid ? Math.max(44, 2 * (capsule.top - status) + capsule.height) : 48;
+  const right = valid ? info.windowWidth - capsule.left + 8 : 16;
+  return '--ws-safe-top:' + top + ';--nav-height:' + height + 'px;--nav-right:' + right + 'px';
+}
+module.exports = { navigationStyle, groupConversations, drawer, recentMethods, returnToWorkspace };

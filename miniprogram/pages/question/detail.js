@@ -48,12 +48,15 @@ Page({
     duration: 0,
     current: 0,
   },
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   onLoad(options) {
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     this.setData({
       id: options.id,
       revisionId: options.revisionId || '',
       document: options.document === '1',
+      mainTab: options.document === '1' ? 'library' : 'bank',
     });
     this.load();
   },

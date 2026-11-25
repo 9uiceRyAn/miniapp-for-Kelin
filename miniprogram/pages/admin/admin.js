@@ -1,3 +1,4 @@
+const workspace = require('../../utils/workspace');
 const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
 Page(withInputHints({
@@ -22,9 +23,37 @@ Page(withInputHints({
     editId: '',
     error: '',
   },
-  async onLoad() {
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
+  async onLoad(options = {}) {
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
+    this.setData({ connectionMode: options.mode === 'connections', locked: options.mode === 'connections' });
     if (!l.guard()) return;
-    await this.load();
+    if (!this.data.locked) await this.load();
+  },
+  async unlock() {
+    const password = this.data.password;
+    this.setData({ password: '', error: '' });
+    try {
+      const grant = await l.request('/api/ai/connections/unlock', 'POST', { password });
+      this._grant = grant.token;
+      this.setData({ locked: false });
+      await this.load();
+    } catch (error) { this.setData({ error: error.message }); }
+  },
+  async manage(path, method = 'GET', data = {}) {
+    if (!this.data.connectionMode) return l.request('/api/ai/admin/' + path, method, data);
+    try {
+      return await require('../../utils/api').request({
+        path: '/api/ai/connections/' + path, method, data,
+        header: { 'X-Management-Token': this._grant },
+      });
+    } catch (error) {
+      if (error.statusCode === 403) {
+        this._grant = '';
+        this.setData({ locked: true, apiKey: '', rotateKey: '', editId: '' });
+      }
+      throw error;
+    }
   },
   back() {
     wx.navigateBack();
@@ -41,13 +70,13 @@ Page(withInputHints({
   async load() {
     try {
       const me = await l.request('/api/ai/me');
-      if (!me.admin) {
+      if (this.data.connectionMode ? me.user.role !== 'teacher' : !me.admin) {
         wx.navigateBack();
         return;
       }
       const [models, prices] = await Promise.all([
-        l.request('/api/ai/admin/models'),
-        l.request('/api/ai/admin/prices'),
+        this.manage('models'),
+        this.data.connectionMode ? [] : l.request('/api/ai/admin/prices'),
       ]);
       this.setData({
         models,
@@ -62,7 +91,7 @@ Page(withInputHints({
   async create() {
     this.setData({ saving: true, error: '' });
     try {
-      await l.request('/api/ai/admin/models', 'POST', {
+      await this.manage('models', 'POST', {
         name: this.data.name,
         upstreamModel: this.data.upstreamModel,
         baseURL: this.data.baseURL || undefined,
@@ -84,8 +113,7 @@ Page(withInputHints({
   },
   async test(e) {
     try {
-      const result = await l.request(
-        '/api/ai/admin/models/' + e.currentTarget.dataset.id + '/test',
+      const result = await this.manage('models/' + e.currentTarget.dataset.id + '/test',
         'POST',
         { kind: e.currentTarget.dataset.kind || 'text' },
       );
@@ -97,8 +125,7 @@ Page(withInputHints({
   },
   async enable(e) {
     try {
-      await l.request(
-        '/api/ai/admin/models/' + e.currentTarget.dataset.id,
+      await this.manage('models/' + e.currentTarget.dataset.id,
         'PATCH',
         { enabled: !e.currentTarget.dataset.enabled },
       );
@@ -108,11 +135,12 @@ Page(withInputHints({
     }
   },
   editKey(e) {
-    this.setData({ editId: e.currentTarget.dataset.id, rotateKey: '' });
+    const model = this.data.models.find(item => item.id === e.currentTarget.dataset.id);
+    if (model) this.setData({ editId: model.id, editName: model.name, rotateKey: '' });
   },
   async rotate() {
     try {
-      await l.request('/api/ai/admin/models/' + this.data.editId, 'PATCH', {
+      await this.manage('models/' + this.data.editId, 'PATCH', {
         apiKey: this.data.rotateKey,
       });
       this.setData({ rotateKey: '', editId: '' });
@@ -124,7 +152,7 @@ Page(withInputHints({
   },
   async setDefault(e) {
     try {
-      await l.request('/api/ai/admin/settings', 'PUT', {
+      await this.manage('settings', 'PUT', {
         [e.currentTarget.dataset.field]: e.currentTarget.dataset.id,
       });
       await this.load();

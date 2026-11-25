@@ -27,8 +27,9 @@ Page(withInputHints({
     releases, releaseIndex: 0, formSubjects: [], formSubjectIndex: 0, formCollections: [], formCollectionIndex: 0,
     importPreview: null, importBusy: false, importResult: '',
   },
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   async onLoad() {
-    this.setData({ safeTop: wx.getWindowInfo ? wx.getWindowInfo().statusBarHeight : 0 });
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     try {
       const me = await l.request('/api/ai/me');
@@ -51,7 +52,7 @@ Page(withInputHints({
     else wx.redirectTo({ url: '/pages/learning/index?section=profile' });
   },
   selectMain(event) {
-    const section = { chat: 'agents', bank: 'bank', profile: 'profile' }[event.currentTarget.dataset.id];
+    const section = { chat: 'agents', bank: 'bank', library: 'library', profile: 'profile' }[event.currentTarget.dataset.id];
     if (section) wx.redirectTo({ url: '/pages/learning/index?section=' + section });
   },
   selectSection(event) { wx.redirectTo({ url: '/pages/learning/index?section=' + event.currentTarget.dataset.id }); },

@@ -1,5 +1,6 @@
 <view class="workspace-bottom" aria-label="主导航">
  <button hover-class="motion-pressed" hover-stay-time="70" class="bottom-item {{mainTab==='chat'?'selected':''}}" data-id="chat" bindtap="selectMain"><view class="tab-icon tab-chat"/><text>聊天</text></button>
  <button hover-class="motion-pressed" hover-stay-time="70" class="bottom-item {{mainTab==='bank'?'selected':''}}" data-id="bank" bindtap="selectMain"><view class="tab-icon tab-bank"/><text>题库</text></button>
+ <button hover-class="motion-pressed" class="bottom-item {{mainTab==='library'?'selected':''}}" data-id="library" bindtap="selectMain"><view class="tab-icon tab-library"/><text>资料</text></button>
  <button hover-class="motion-pressed" hover-stay-time="70" class="bottom-item {{mainTab==='profile'?'selected':''}}" data-id="profile" bindtap="selectMain"><view class="tab-icon tab-person"/><text>我的</text></button>
 </view>

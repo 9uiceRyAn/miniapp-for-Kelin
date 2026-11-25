@@ -1,3 +1,4 @@
+const workspace = require('../../utils/workspace');
 const l = require('../../utils/learning');
 Page({
   data: {
@@ -14,7 +15,9 @@ Page({
     openingBuilder: false,
     editorReady: false,
   },
+  onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   async onLoad(options) {
+    this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     try {
       const id =

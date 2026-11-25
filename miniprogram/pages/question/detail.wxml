@@ -1,4 +1,4 @@
-<view class="workspace-shell workspace-detail-shell {{document?'document-detail-shell':'question-detail-shell'}}">
+<view class="device-nav workspace-shell workspace-detail-shell {{document?'document-detail-shell':'question-detail-shell'}}" style="{{navigationStyle}}">
  <view class="workspace-main">
   <view class="question-detail-page">
    <view class="detail-nav"><button hover-class="motion-pressed" hover-stay-time="70" class="detail-back" bindtap="back" aria-label="返回列表">‹ 返回</button><text>{{document?'教学资料':'题目详情'}}</text><text class="detail-brand">COLLINS</text></view>

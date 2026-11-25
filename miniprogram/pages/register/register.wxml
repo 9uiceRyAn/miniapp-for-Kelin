@@ -1,4 +1,4 @@
-<view class="account-page">
+<view class="device-nav account-page" style="{{navigationStyle}}">
  <view class="safe-top"/>
  <view class="account-header"><view class="account-brand"><image class="account-logo" src="/images/collins-logo.png" mode="aspectFit"/><text>COLLINS</text></view><text class="account-back" bindtap="goBack">‹ 返回登录</text></view>
  <view class="account-body register-body">

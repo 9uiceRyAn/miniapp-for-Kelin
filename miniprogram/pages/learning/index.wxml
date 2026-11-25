@@ -1,4 +1,4 @@
-<view class="workspace-shell" style="--ws-safe-top:{{safeTop}}px">
+<view class="device-nav workspace-shell" style="{{navigationStyle}}">
  <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
  <include src="../../templates/workspace-sidebar.wxml"/>
  <view class="workspace-main"><view class="workspace-header"><view class="header-start"><text>{{sectionTitle}}</text><text wx:if="{{section==='bank'}}" class="breadcrumb">/ {{subjectLabel}}</text></view><text wx:if="{{section!=='profile'}}" class="header-account" data-id="profile" bindtap="selectMain">{{user.display_name||user.name||'个人'}}</text></view>
@@ -19,21 +19,9 @@
     </view>
     <view class="profile-hub-grid">
      <view class="profile-section">
-      <view class="profile-section-heading"><text>{{teacher?'教学空间':'学习空间'}}</text><text>资料与助手</text></view>
-      <view class="profile-feature-grid {{teacher?'':'profile-feature-single'}}">
-       <button hover-class="motion-pressed" hover-stay-time="70" class="profile-feature profile-feature-primary" data-id="library" bindtap="selectSection">
-        <view class="profile-feature-icon"><view class="profile-glyph profile-icon-stack"/></view><text class="profile-feature-arrow" aria-hidden="true">↗</text>
-        <view class="profile-feature-copy"><text class="profile-feature-title">{{teacher?'教学资料管家':'公共教学资料'}}</text><text class="profile-feature-description">{{teacher?'通过对话整理公共资料':'查找课堂资料与讲义'}}</text></view>
-       </button>
-       <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{teacher}}" class="profile-feature" data-id="teacher" bindtap="selectSection">
-        <view class="profile-feature-icon"><view class="profile-glyph profile-icon-agent"/></view><text class="profile-feature-arrow" aria-hidden="true">↗</text>
-        <view class="profile-feature-copy"><text class="profile-feature-title">我的教学助手</text><text class="profile-feature-description">创建、配置与试聊</text></view>
-       </button>
-      </view>
-     </view>
-     <view class="profile-section">
       <view class="profile-section-heading"><text>{{teacher||admin?'管理与用量':'账户与用量'}}</text><text>工作台</text></view>
       <view class="profile-link-group">
+       <button wx:if="{{teacher}}" class="profile-link" bindtap="openConnections"><view class="profile-link-copy"><text class="profile-link-title">API 管理</text><text class="profile-link-description">模型连接、密钥与能力验证</text></view><text class="profile-link-arrow">›</text></button>
        <button wx:if="{{teacher}}" class="profile-link" hover-class="motion-pressed" hover-stay-time="70" bindtap="openTeacherManagement">
         <view class="profile-link-icon"><view class="profile-glyph profile-icon-agent"/></view>
         <view class="profile-link-copy"><text class="profile-link-title">教师管理</text><text class="profile-link-description">管理师生账号与注册码</text></view>
@@ -49,8 +37,9 @@
    </view>
   </block>
   <block wx:else><text class="workspace-title">{{sectionTitle}}</text></block>
-  <view wx:if="{{section==='library'}}" class="workspace-search"><input data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" placeholder="{{inputHintFocus==='hint2'?'':'搜索资料正文'}}" data-field="q" bindinput="input" bindconfirm="search"/><button hover-class="motion-pressed" hover-stay-time="70" bindtap="search">搜索</button></view>
-  <block wx:if="{{section!=='agents' && section!=='profile'}}"> <view wx:if="{{section==='library'&&teacher}}" class="card"><text class="card-title">添加公共教学资料</text><text class="sub">提交并解析成功后，所有教学助手均可检索。学生作业请在会话中上传。</text><view class="actions"><button hover-class="motion-pressed" hover-stay-time="70" class="upload-icon-button" bindtap="uploadPublic" loading="{{uploading}}" disabled="{{uploading}}" aria-label="上传公共教学资料"><text wx:if="{{!uploading}}" class="plus-glyph">＋</text></button><button hover-class="motion-pressed" hover-stay-time="70" bindtap="existing">索引已有 A–E 资料</button></view><input data-hint-id="hint3" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='hint3'?'':'文字资料标题'}}" data-field="publicTitle" bindinput="input" value="{{publicTitle}}"/><textarea data-hint-id="hint4" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='hint4'?'':'也可以直接输入教学文字资料'}}" data-field="publicText" bindinput="input" value="{{publicText}}"/><button hover-class="motion-pressed" hover-stay-time="70" bindtap="addText" disabled="{{submittingText||!publicText}}" loading="{{submittingText}}">提交文字资料</button><view wx:if="{{chooseExisting}}"><picker range="{{['A','B','C','D','E']}}" bindchange="category"><view class="picker">{{category}} 类资料</view></picker><text wx:if="{{existingLoading}}" class="sub">正在加载资料…</text><text wx:elif="{{existingLoaded&&!existingFiles.length}}" class="sub">此类别暂无资料</text><view wx:for="{{existingFiles}}" wx:key="id" class="row"><text class="grow">{{item.original_name}}</text><button hover-class="motion-pressed" hover-stay-time="70" data-id="{{item.id}}" bindtap="indexFile" disabled="{{!!indexingFile||existingLoading}}" loading="{{indexingFile===item.id}}">加入教学检索</button></view></view></view>
+  <view wx:if="{{section==='library'&&!teacher}}" class="workspace-search"><input data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" placeholder="{{inputHintFocus==='hint2'?'':'搜索资料正文'}}" data-field="q" bindinput="input" bindconfirm="search"/><button hover-class="motion-pressed" hover-stay-time="70" bindtap="search">搜索</button></view>
+  <view wx:if="{{section==='library'&&teacher}}" class="empty"><text>{{libraryError}}</text><button class="primary" bindtap="openLibraryManager" loading="{{startingChat}}" disabled="{{startingChat}}">{{libraryError?'重试':'进入教学资料管家'}}</button><button wx:if="{{libraryError}}" bindtap="openConnections">API 管理</button></view>
+  <block wx:if="{{section!=='agents' && section!=='profile' && !(section==='library'&&teacher)}}">
  <view wx:if="{{section==='teacher'}}" class="actions"><button hover-class="motion-pressed" hover-stay-time="70" class="primary" bindtap="create">＋ 创建教学助手</button></view>
 
  <view wx:if="{{section==='usage'}}" class="usage-dashboard">
@@ -66,9 +55,9 @@
   </view><view wx:if="{{!items.length&&!loading}}" class="usage-empty">当前条件下暂无调用记录</view></view>
  </view>
 
- <view class="grid" wx:if="{{section!=='bank' && section!=='agents' && section!=='profile' && section!=='usage'}}"><view class="card" wx:for="{{items}}" wx:key="id">
-  <view wx:if="{{section==='library'}}" class="row" data-id="{{item.resourceId}}" data-revision="{{item.revisionId}}" bindtap="openItem"><image wx:if="{{item.thumbnailUrl}}" class="thumb" src="{{item.thumbnailUrl}}" mode="aspectFit"/><view class="grow"><text class="card-title">{{item.title}}</text><text class="sub">{{item.subject_label}} · {{item.collection_label}}</text><view><text class="badge">{{item.primary_tag_name||item.status||'资料'}}</text><text wx:if="{{item.review_required}}" class="badge">待审核</text><text wx:if="{{item.release_status==='provisional'}}" class="badge">暂定发布</text></view><text class="sub">{{item.subtitle}}</text><view wx:for="{{item.chunks}}" wx:key="position"><text class="sub">{{item.label}}：{{item.body}}</text></view></view></view>
-  <view wx:elif="{{section==='teacher'}}"><text class="card-title">{{item.name}}</text><text class="sub">{{item.description}}</text><text class="sub">教师：{{item.teacherName}}</text><view class="actions"><button hover-class="motion-pressed" hover-stay-time="70" data-id="{{item.id}}" bindtap="edit">管理 · {{item.status}}</button></view></view>
+ <view wx:if="{{section==='library'}}" class="question-group"><view class="group-heading"><text>公共教学资料</text><text class="group-count">{{total}}</text></view><view class="question-row" wx:for="{{items}}" wx:key="resourceId" data-id="{{item.resourceId}}" data-revision="{{item.revisionId}}" bindtap="openItem"><view class="grow"><text class="card-title">{{item.title}}</text><text class="sub">{{item.subtitle}}</text></view><text class="question-arrow">→</text></view></view>
+ <view class="grid" wx:if="{{section!=='library' && section!=='bank' && section!=='agents' && section!=='profile' && section!=='usage'}}"><view class="card" wx:for="{{items}}" wx:key="id">
+  <view wx:if="{{section==='teacher'}}"><text class="card-title">{{item.name}}</text><text class="sub">{{item.description}}</text><text class="sub">教师：{{item.teacherName}}</text><view class="actions"><button hover-class="motion-pressed" hover-stay-time="70" data-id="{{item.id}}" bindtap="edit">管理 · {{item.status}}</button></view></view>
   <view wx:elif="{{section==='history'}}" data-id="{{item.id}}" bindtap="conversation"><text class="card-title">{{item.name}}</text><text class="sub">{{item.mode}} · {{item.updated_at}}</text><text wx:if="{{agentId}}" class="sub">学生：{{item.ownerName||item.owner_id}}</text><text wx:if="{{item.active_run}}" class="badge">正在生成</text></view>
  </view></view>
  <view wx:if="{{loading}}" class="empty">正在读取…</view><view wx:elif="{{items.length===0&&section!=='usage'}}" class="empty">暂无匹配内容</view><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{items.length<total}}" loading="{{loading}}" bindtap="more">加载更多</button>
