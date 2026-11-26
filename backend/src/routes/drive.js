@@ -15,6 +15,8 @@ const router = express.Router();
 const TEMP_ROOT = path.join(UPLOAD_ROOT, '.tmp');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 200);
 const AI_INDEX_EXTS = new Set(['.pdf', '.docx', '.txt', '.md', '.png', '.jpg', '.jpeg', '.webp']);
+// files can use a different table collation. Compare its reference using the resource ID collation.
+const INDEXED_FILES = 'kl_resources r JOIN files f ON r.id = f.ai_resource_id COLLATE utf8mb4_0900_ai_ci';
 
 fs.mkdirSync(TEMP_ROOT, { recursive: true });
 
@@ -325,7 +327,7 @@ router.delete('/folders/:id', async (req, res) => {
       [req.user.id, ...subtreeIds],
     );
     await db.execute(
-      `UPDATE kl_resources r JOIN files f ON f.ai_resource_id = r.id SET r.visibility = 'withdrawn' WHERE f.folder_id IN (${placeholders}) AND f.deleted_at IS NULL`,
+      `UPDATE ${INDEXED_FILES} SET r.visibility = 'withdrawn' WHERE f.folder_id IN (${placeholders}) AND f.deleted_at IS NULL`,
       subtreeIds,
     );
     await db.execute(
@@ -409,7 +411,7 @@ router.delete('/files/:id', async (req, res) => {
   }
   await transaction(async db => {
     await db.execute('UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, file.id]);
-    await db.execute("UPDATE kl_resources r JOIN files f ON f.ai_resource_id=r.id SET r.visibility='withdrawn' WHERE f.id=?", [file.id]);
+    await db.execute(`UPDATE ${INDEXED_FILES} SET r.visibility='withdrawn' WHERE f.id=?`, [file.id]);
   });
   res.json({ success: true, data: { id: file.id } });
 });
@@ -511,7 +513,7 @@ router.post('/trash/restore', async (req, res) => {
       'UPDATE files SET deleted_at = NULL, deleted_by = NULL, folder_id = ? WHERE id = ?',
       [folderAlive ? file.folder_id : null, file.id],
     );
-    await db.execute("UPDATE kl_resources r JOIN files f ON f.ai_resource_id=r.id SET r.visibility='public' WHERE f.id=?", [file.id]);
+    await db.execute(`UPDATE ${INDEXED_FILES} SET r.visibility='public' WHERE f.id=?`, [file.id]);
   });
   res.json({ success: true, data: { id: file.id } });
 });

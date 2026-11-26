@@ -39,6 +39,8 @@ test(
     );
     for (const sql of baseline.split(';').filter((x) => x.trim()))
       await connection.query(sql);
+    // Production's files table predates the learning tables. New columns inherit its collation.
+    await connection.query('ALTER TABLE files DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
     const testPool = require('../src/db').pool;
     const c = require('../src/learning/core'),
       questions = require('../src/learning/questions'),
@@ -957,6 +959,28 @@ test(
       });
 
       await require('./question-management.integration')({ t, api, origin, teacher, student, c });
+      await t.test('recycling a folder with an indexed file and restoring the file updates resource visibility', async () => {
+        const folder = await api('POST', '/api/drive/folders', { name: 'Trash test' }, teacher.token, 201);
+        const child = await api('POST', '/api/drive/folders', { name: 'Nested', parentId: folder.id }, teacher.token, 201);
+        const resourceId = c.id();
+        await c.rows("INSERT INTO kl_resources(id,namespace,source_id,type) VALUES(?,'drive-test',?,'document')", [resourceId, resourceId]);
+        const file = await c.rows(
+          'INSERT INTO files(category,folder_id,original_name,ai_resource_id,uploader_id) VALUES(?,?,?,?,?)',
+          ['A', child.id, 'test.txt', resourceId, teacher.user.id],
+        );
+        const visibility = async () => (await c.one('SELECT visibility FROM kl_resources WHERE id=?', [resourceId])).visibility;
+        await api('DELETE', '/api/drive/folders/' + folder.id, null, student.token, 403);
+        const result = await api('DELETE', '/api/drive/folders/' + folder.id, null, teacher.token);
+        assert.deepEqual(result.deletedFolderIds, [folder.id, child.id]);
+        const trash = await api('GET', '/api/drive/trash', null, teacher.token);
+        assert.ok(trash.folders.some(row => row.id === child.id));
+        assert.ok(trash.files.some(row => row.id === file.insertId));
+        assert.equal(await visibility(), 'withdrawn');
+        await api('POST', '/api/drive/trash/restore', { type: 'file', id: file.insertId }, teacher.token);
+        assert.equal(await visibility(), 'public');
+        await api('DELETE', '/api/drive/files/' + file.insertId, null, teacher.token);
+        assert.equal(await visibility(), 'withdrawn');
+      });
       await t.test(
         'drive upload, marks and logout remain isolated and operational',
         async () => {
