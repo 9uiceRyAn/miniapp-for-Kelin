@@ -15,14 +15,7 @@ function round4(value) {
   return Math.round(value * 10000) / 10000;
 }
 
-async function loadCanvasAndPdfjs() {
-  const canvas = await import('@napi-rs/canvas');
-  globalThis.DOMMatrix ||= canvas.DOMMatrix;
-  globalThis.Path2D ||= canvas.Path2D;
-  globalThis.ImageData ||= canvas.ImageData;
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  return { canvas, pdfjs };
-}
+const { loadPdfRuntime: loadCanvasAndPdfjs } = require('./pdf-runtime');
 
 async function loadOriginalAttachment(args, context) {
   c.teacher(context.user);

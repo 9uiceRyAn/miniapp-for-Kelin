@@ -5,9 +5,39 @@ function visibleMedia(images, otherMedia, answers, document) {
     visibleOtherMedia: otherMedia.filter(entry => document || ['answer', 'ms', 'sm'].includes(entry.kind) === answers),
   };
 }
+const OPEN_DOCUMENT_TYPES = new Set(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf']);
+const MIME_TO_DOC_TYPE = {
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+};
+function resolveDocFileType(entry, fallbackExt, filePath) {
+  const mime = String(entry?.mime || '').split(';')[0].trim().toLowerCase();
+  if (MIME_TO_DOC_TYPE[mime]) return MIME_TO_DOC_TYPE[mime];
+  for (const raw of [fallbackExt, entry?.extension]) {
+    const ext = String(raw || '').replace(/^\./, '').trim().toLowerCase();
+    if (OPEN_DOCUMENT_TYPES.has(ext)) return ext;
+  }
+  for (const raw of [entry?.label, entry?.path, filePath]) {
+    const clean = String(raw || '').split('?')[0].split('#')[0].trim().toLowerCase();
+    const dot = clean.lastIndexOf('.');
+    if (dot >= 0) {
+      const ext = clean.slice(dot + 1);
+      if (OPEN_DOCUMENT_TYPES.has(ext)) return ext;
+    }
+  }
+  return '';
+}
 const l = require('../../utils/learning'),
   api = require('../../utils/api'),
-  storage = require('../../utils/storage');
+  storage = require('../../utils/storage'),
+  cache = require('../../utils/cache');
+
+const DETAIL_CACHE_TTL = 60 * 1000;
 Page({
   data: {
     mainTab: 'bank',
@@ -17,9 +47,6 @@ Page({
     item: null,
     images: [],
     visibleImages: [],
-    previewImages: [],
-    previewIndex: 0,
-    previewOpen: false,
     visibleOtherMedia: [],
     questionHeading: '',
     paperSummary: '',
@@ -58,7 +85,7 @@ Page({
       document: options.document === '1',
       mainTab: options.document === '1' ? 'library' : 'bank',
     });
-    this.load();
+    return this.load();
   },
   onHide() {
     if (this._audio) this._audio.pause();
@@ -69,12 +96,22 @@ Page({
     if (this._audio) this._audio.destroy();
   },
   onShow() {
-    if (this.data.item) this.load();
+    if (this.data.item && ['queued', 'processing'].includes(this.data.item.status)) {
+      this.load();
+    }
   },
   back() {
     wx.navigateBack();
   },
-  async load() {
+  async load(options = {}) {
+    const cacheKey = 'question:detail:' + this.data.id + ':' + (this.data.revisionId || 'latest');
+    const cached = !options.force ? cache.get(cacheKey, { maxAge: DETAIL_CACHE_TTL }) : null;
+    if (cached) {
+      this.setData({ ...cached.value, loading: false, error: '' });
+      if (cached.fresh && !['queued', 'processing'].includes(cached.value.item?.status)) {
+        return;
+      }
+    }
     try {
       const path =
         '/api/question-bank/items/' +
@@ -108,7 +145,7 @@ Page({
       const user = storage.getUser();
       const answers = !this.data.document && item.hasAnswer && this.data.answers;
       const otherMedia = item.media.filter((m) => !m.mime.startsWith('image/') && m.kind !== 'audio' && m.kind !== 'original').map((m, originalIndex) => ({ ...m, originalIndex }));
-      this.setData({
+      const snapshot = {
         item,
         questionHeading,
         paperSummary,
@@ -125,11 +162,18 @@ Page({
           item.visibility === 'public' &&
           String(item.ownerId) === String(user?.id) &&
           user?.role === 'teacher',
+      };
+      cache.set(cacheKey, snapshot);
+      if (item.revisionId) {
+        cache.set('question:detail:' + this.data.id + ':' + item.revisionId, snapshot);
+      }
+      this.setData({
+        ...snapshot,
         loading: false,
         error: '',
       });
       if (['queued', 'processing'].includes(item.status))
-        this._poll = setTimeout(() => this.load(), 1200);
+        this._poll = setTimeout(() => this.load({ force: true }), 1200);
     } catch (e) {
       this.setData({ error: e.message, loading: false });
       l.error(e);
@@ -146,18 +190,19 @@ Page({
   toggleDetails() { this.setData({ detailsOpen: !this.data.detailsOpen }); },
   closeTutor() { this.resetExisting(); this.setData({ choosing: false }); },
   preview(e) {
-    const previewImages = this.data.visibleImages.filter((image) => image.available);
-    const previewIndex = previewImages.findIndex((image) => image.url === e.currentTarget.dataset.url);
-    if (previewIndex < 0) return;
-    this.setData({ previewImages, previewIndex, previewOpen: true });
+    const urls = this.data.visibleImages
+      .filter((image) => image.available && image.url)
+      .map((image) => image.url);
+    const current = e.currentTarget.dataset.url;
+    if (!urls.length || !urls.includes(current)) return;
+    wx.previewImage({ current, urls });
   },
-  closePreview() { this.setData({ previewOpen: false, previewImages: [] }); },
   async imageError(e) {
     const id = e.currentTarget.dataset.id;
     this._renewed = this._renewed || {};
     if (this._renewed[id]) return;
     this._renewed[id] = true;
-    await this.load();
+    await this.load({ force: true });
   },
   async play(e) {
     const index = Number(e.currentTarget.dataset.index);
@@ -174,12 +219,13 @@ Page({
     audio.onPlay(() => this.setData({ playing: true }));
     audio.onPause(() => this.setData({ playing: false }));
     audio.onEnded(() => this.setData({ playing: false }));
-    audio.onTimeUpdate(() =>
-      this.setData({
-        current: Math.floor(audio.currentTime || 0),
-        duration: Math.floor(audio.duration || 0),
-      }),
-    );
+    audio.onTimeUpdate(() => {
+      const current = Math.floor(audio.currentTime || 0);
+      const duration = Math.floor(audio.duration || 0);
+      if (current !== this.data.current || duration !== this.data.duration) {
+        this.setData({ current, duration });
+      }
+    });
     audio.onError(async () => {
       if (this._renewing) {
         this.setData({ playing: false });
@@ -188,7 +234,7 @@ Page({
       }
       this._renewing = true;
       const at = this.data.current;
-      await this.load();
+      await this.load({ force: true });
       audio.src = this.data.audio[index].url;
       audio.play();
       audio.onCanplay(() => {
@@ -206,16 +252,20 @@ Page({
   async openOther(e) {
     try {
       const entry = this.data.otherMedia[Number(e.currentTarget.dataset.index)];
+      if (!entry) return;
       const file = await api.download({
         path: entry.path,
         fileName: entry.label,
       });
-      wx.openDocument({
+      const fileType = resolveDocFileType(entry, '', file.filePath);
+      const options = {
         filePath: file.filePath,
         showMenu: true,
         fail: () =>
           wx.showToast({ title: '此格式暂不支持直接预览', icon: 'none' }),
-      });
+      };
+      if (fileType) options.fileType = fileType;
+      wx.openDocument(options);
     } catch (e) {
       l.error(e);
     }
@@ -228,14 +278,18 @@ Page({
         path: original.path,
         fileName: this.data.item.title,
       });
-      const extension = this.data.item.extension.replace('.', '');
-      if (['pdf', 'docx'].includes(extension))
+      const fileType = resolveDocFileType(original, this.data.item?.extension, downloaded.filePath);
+      if (fileType) {
         wx.openDocument({
           filePath: downloaded.filePath,
-          fileType: extension,
+          fileType,
           showMenu: true,
+          fail: () =>
+            wx.showToast({ title: '此格式暂不支持直接预览', icon: 'none' }),
         });
-      else wx.showToast({ title: '资料正文已显示在本页', icon: 'none' });
+      } else {
+        wx.showToast({ title: '资料正文已显示在本页', icon: 'none' });
+      }
     } catch (e) {
       l.error(e);
     }
@@ -243,12 +297,19 @@ Page({
   async ask() {
     if (this.data.loadingTutors) return;
     this.resetExisting();
-    this.setData({ choosing: true, loadingTutors: true });
+    const cached = cache.get('agents:tutors', { maxAge: DETAIL_CACHE_TTL });
+    if (cached) {
+      this.setData({ choosing: true, loadingTutors: false, tutors: cached.value, tutorIndex: 0 });
+      if (cached.fresh) return;
+    } else {
+      this.setData({ choosing: true, loadingTutors: true });
+    }
     try {
       const result = await l.request('/api/ai/agents?pageSize=100');
+      cache.set('agents:tutors', result.items || []);
       this.setData({ tutors: result.items, tutorIndex: 0 });
     } catch (e) {
-      l.error(e);
+      if (!cached) l.error(e);
     } finally { this.setData({ loadingTutors: false }); }
   },
   async selectMain(e) {
@@ -320,7 +381,10 @@ Page({
       await l.request('/api/library/' + this.data.id + '/retry', 'POST', {
         revisionId: this.data.revisionId,
       });
-      await this.load();
+      cache.invalidate('question:detail:' + this.data.id);
+      cache.invalidate('bank:');
+      cache.invalidate('drive:');
+      await this.load({ force: true });
     } catch (e) {
       l.error(e);
     }
@@ -333,7 +397,10 @@ Page({
         file,
       );
       this.setData({ revisionId: result.revisionId });
-      await this.load();
+      cache.invalidate('question:detail:' + this.data.id);
+      cache.invalidate('bank:');
+      cache.invalidate('drive:');
+      await this.load({ force: true });
     } catch (e) {
       if (!String(e.errMsg || '').includes('cancel')) l.error(e);
     }
@@ -353,6 +420,9 @@ Page({
       });
       if (!confirmed) return;
       await l.request('/api/library/' + this.data.id, 'DELETE');
+      cache.invalidate('question:detail:' + this.data.id);
+      cache.invalidate('bank:');
+      cache.invalidate('drive:');
       wx.navigateBack();
     } catch (e) {
       l.error(e);

@@ -5,6 +5,24 @@ const { test } = require('node:test'),
   vm = require('node:vm');
 function loadPage(file, learning, wx = {}, api = {}) {
   let config;
+  const cacheStore = new Map();
+  const cacheMock = {
+    get: (k) => cacheStore.get(k) || null,
+    set: (k, value) => cacheStore.set(k, { value, updatedAt: Date.now(), fresh: true }),
+    invalidate: (prefix) => {
+      for (const k of cacheStore.keys()) if (k === prefix || k.startsWith(prefix)) cacheStore.delete(k);
+    },
+    clear: () => cacheStore.clear(),
+  };
+  const learningMock = {
+    getMe: async (onData) => {
+      const me = await learningMock.request('/api/ai/me');
+      onData(me);
+      return me;
+    },
+    confirm: async () => true,
+    ...learning,
+  };
   vm.runInNewContext(
     fs.readFileSync(
       path.join(__dirname, '../../miniprogram/pages', file),
@@ -15,11 +33,14 @@ function loadPage(file, learning, wx = {}, api = {}) {
         config = value;
       },
       require: (name) =>
-        name.includes('input-hints')
-          ? require(path.join(__dirname, '../../miniprogram/utils/input-hints.js'))
-          : name.includes('workspace') ? require(path.join(__dirname, '../../miniprogram/utils/workspace.js'))
+        name.includes('workspace') ? require(path.join(__dirname, '../../miniprogram/utils/workspace.js'))
+          : name.includes('cache') ? cacheMock
+          : name.includes('markdown') ? require(path.join(__dirname, '../../miniprogram/utils/markdown.js'))
+          : name.includes('utils/file') ? require(path.join(__dirname, '../../miniprogram/utils/file.js'))
+          : name.includes('utils/usage') ? require(path.join(__dirname, '../../miniprogram/utils/usage.js'))
+          : name.includes('utils/drive') ? { formatSize: (x) => String(x || 0), isDesktop: () => false }
           : name.includes('learning')
-          ? learning
+          ? learningMock
           : name.includes('storage')
             ? { getUser: () => ({ id: 1, role: 'student' }) }
             : name.endsWith('/api') ? api : {},
@@ -89,7 +110,7 @@ test('a stale filter response cannot overwrite a newer native query', async () =
   await second;
   pending[0]({ items: [{ id: 'old' }], total: 1 });
   await first;
-  assert.equal(page.data.items[0].id, 'new');
+  assert.equal(page.data.questionGroups[0].items[0].id, 'new');
 });
 test('retry after a network failure reuses the native message idempotency key', async () => {
   const sent = [];
@@ -134,12 +155,13 @@ test('stream fragment animation preserves all text and ignores replayed events',
   page._sequence = 0;
   page.consume({ seq: 1, type: 'text-delta', data: { text: '先读题 🧮\n' } });
   page.consume({ seq: 2, type: 'text-delta', data: { text: '再计算 72/1000。' } });
+  page.flushStreamDelta();
   assert.equal(page.data.streamHead + page.data.streamTail, '先读题 🧮\n再计算 72/1000。');
-  assert.equal(page.data.partial, page.data.streamHead + page.data.streamTail);
+  assert.equal(page._partial, '先读题 🧮\n再计算 72/1000。');
   const tick = page.data.streamTick;
   page.consume({ seq: 2, type: 'text-delta', data: { text: '重复片段' } });
   assert.equal(page.data.streamTick, tick);
-  assert.equal(page.data.partial, '先读题 🧮\n再计算 72/1000。');
+  assert.equal(page._partial, '先读题 🧮\n再计算 72/1000。');
 });
 
 test('native chat decodes the landing question once without changing literal percent text', async () => {
@@ -161,7 +183,8 @@ test('question reading keeps paper metadata compact and switches answer media wi
     { id: 'context', kind: 'source', mime: 'application/pdf', path: '/context.pdf', available: true },
     { id: 'mark', kind: 'ms', mime: 'application/pdf', path: '/mark.pdf', available: true },
   ], chunks: [] };
-  const page = loadPage('question/detail.js', { request: async () => structuredClone(item), url: x => 'https://local.test' + x });
+  const previewCalls = [];
+  const page = loadPage('question/detail.js', { request: async () => structuredClone(item), url: x => 'https://local.test' + x }, { previewImage: (opts) => previewCalls.push(opts) });
   await page.load();
   assert.equal(page.data.questionHeading, '第 1 题');
   assert.equal(page.data.paperSummary, '9708 · 2020 MJ · Paper 11');
@@ -172,14 +195,61 @@ test('question reading keeps paper metadata compact and switches answer media wi
   assert.deepEqual([...page.data.visibleImages].map(x => x.id), ['a']);
   assert.equal(page.data.visibleOtherMedia[0].originalIndex, 1);
   page.preview({ currentTarget: { dataset: { url: 'https://local.test/a.png' } } });
-  assert.equal(page.data.previewOpen, true);
-  assert.equal(page.data.previewIndex, 0);
-  assert.deepEqual([...page.data.previewImages].map(x => x.url), ['https://local.test/a.png']);
-  page.closePreview();
-  assert.equal(page.data.previewOpen, false);
-  assert.equal(page.data.previewImages.length, 0);
+  assert.equal(previewCalls.length, 1);
+  assert.equal(previewCalls[0].current, 'https://local.test/a.png');
+  assert.deepEqual([...previewCalls[0].urls], ['https://local.test/a.png']);
   page.toggleAnswers();
   assert.deepEqual([...page.data.visibleImages].map(x => x.id), ['q']);
+});
+test('question detail document preview passes resolved fileType and supports all wx.openDocument formats', async () => {
+  const opened = [];
+  const toasts = [];
+  const previewCalls = [];
+  const wxMock = {
+    openDocument: (opts) => opened.push(opts),
+    showToast: (opts) => toasts.push(opts),
+    previewImage: (opts) => previewCalls.push(opts),
+  };
+  const apiMock = {
+    download: async ({ path: p }) => ({ filePath: '/tmp' + p }),
+  };
+  const page = loadPage('question/detail.js', { error: (e) => { throw e; } }, wxMock, apiMock);
+  page.setData({
+    visibleImages: [
+      { id: 'img1', url: 'https://local.test/1.png', available: true },
+      { id: 'img2', url: 'https://local.test/2.png', available: false },
+      { id: 'img3', url: 'https://local.test/3.png', available: true },
+    ],
+    otherMedia: [{ kind: 'source', mime: 'application/pdf', path: '/mark-scheme', label: 'Mark Scheme' }],
+    original: { kind: 'original', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', path: '/slides', available: true },
+    item: { title: 'Lecture Slides', extension: '.pptx' },
+  });
+  page.preview({ currentTarget: { dataset: { url: 'https://local.test/3.png' } } });
+  assert.equal(previewCalls.length, 1);
+  assert.equal(previewCalls[0].current, 'https://local.test/3.png');
+  assert.deepEqual([...previewCalls[0].urls], ['https://local.test/1.png', 'https://local.test/3.png']);
+
+  await page.openOther({ currentTarget: { dataset: { index: 0 } } });
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0].filePath, '/tmp/mark-scheme');
+  assert.equal(opened[0].fileType, 'pdf');
+  assert.equal(opened[0].showMenu, true);
+
+  await page.openOriginal();
+  assert.equal(opened.length, 2);
+  assert.equal(opened[1].filePath, '/tmp/slides');
+  assert.equal(opened[1].fileType, 'pptx');
+  assert.equal(opened[1].showMenu, true);
+
+  page.setData({
+    original: { kind: 'original', mime: 'text/plain', path: '/notes.txt', available: true },
+    item: { title: 'Notes', extension: '.txt' },
+  });
+  await page.openOriginal();
+  assert.equal(opened.length, 2);
+  assert.equal(toasts.length, 1);
+  assert.equal(toasts[0].title, '资料正文已显示在本页');
+  assert.equal(toasts[0].icon, 'none');
 });
 test('tutor sheet enters a conversation with the selected immutable question revision', async () => {
   const routes = [];
@@ -261,7 +331,7 @@ test('native chat preserves text typed during a send and ignores a second tap', 
   await sending;
 
   assert.deepEqual(sent, ['First message']);
-  assert.equal(page.data.text, 'Next message');
+  assert.equal(page._text, 'Next message');
   assert.equal(page.data.sending, false);
 });
 
@@ -301,23 +371,6 @@ test('opening a saved conversation from a question keeps the selected revision a
   assert.equal(page.data.question.resourceId, 'new-question');
   assert.equal(page.data.question.revisionId, 'new-revision');
   assert.equal(page.data.text, 'Previous draft');
-});
-
-test('a late reply for an A–E category cannot replace files under the new category', async () => {
-  const resolveFiles = new Map();
-  const page = loadPage('learning/index.js', {}, {}, {
-    files: category => new Promise(resolve => { resolveFiles.set(category, resolve); }),
-  });
-  const first = page.existing();
-  const second = page.category({ detail: { value: 1 } });
-  assert.equal(page.data.existingFiles.length, 0);
-  resolveFiles.get('B')([{ id: 'file-b' }]);
-  await second;
-  resolveFiles.get('A')([{ id: 'file-a' }]);
-  await first;
-
-  assert.equal(page.data.category, 'B');
-  assert.equal(page.data.existingFiles[0].id, 'file-b');
 });
 
 test('the native tutor sheet requests another page for the same selected assistant', async () => {

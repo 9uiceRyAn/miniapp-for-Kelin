@@ -4,11 +4,17 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const root=process.env.MINIPROGRAM_ROOT||path.join(__dirname,'../../miniprogram');
-function load(file,learning={},pages=[],drafts={}) {
+const { createCache } = require(path.join(root, 'utils/cache.js'));
+function load(file,learning={},pages=[],drafts={},sharedCache=null) {
  let config; const calls=[];
- const l={query:o=>new URLSearchParams(Object.entries(o).filter(([,v])=>v!==''&&v!==undefined)).toString(),url:x=>x,error:e=>{throw e},go:p=>calls.push(p),guard:()=>true,...learning};
- vm.runInNewContext(fs.readFileSync(path.join(root,'pages',file+'.js'),'utf8'),{Page:x=>config=x,require:n=>n.includes('input-hints')?require(path.join(root,'utils/input-hints.js')):n.includes('usage')?require(path.join(root,'utils/usage.js')):n.includes('workspace')?require(path.join(root,'utils/workspace.js')):n.includes('markdown')?require(path.join(root,'utils/markdown.js')):n.includes('utils/file')?require(path.join(root,'utils/file.js')):n.includes('learning')?l:n.includes('storage')?{getUser:()=>({id:1,role:'student'})}:{},getCurrentPages:()=>pages,wx:{redirectTo:x=>calls.push(x.url),navigateBack:x=>calls.push(x),setStorageSync:(k,v)=>drafts[k]=v,getStorageSync:k=>drafts[k],showToast:()=>{}},console,setTimeout:()=>0,clearTimeout:()=>{},Math,Date,JSON});
- return {...config,data:structuredClone(config.data),calls,setData(values){for(const[k,v]of Object.entries(values)){const parts=k.replace(/\[(\d+)\]/g,'.$1').split('.');let n=this.data;for(const p of parts.slice(0,-1))n=n[p];n[parts.at(-1)]=v;}}};
+ const user={id:1,role:'student'};
+ const wxMock={redirectTo:x=>calls.push(x.url),navigateBack:x=>calls.push(x),setStorageSync:(k,v)=>drafts[k]=v,getStorageSync:k=>drafts[k],removeStorageSync:k=>delete drafts[k],showToast:()=>{}};
+ const cache=sharedCache||createCache({storage:{getUser:()=>user},wx:wxMock});
+ const wsMod={exports:{}};
+ vm.runInNewContext(fs.readFileSync(path.join(root,'utils/workspace.js'),'utf8'),{module:wsMod,exports:wsMod.exports,require:n=>n.includes('cache')?cache:{},console,Map,Set,Array,String,Number,Boolean,Math,Date,JSON});
+ const l={query:o=>new URLSearchParams(Object.entries(o).filter(([,v])=>v!==''&&v!==undefined)).toString(),url:x=>x,error:e=>{throw e},go:p=>calls.push(p),guard:()=>true,confirm:async()=>true,getMe:async fn=>{const m=await l.request('/api/ai/me');fn(m);return m;},...learning};
+ vm.runInNewContext(fs.readFileSync(path.join(root,'pages',file+'.js'),'utf8'),{Page:x=>config=x,require:n=>n.includes('usage')?require(path.join(root,'utils/usage.js')):n.includes('workspace')?wsMod.exports:n.includes('markdown')?require(path.join(root,'utils/markdown.js')):n.includes('utils/file')?require(path.join(root,'utils/file.js')):n.includes('utils/drive')?{formatSize:x=>String(x||0),isDesktop:()=>false}:n.includes('cache')?cache:n.includes('learning')?l:n.includes('storage')?{getUser:()=>user}:{},getCurrentPages:()=>pages,wx:wxMock,console,setTimeout:()=>0,clearTimeout:()=>{},Math,Date,JSON});
+ return {...config,cache,data:structuredClone(config.data),calls,setData(values){for(const[k,v]of Object.entries(values)){const parts=k.replace(/\[(\d+)\]/g,'.$1').split('.');let n=this.data;for(const p of parts.slice(0,-1))n=n[p];n[parts.at(-1)]=v;}}};
 }
 const facets=[{subject:'math',subjectLabel:'数学',collection:'math-a',collectionLabel:'数学 A',skill:'p1'},{subject:'math',subjectLabel:'数学',collection:'math-b',collectionLabel:'数学 B',skill:'p2'},{subject:'physics',subjectLabel:'物理',collection:'physics',skill:'p1'}];
 const event=index=>({currentTarget:{dataset:{index}}});
@@ -55,7 +61,7 @@ test('bottom navigation reuses the existing learning page',async()=>{
 });
 test('an unsent draft survives leaving and reopening a conversation',async()=>{
  const drafts={};const first=load('chat/chat',{},[],drafts);first.setData({id:'c',text:'我的草稿',question:{resourceId:'q',revisionId:'r'},questionTitle:'题目'});first.onHide();
- const second=load('chat/chat',{request:async url=>url.startsWith('/api/ai/conversations?')||url==='/api/ai/conversations'?[]:{conversation:{owner_id:1},messages:[],assets:[]},renderMessage:async x=>x},[],drafts);await second.onLoad({id:'c'});assert.equal(second.data.text,'我的草稿');assert.equal(second.data.question.resourceId,'q');
+ const second=load('chat/chat',{request:async url=>url.startsWith('/api/ai/conversations?')||url==='/api/ai/conversations'?[]:{conversation:{owner_id:1},messages:[],assets:[]}},[],drafts);await second.onLoad({id:'c'});assert.equal(second.data.text,'我的草稿');assert.equal(second.data.question.resourceId,'q');
 });
 test('recent conversations group by agent identity, not a shared display name',async()=>{
  const p=load('learning/index',{request:async()=>[{id:'c1',agent_id:'a',name:'数学助手',mode:'student',updated_at:'2026-10-28T12:00:00Z'},{id:'c2',agent_id:'b',name:'数学助手',mode:'student'},{id:'c3',agent_id:'a',name:'数学助手',mode:'test'}]});await p.loadRecent();assert.ok(p.data.conversationGroups);assert.equal(p.data.conversationGroups.length,2);assert.equal(p.data.conversationGroups[0].items.length,2);
@@ -71,7 +77,7 @@ test('a dataset selected under all subjects still has taxonomy',async()=>{
 });
 test('the assistant picker retains access to later pages',async()=>{
  const p=load('learning/index',{request:async u=>({items:[{id:new URL(u,'http://test').searchParams.get('page')}],total:21})});p.data.section='agents';await p.load(true);await p.more();assert.equal(p.data.items.length,2);
- const wxml=fs.readFileSync(path.join(root,'pages/learning/index.wxml'),'utf8');assert.match(wxml,/class="agent-more"[^>]*bindtap="more"/);
+ const wxml=fs.readFileSync(path.join(root,'pages/learning/index.wxml'),'utf8');assert.match(wxml,/class="ws-btn ws-btn-secondary ws-load-more"[^>]*bindtap="more"/);
 });
 
 const usageView=require(path.join(root,'utils/usage.js'));
@@ -186,23 +192,23 @@ test('chat page selects initialAssets and attaches multiple files via pickFiles'
 test('chat UI removes speaker label, hides arrow during send loading, and enables rich-text user-select',()=>{
  const landingWxml=fs.readFileSync(path.join(root,'pages/learning/index.wxml'),'utf8');
  assert.match(landingWxml,/bindtap="attachLandingFiles"/);
- assert.match(landingWxml,/wx:if="\{\{!startingChat\}\}">↑/);
+ assert.match(landingWxml,/wx:if="\{\{!startingChat\}\}"[^>]*class="ws-ico ws-ico-send"/);
  const chatJson=JSON.parse(fs.readFileSync(path.join(root,'pages/chat/chat.json'),'utf8'));
  assert.equal(chatJson.usingComponents['mp-html'],'../../components/mp-html/index');
  const chatWxml=fs.readFileSync(path.join(root,'pages/chat/chat.wxml'),'utf8');
  assert.doesNotMatch(chatWxml,/class="speaker"/);
  assert.match(chatWxml,/<mp-html[^>]*markdown="\{\{true\}\}"[^>]*selectable="\{\{true\}\}"/);
- assert.match(chatWxml,/loading="\{\{sending\}\}"[^>]*><text wx:if="\{\{!sending\}\}">↑<\/text>/);
+ assert.match(chatWxml,/loading="\{\{sending\}\}"[^>]*><view wx:if="\{\{!sending\}\}" class="ws-ico ws-ico-send"\/>/);
  assert.match(chatWxml,/pendingText/);
 });
 
 test('chat run-completed renders pendingText immediately with completion timestamp and clears on mergeMessages',async()=>{
  const p=load('chat/chat',{
   request:async()=>({conversation:{owner_id:1,agent_id:'a1'},messages:[],assets:[]}),
-  renderMessage:async x=>x,
  });
  p._sequence=1;
- p.setData({running:true,partial:'# 标题\\(x^2\\)\n\n**加粗**'});
+ p._partial='# 标题\\(x^2\\)\n\n**加粗**';
+ p.setData({running:true});
  p.consume({seq:2,type:'run-completed',created_at:'2026-11-25T14:47:00.000Z',data:{}});
  assert.equal(p.data.running,false);
  assert.equal(p.data.pendingText,'# 标题$x^2$\n\n**加粗**');
@@ -216,4 +222,198 @@ test('chat run-completed renders pendingText immediately with completion timesta
 test('miniprogram learning.js renders assistant messages locally without calling backend /render',()=>{
  const learningJs=fs.readFileSync(path.join(root,'utils/learning.js'),'utf8');
  assert.doesNotMatch(learningJs,/\/render/);
+});
+
+test('learning/index prevents initial bank flash and skips facets for non-bank landing',async()=>{
+ const urls=[];
+ const p=load('learning/index',{request:async url=>{urls.push(url);if(url==='/api/ai/me')return{user:{id:1,role:'student'},admin:false};if(url.startsWith('/api/ai/agents'))return{items:[{id:'a1',name:'助手'}],total:1};return[];}});
+ assert.equal(p.data.sectionReady,false);
+ assert.equal(p.data.mainTab,'');
+ assert.equal(p.data.sectionTitle,'');
+ p.onLoad({section:'agents'});
+ assert.equal(p.data.sectionReady,true);
+ assert.equal(p.data.section,'agents');
+ assert.equal(p.data.mainTab,'chat');
+ assert.equal(p.data.sectionTitle,'学习助手');
+ await new Promise(r=>setTimeout(r,10));
+ assert.ok(!urls.some(u=>u.includes('/api/question-bank/facets')));
+ const wechatJs=fs.readFileSync(path.join(root,'utils/wechat.js'),'utf8');
+ assert.match(wechatJs,/\/pages\/learning\/index\?section=agents/);
+});
+
+test('chat/chat batches text-delta fragments and uses path updates when appending messages',async()=>{
+ const setDataCalls=[];
+ const p=load('chat/chat',{request:async()=>({conversation:{owner_id:1,agent_id:'a1'},messages:[],assets:[]})});
+ const origSetData=p.setData.bind(p);
+ p.setData=values=>{setDataCalls.push(values);return origSetData(values);};
+ p._sequence=0;
+ p.setData({running:true});
+ setDataCalls.length=0;
+ p.consume({seq:1,type:'text-delta',data:{text:'你好'}});
+ p.consume({seq:2,type:'text-delta',data:{text:'，世界'}});
+ assert.equal(setDataCalls.length,0);
+ p.flushStreamDelta();
+ assert.equal(setDataCalls.length,1);
+ assert.equal(p.data.streamHead,'');
+ assert.equal(p.data.streamTail,'你好，世界');
+ assert.equal(p.data.hasPartial,true);
+ p.load=async()=>{};
+ p.consume({seq:3,type:'text-delta',data:{text:'！'}});
+ p.consume({seq:4,type:'run-completed',created_at:'2026-11-25T14:47:00.000Z',data:{}});
+ assert.equal(p.data.pendingText,'你好，世界！');
+ assert.equal(p.data.hasPartial,false);
+
+ p.data.messages=[{id:'m1',seq:1,role:'user',data:{text:'hi'}}];
+ p.setData({pendingText:''});
+ setDataCalls.length=0;
+ await p.mergeMessages({messages:[{id:'m1',seq:1,role:'user',data:{text:'hi'}}]});
+ assert.equal(setDataCalls.length,0);
+ await p.mergeMessages({messages:[{id:'m1',seq:1,role:'user',data:{text:'hi'}},{id:'m2',seq:2,role:'assistant',data:{text:'hello'}}]});
+ assert.equal(setDataCalls.length,1);
+ assert.ok('messages[1]' in setDataCalls[0]);
+ assert.ok(!('messages' in setDataCalls[0]));
+});
+
+test('teacher library loads drive items and refreshes after creating a folder',async()=>{
+ const requests=[];
+ const p=load('learning/index',{request:async(u,m,b)=>{
+  requests.push({u,m:m||'GET',b});
+  if(m==='POST'&&u==='/api/drive/folders')return{id:10,name:b.name};
+  if(u.startsWith('/api/drive/items'))return{breadcrumbs:[],folders:[{id:10,name:'新资料夹',canEdit:true}],files:[]};
+  return{items:[],total:0};
+ }});
+ p.setData({section:'library',teacher:true,driveFolderId:''});
+ p.openDriveNewFolder();
+ p.setData({driveEditName:'新资料夹'});
+ await p.submitDriveName();
+ assert.equal(requests[0].m,'POST');
+ assert.equal(requests[0].u,'/api/drive/folders');
+ assert.equal(requests[0].b.name,'新资料夹');
+ assert.ok(requests[1].u.startsWith('/api/drive/items'));
+ assert.equal(p.data.driveFolders.length,1);
+ assert.equal(p.data.driveFolders[0].name,'新资料夹');
+ assert.equal(p.data.driveSheet,'');
+});
+
+test('driveGoUp returns to parent folder or root',async()=>{
+ const urls=[];
+ const p=load('learning/index',{request:async u=>{urls.push(u);return{breadcrumbs:[],folders:[],files:[]};}});
+ p.setData({section:'library',driveFolderId:'20',driveBreadcrumbs:[{id:10,name:'父目录'},{id:20,name:'子目录'}]});
+ await p.driveGoUp();
+ assert.equal(p.data.driveFolderId,'10');
+ assert.ok(urls.at(-1).includes('folderId=10'));
+ p.setData({driveFolderId:'10',driveBreadcrumbs:[{id:10,name:'父目录'}]});
+ await p.backSection();
+ assert.equal(p.data.driveFolderId,'');
+ assert.ok(!urls.at(-1).includes('folderId='));
+});
+
+test('cache utility supports memory/persisted hits, freshness, invalidation, and user isolation',()=>{
+ let clock=1000;
+ let currentUser={id:1};
+ const store={};
+ const wxStore={
+  getStorageSync:k=>store[k],
+  setStorageSync:(k,v)=>{store[k]=v;},
+  removeStorageSync:k=>{delete store[k];},
+ };
+ const c=createCache({storage:{getUser:()=>currentUser},wx:wxStore,now:()=>clock});
+ c.set('bank:items:math',{items:[{id:'q1'}]},{persist:true});
+ const hit=c.get('bank:items:math',{maxAge:5000});
+ assert.equal(hit.fresh,true);
+ assert.deepEqual(hit.value,{items:[{id:'q1'}]});
+ clock=7000;
+ assert.equal(c.get('bank:items:math',{maxAge:5000}).fresh,false);
+ // User isolation
+ currentUser={id:2};
+ assert.equal(c.get('bank:items:math',{maxAge:5000}),null);
+ currentUser={id:1};
+ // Re-hydrate from persisted storage on fresh cache instance
+ const c2=createCache({storage:{getUser:()=>currentUser},wx:wxStore,now:()=>clock});
+ assert.deepEqual(c2.get('bank:items:math',{maxAge:5000}).value,{items:[{id:'q1'}]});
+ c2.invalidate('bank:');
+ assert.equal(c2.get('bank:items:math'),null);
+});
+
+test('learning/index caches bank and library sections across tab switches without refetching while fresh',async()=>{
+ let bankCalls=0;let driveCalls=0;
+ const p=load('learning/index',{
+  request:async url=>{
+   if(url.startsWith('/api/question-bank/facets'))return[];
+   if(url.startsWith('/api/question-bank/items')){bankCalls++;return{items:[{resourceId:'q1',title:'积分题',primary_tag:'1',primary_tag_name:'积分'}],total:1};}
+   if(url.startsWith('/api/drive/items')){driveCalls++;return{breadcrumbs:[],folders:[{id:1,name:'讲义',canEdit:true}],files:[]};}
+   return{items:[],total:0};
+  },
+ });
+ p.setData({section:'bank'});
+ await p.load(true);
+ assert.equal(bankCalls,1);
+ await p.selectSection({currentTarget:{dataset:{id:'library'}}});
+ assert.equal(driveCalls,1);
+ assert.equal(p.data.driveFolders.length,1);
+ // Switch back to bank: should restore cached questionGroups immediately and skip network while fresh
+ await p.selectSection({currentTarget:{dataset:{id:'bank'}}});
+ assert.equal(bankCalls,1);
+ assert.equal(p.data.questionGroups.length,1);
+ assert.equal(p.data.bankItemCount,1);
+ // Switch back to library: should restore cached driveFolders immediately and skip network while fresh
+ await p.selectSection({currentTarget:{dataset:{id:'library'}}});
+ assert.equal(driveCalls,1);
+ assert.equal(p.data.driveFolders.length,1);
+});
+
+test('a fresh cached filter discards an earlier pending bank response', async () => {
+ let finish;
+ const page = load('learning/index', {request: () => new Promise(resolve => { finish = resolve; })});
+ page.setData({section: 'bank', q: 'first'});
+ const pending = page.load(true);
+ page.setData({q: 'second'});
+ const key = page.sectionCacheSpec('bank').key;
+ page.cache.set(key, {items: [], questionGroups: [], total: 0, page: 1});
+ await page.load(true);
+ finish({items: [{resourceId: 'old'}], total: 1});
+ await pending;
+ assert.equal(page.data.bankItemCount, 0);
+ assert.equal(page.data.total, 0);
+});
+
+test('chat/chat hydrates cached messages immediately on reopen before background sync',async()=>{
+ const drafts={};
+ const sharedCache=createCache({storage:{getUser:()=>({id:1,role:'student'})},wx:{getStorageSync:k=>drafts[k],setStorageSync:(k,v)=>{drafts[k]=v;},removeStorageSync:k=>{delete drafts[k];}}});
+ const first=load('chat/chat',{
+  request:async url=>url.startsWith('/api/ai/conversations?')||url==='/api/ai/conversations'?[]:{conversation:{owner_id:1,agent_id:'a1'},messages:[{id:'m1',seq:1,role:'user',data:{text:'你好'}}],assets:[]},
+  renderMessage:async x=>x,
+ },[],drafts,sharedCache);
+ await first.onLoad({id:'conv-cache'});
+ assert.equal(first.data.messages.length,1);
+
+ let releaseSecond;
+ const second=load('chat/chat',{
+  request:async url=>url.startsWith('/api/ai/conversations?')||url==='/api/ai/conversations'?[]:new Promise(resolve=>{releaseSecond=resolve;}),
+  renderMessage:async x=>x,
+ },[],drafts,sharedCache);
+ const loadingPromise=second.onLoad({id:'conv-cache'});
+ assert.equal(second.data.messages.length,1);
+ assert.equal(second.data.messages[0].data.text,'你好');
+ releaseSecond({conversation:{owner_id:1,agent_id:'a1'},messages:[{id:'m1',seq:1,role:'user',data:{text:'你好'}},{id:'m2',seq:2,role:'assistant',data:{text:'你好呀'}}],assets:[]});
+ await loadingPromise;
+ assert.equal(second.data.messages.length,2);
+});
+
+test('question/detail caches item details while fresh and forces reload on imageError',async()=>{
+ let calls=0;
+ const drafts={};
+ const sharedCache=createCache({storage:{getUser:()=>({id:1,role:'student'})},wx:{getStorageSync:k=>drafts[k],setStorageSync:(k,v)=>{drafts[k]=v;},removeStorageSync:k=>{delete drafts[k];}}});
+ const makePage=()=>load('question/detail',{
+  request:async()=>{calls++;return{resourceId:'q1',revisionId:'r1',title:'第1题',ownerId:1,visibility:'public',media:[]};},
+ },[],drafts,sharedCache);
+ const p1=makePage();
+ await p1.onLoad({id:'q1',revisionId:'r1'});
+ assert.equal(calls,1);
+ const p2=makePage();
+ await p2.onLoad({id:'q1',revisionId:'r1'});
+ assert.equal(calls,1);
+ assert.equal(p2.data.item.title,'第1题');
+ await p2.imageError({currentTarget:{dataset:{id:'img1'}}});
+ assert.equal(calls,2);
 });

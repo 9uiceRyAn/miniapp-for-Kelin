@@ -33,7 +33,7 @@ function text(value, name, max = 500, required = false) {
 }
 function validateItem(item) {
   for (const [key, max] of [['id', 191], ['subject', 100], ['collection', 93], ['title', 1000]]) text(item[key], key, max, true);
-  if (item.tags.length > 100 || item.tags.some(tag => !tag.trim() || tag.length > 100)) c.fail(400, '标签编号不能为空或超过 100 字符');
+  if (item.tags.length > 100 || item.tags.some(tag => typeof tag !== 'string' || !tag.trim() || tag.length > 100)) c.fail(400, '标签编号不能为空或超过 100 字符');
   if (item.tag_names && (typeof item.tag_names !== 'object' || Array.isArray(item.tag_names))) c.fail(400, '标签名称无效');
   for (const label of Object.values(item.tag_names || {})) text(label, '标签名称', 191);
   for (const [key, max] of [['skill', 100], ['quality_status', 100], ['primary_tag', 100], ['question_text', 100000], ['answer_text', 100000], ['search_text', 1000000]]) if (item[key] !== undefined) text(item[key], key, max);
@@ -86,8 +86,14 @@ async function list(query) {
   }
   return { items, total: Number(total.total), page: p.page, pageSize: p.pageSize };
 }
+
 async function facets() {
-  return c.rows("SELECT v.subject,v.collection_code collection,MAX(JSON_UNQUOTE(JSON_EXTRACT(v.data,'$.subject_label'))) subjectLabel,MAX(JSON_UNQUOTE(JSON_EXTRACT(v.data,'$.collection_label'))) collectionLabel,COUNT(*) count FROM kl_resources r JOIN kl_revisions v ON v.id=r.current_revision WHERE r.type='question' GROUP BY v.subject,v.collection_code ORDER BY v.subject,v.collection_code");
+  return c.rows(`SELECT v.subject, v.collection_code collection,
+      MAX(JSON_UNQUOTE(JSON_EXTRACT(v.data,'$.subject_label'))) subjectLabel,
+      MAX(JSON_UNQUOTE(JSON_EXTRACT(v.data,'$.collection_label'))) collectionLabel,
+      COUNT(*) count
+    FROM kl_resources r JOIN kl_revisions v ON v.id=r.current_revision
+    WHERE r.type='question' GROUP BY v.subject,v.collection_code ORDER BY v.subject,v.collection_code`);
 }
 
 /** Save a new immutable revision, checking the head the editor actually opened. */
@@ -138,7 +144,6 @@ async function save(user, id, input) {
   item.audio = assets.filter(a => a.kind === 'audio').map(a => a.path);
   item.image = assets.find(a => a.kind === 'question' && media.mime(a.path).startsWith('image/'))?.path || null;
   item.search_text = searchable(item);
-  q.validate([item]);
   validateItem(item);
   const key = item.collection + ':' + item.id;
   await q.storePrepared([{ item, assets, hash: q.preparedHash(item, assets) }], {
@@ -359,18 +364,16 @@ async function batchUpdate(user, input) {
       } else {
         const cur = await detail(id, null);
         const patch = { expectedRevisionId: cur.revisionId };
-        if (action === 'add_tags' || action === 'remove_tags') {
-          const tagNames = { ...(cur.tag_names || {}) };
-          const tagSet = new Set(cur.tags || []);
-          for (const t of input.tags || []) {
-            const code = String(t.code || t).trim();
-            if (!code) continue;
-            if (action === 'add_tags') { tagSet.add(code); tagNames[code] = String(t.label || code); }
-            else { tagSet.delete(code); delete tagNames[code]; }
-          }
-          patch.tags = [...tagSet];
-          patch.tagNames = tagNames;
+        const tagNames = { ...(cur.tag_names || {}) };
+        const tagSet = new Set(cur.tags || []);
+        for (const t of input.tags || []) {
+          const code = String(t.code || t).trim();
+          if (!code) continue;
+          if (action === 'add_tags') { tagSet.add(code); tagNames[code] = String(t.label || code); }
+          else { tagSet.delete(code); delete tagNames[code]; }
         }
+        patch.tags = [...tagSet];
+        patch.tagNames = tagNames;
         await save(user, id, patch);
       }
       succeeded.push(id);

@@ -1,6 +1,4 @@
 {
   "navigationStyle": "custom",
-  "usingComponents": {
-    "image-zoom": "/components/image-zoom/index"
-  }
+  "usingComponents": {}
 }

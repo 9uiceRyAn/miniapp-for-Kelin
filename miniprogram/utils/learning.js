@@ -1,6 +1,5 @@
 const api = require('./api'),
-  storage = require('./storage'),
-  markdown = require('./markdown');
+  storage = require('./storage');
 const base = api.API_BASE_URL;
 const MANAGEMENT_TOKEN_KEY = 'kl_management_token';
 const MANAGEMENT_EXPIRES_KEY = 'kl_management_expires';
@@ -12,7 +11,8 @@ function getManagementToken() {
     memoryManagementToken = wx.getStorageSync(MANAGEMENT_TOKEN_KEY) || '';
     memoryManagementExpires = Number(wx.getStorageSync(MANAGEMENT_EXPIRES_KEY) || 0);
   }
-  if (!memoryManagementToken || Date.now() >= memoryManagementExpires) {
+  if (!memoryManagementToken) return '';
+  if (Date.now() >= memoryManagementExpires) {
     clearManagementToken();
     return '';
   }
@@ -35,6 +35,10 @@ function clearManagementToken() {
     wx.removeStorageSync(MANAGEMENT_TOKEN_KEY);
     wx.removeStorageSync(MANAGEMENT_EXPIRES_KEY);
   } catch {}
+  const cache = require('./cache');
+  cache.invalidate('admin:');
+  cache.invalidate('accounts:');
+  cache.invalidate('usage:admin');
 }
 
 async function managementRequest(path, method = 'GET', data = {}) {
@@ -158,13 +162,13 @@ async function pickFile(images = false) {
   if (!files || !files.length) throw new Error('未选择文件');
   return files[0];
 }
-function upload(path, file, onProgress) {
+function uploadFile(path, filePath, formData = {}, onProgress) {
   return new Promise((resolve, reject) => {
     const task = wx.uploadFile({
       url: base + path,
-      filePath: file.path,
+      filePath,
       name: 'file',
-      formData: { fileName: file.name || '' },
+      formData,
       header: { Authorization: 'Bearer ' + storage.getToken() },
       success: (r) => {
         let body;
@@ -186,9 +190,48 @@ function upload(path, file, onProgress) {
     if (onProgress) task.onProgressUpdate((r) => onProgress(r.progress));
   });
 }
-async function renderMessage(message) {
-  if (message.role !== 'assistant') return message;
-  return { ...message, renderText: markdown.prepareMarkdown(message.data?.text || '') };
+function upload(path, file, onProgress) {
+  return uploadFile(path, file.path, { fileName: file.name || '' }, onProgress);
+}
+function confirm(content, options = {}) {
+  return new Promise((resolve) => {
+    wx.showModal({
+      title: options.title || '提示',
+      content,
+      confirmText: options.confirmText || '确认',
+      cancelText: options.cancelText || '取消',
+      ...(options.confirmColor ? { confirmColor: options.confirmColor } : {}),
+      success: (res) => resolve(Boolean(res.confirm)),
+      fail: () => resolve(false),
+    });
+  });
+}
+function formatBytes(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+async function getMe(onData) {
+  const cache = require('./cache');
+  const cached = cache.get('me', { maxAge: 5 * 60 * 1000 });
+  if (cached) {
+    onData(cached.value);
+    if (!cached.fresh) {
+      request('/api/ai/me')
+        .then((me) => {
+          cache.set('me', me, { persist: true });
+          onData(me);
+        })
+        .catch(() => {});
+    }
+    return cached.value;
+  }
+  const me = await request('/api/ai/me');
+  cache.set('me', me, { persist: true });
+  onData(me);
+  return me;
 }
 // Stateful UTF-8 decoding keeps split multibyte characters intact in native chunk callbacks.
 function decoder() {
@@ -249,16 +292,16 @@ function subscribe(runId, after, onEvent, onEnd) {
   });
   return task;
 }
-function openDocument(doc) {
-  go('/pages/question/detail?id=' + doc.resourceId + '&revisionId=' + doc.revisionId + '&document=1');
-}
 module.exports = {
-  openDocument,
   request,
   managementRequest,
   getManagementToken,
   setManagementToken,
   clearManagementToken,
+  getMe,
+  confirm,
+  formatBytes,
+  isDesktop,
   query,
   url,
   error,
@@ -267,7 +310,7 @@ module.exports = {
   id,
   pickFile,
   pickFiles,
+  uploadFile,
   upload,
-  renderMessage,
   subscribe,
 };

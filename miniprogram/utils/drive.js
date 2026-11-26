@@ -1,16 +1,18 @@
 const storage = require('./storage');
 const { API_BASE_URL } = require('../config/api');
+const { isDesktop, uploadFile: uploadRaw, formatBytes: formatSize } = require('./learning');
 
 const DOC_TYPES = new Set(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf']);
 const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
 const VIDEO_TYPES = new Set(['mp4', 'mov', 'm4v']);
 const AUDIO_TYPES = new Set(['mp3', 'm4a', 'wav', 'aac']);
+const TEXT_TYPES = new Set(['md', 'markdown', 'txt', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'html', 'css', 'js', 'ts', 'py', 'sql']);
+const MAX_TEXT_PREVIEW_CHARS = 100000;
 
-function isDesktop() {
+function isDevtools() {
   try {
     const info = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo() : {};
-    const platform = String(info.platform || '').toLowerCase();
-    return platform.includes('windows') || platform.includes('mac');
+    return String(info.platform || '').toLowerCase().includes('devtools');
   } catch {
     return false;
   }
@@ -57,50 +59,76 @@ function chooseUploadFiles() {
 }
 
 function uploadFile(folderId, file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const task = wx.uploadFile({
-      url: API_BASE_URL + '/api/drive/files/upload',
-      filePath: file.path,
-      name: 'file',
-      formData: {
-        ...(folderId ? { folderId: String(folderId) } : {}),
-        clientFileName: file.name || '',
-      },
-      header: { Authorization: 'Bearer ' + storage.getToken() },
-      success: res => {
-        let body;
-        try { body = JSON.parse(res.data); } catch { return reject(new Error('上传响应无效')); }
-        if (res.statusCode >= 200 && res.statusCode < 300 && body.success) resolve(body.data);
-        else reject(new Error(body.message || '上传失败'));
-      },
-      fail: reject,
-    });
-    if (onProgress) task.onProgressUpdate(p => onProgress(p.progress));
-  });
+  return uploadRaw(
+    '/api/drive/files/upload',
+    file.path,
+    {
+      ...(folderId ? { folderId: String(folderId) } : {}),
+      clientFileName: file.name || '',
+    },
+    onProgress,
+  );
 }
 
-function downloadTemp(apiPath, onProgress) {
+function resolveFileExt(file) {
+  const fromType = String(file?.file_type || '').trim().toLowerCase().replace(/^\./, '');
+  if (fromType) return fromType;
+  const name = String(file?.original_name || '').trim();
+  const dot = name.lastIndexOf('.');
+  return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1).toLowerCase() : '';
+}
+
+function sanitizeFileName(name) {
+  const cleaned = String(name || '').replace(/[/\\:*?"<>|]/g, '_').trim();
+  return cleaned || '资料文件';
+}
+
+function downloadTemp(apiPath) {
   return new Promise((resolve, reject) => {
-    const task = wx.downloadFile({
+    wx.downloadFile({
       url: API_BASE_URL + apiPath,
       header: { Authorization: 'Bearer ' + storage.getToken() },
       success: res => {
-        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) resolve(res.tempFilePath);
+        const resolved = res.filePath || res.tempFilePath;
+        if (res.statusCode >= 200 && res.statusCode < 300 && resolved) resolve(resolved);
         else reject(new Error('下载失败（' + res.statusCode + '）'));
       },
       fail: reject,
     });
-    if (onProgress) task.onProgressUpdate(p => onProgress(p.progress));
   });
 }
 
-async function previewFile(file) {
-  const ext = String(file.file_type || '').toLowerCase();
+function readTextFile(filePath) {
+  return new Promise((resolve, reject) => {
+    if (typeof wx.getFileSystemManager !== 'function') {
+      return reject(new Error('当前环境不支持读取文本内容'));
+    }
+    wx.getFileSystemManager().readFile({
+      filePath,
+      encoding: 'utf8',
+      success: res => {
+        const text = String(res.data || '');
+        if (text.length > MAX_TEXT_PREVIEW_CHARS) {
+          resolve(text.slice(0, MAX_TEXT_PREVIEW_CHARS) + '\n\n…（文件内容较长，已截断显示，可点击下方保存/转发查看完整文件）');
+        } else {
+          resolve(text);
+        }
+      },
+      fail: err => reject(new Error(err?.errMsg || '读取文件失败')),
+    });
+  });
+}
+
+async function previewFile(file, options = {}) {
+  const ext = resolveFileExt(file);
   wx.showLoading({ title: '正在加载', mask: true });
   try {
     const filePath = await downloadTemp('/api/drive/files/' + file.id + '/download');
     wx.hideLoading();
-    if (IMAGE_TYPES.has(ext)) {
+    if (TEXT_TYPES.has(ext) && typeof options.onTextPreview === 'function') {
+      const content = await readTextFile(filePath);
+      options.onTextPreview({ title: file.original_name || '文本预览', content, file, ext, isMarkdown: ext === 'md' || ext === 'markdown' });
+    } else if (IMAGE_TYPES.has(ext)) {
       wx.previewImage({ current: filePath, urls: [filePath] });
     } else if (VIDEO_TYPES.has(ext)) {
       wx.previewMedia({ sources: [{ url: filePath, type: 'video' }] });
@@ -120,30 +148,97 @@ async function previewFile(file) {
   }
 }
 
-function saveOrShareTemp(filePath, fileName) {
-  if (isDesktop()) {
-    return new Promise((resolve, reject) => {
-      wx.saveFileToDisk({
-        filePath,
-        success: () => { wx.showToast({ title: '已保存到本地' }); resolve(); },
-        fail: err => {
-          if (String(err.errMsg || '').includes('cancel')) return resolve();
-          reject(new Error('保存失败'));
-        },
-      });
+function saveToDisk(filePath) {
+  return new Promise((resolve, reject) => {
+    wx.saveFileToDisk({
+      filePath,
+      success: () => { wx.showToast({ title: '已保存到本地' }); resolve(); },
+      fail: err => {
+        if (String(err?.errMsg || '').includes('cancel')) return resolve();
+        console.warn('[drive] saveFileToDisk fail:', err);
+        reject(new Error('保存失败'));
+      },
     });
-  }
+  });
+}
+
+function shareFileOnce(filePath, fileName) {
   return new Promise((resolve, reject) => {
     wx.shareFileMessage({
       filePath,
       fileName: fileName || '资料文件',
       success: resolve,
       fail: err => {
-        if (String(err.errMsg || '').includes('cancel')) return resolve();
-        reject(new Error('转发失败'));
+        if (String(err?.errMsg || '').includes('cancel')) return resolve();
+        reject(err);
       },
     });
   });
+}
+
+async function saveOrShareTemp(filePath, fileName) {
+  if (isDesktop()) {
+    const fs = wx.getFileSystemManager();
+    const dir = wx.env.USER_DATA_PATH + '/drive_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const name = sanitizeFileName(fileName);
+    const namedPath = dir + '/' + (name === '.' || name === '..' ? '资料文件' : name);
+    fs.mkdirSync(dir);
+    try {
+      try { fs.copyFileSync(filePath, namedPath); }
+      catch { return await saveToDisk(filePath); }
+      await saveToDisk(namedPath);
+    } finally {
+      try { fs.unlinkSync(namedPath); } catch {}
+      try { fs.rmdirSync(dir); } catch {}
+    }
+    return;
+  }
+  if (isDevtools()) {
+    if (typeof wx.saveFileToDisk === 'function') {
+      try {
+        await saveToDisk(filePath);
+        return;
+      } catch {}
+    }
+    await new Promise(resolve => {
+      wx.showModal({
+        title: '开发者工具暂不支持转发',
+        content: '微信开发者工具模拟器不支持文件转发（wx.shareFileMessage），文件已下载完成，请在真机调试或微信客户端中测试。',
+        showCancel: false,
+        complete: resolve,
+      });
+    });
+    return;
+  }
+  try {
+    await shareFileOnce(filePath, fileName);
+  } catch (firstErr) {
+    console.warn('[drive] shareFileMessage first attempt fail:', firstErr);
+    await new Promise((resolve, reject) => {
+      wx.showModal({
+        title: '文件已准备就绪',
+        content: '点击「立即转发」发送「' + (fileName || '资料文件') + '」',
+        confirmText: '立即转发',
+        success: res => {
+          if (!res.confirm) return resolve();
+          wx.shareFileMessage({
+            filePath,
+            fileName: fileName || '资料文件',
+            success: resolve,
+            fail: err => {
+              if (String(err?.errMsg || '').includes('cancel')) return resolve();
+              console.warn('[drive] shareFileMessage fail:', err);
+              reject(new Error('转发失败'));
+            },
+          });
+        },
+        fail: err => {
+          console.warn('[drive] showModal fail:', err);
+          reject(new Error('转发失败'));
+        },
+      });
+    });
+  }
 }
 
 async function downloadAndSave(apiPath, fileName) {
@@ -156,13 +251,6 @@ async function downloadAndSave(apiPath, fileName) {
     wx.hideLoading();
     wx.showToast({ title: e.message || '下载失败', icon: 'none' });
   }
-}
-
-function formatSize(bytes) {
-  const n = Number(bytes || 0);
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-  return (n / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 module.exports = {

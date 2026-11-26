@@ -1,6 +1,6 @@
 const workspace = require('../../utils/workspace');
 const learning = require('../../utils/learning');
-const withInputHints = require('../../utils/input-hints');
+const cache = require('../../utils/cache');
 const blankPasswords = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
 function api(path, method = 'GET', data = {}) {
@@ -8,16 +8,10 @@ function api(path, method = 'GET', data = {}) {
 }
 
 function confirm(content) {
-  return new Promise(resolve => wx.showModal({
-    title: '确认操作',
-    content,
-    confirmColor: '#a12540',
-    success: result => resolve(result.confirm),
-    fail: () => resolve(false),
-  }));
+  return learning.confirm(content, { title: '确认操作', confirmColor: '#a12540' });
 }
 
-Page(withInputHints({
+Page({
   data: {
     mainTab: 'profile',
     section: 'accounts',
@@ -58,15 +52,16 @@ Page(withInputHints({
   },
   async init() {
     try {
-      const { user } = await learning.request('/api/ai/me');
-      if (user.role !== 'teacher') {
-        this.setData({ error: '仅教师账号可使用账号管理' });
-        return;
-      }
-      this.setData({ selfId: user.id, teacher: true });
+      const me = await learning.getMe((m) => {
+        if (m.user.role !== 'teacher') {
+          this.setData({ error: '仅教师账号可使用账号管理' });
+        } else {
+          this.setData({ selfId: m.user.id, teacher: true });
+        }
+      });
+      if (me.user.role !== 'teacher') return;
       if (learning.getManagementToken()) {
-        this.setData({ authorized: true });
-        await this.loadAll();
+        await this.run(() => this.loadAll());
       }
     } catch (error) {
       this.setData({ error: error.message });
@@ -84,7 +79,9 @@ Page(withInputHints({
     });
   },
   async loadAll() {
-    await Promise.all([this.loadCodes(), this.loadUsers()]);
+    await this.loadCodes();
+    this.setData({ authorized: true });
+    await this.loadUsers();
   },
   async run(action) {
     if (this.data.busy) return;
@@ -94,7 +91,6 @@ Page(withInputHints({
     } catch (error) {
       if (error.statusCode === 401) learning.error(error);
       if (error.statusCode === 403 && error.payload?.code === 'MANAGEMENT_LOCKED') {
-        learning.clearManagementToken();
         this.setData({ authorized: false, sheetMode: '', codes: [], users: [], ...blankPasswords });
       }
       this.setData({ error: error.message });
@@ -103,11 +99,19 @@ Page(withInputHints({
     }
   },
   async loadCodes() {
-    this.setData(await api('/codes'));
+    const result = await api('/codes');
+    this.setData(result);
   },
-  async loadUsers() {
+  async loadUsers(options = {}) {
     const { q, role, status, page } = this.data;
+    const cacheKey = 'accounts:users:' + learning.query({ page, q, role, status });
+    const cached = !options.force ? cache.get(cacheKey, { maxAge: 30 * 1000 }) : null;
+    if (cached) {
+      this.setData({ ...cached.value });
+      if (cached.fresh) return;
+    }
     const result = await api('/users?page=' + page + '&q=' + encodeURIComponent(q) + '&role=' + role + '&status=' + status);
+    cache.set(cacheKey, result);
     this.setData({ ...result });
   },
   input(event) {
@@ -176,6 +180,7 @@ Page(withInputHints({
       await api('/codes/' + item.role, 'PUT', { code: value, version: item.version });
       this.setData({ ['code_' + item.role]: '' });
       wx.showToast({ title: '注册码已更新' });
+      cache.invalidate('accounts:');
       await this.loadCodes();
     });
   },
@@ -185,7 +190,8 @@ Page(withInputHints({
     this.run(async () => {
       await api('/users/' + user.id, 'PATCH', { displayName: this.data.editedName.trim() });
       wx.showToast({ title: '显示名已保存' });
-      await this.loadUsers();
+      cache.invalidate('accounts:');
+      await this.loadUsers({ force: true });
       const updated = this.data.users.find(u => u.id === user.id);
       this.setData({ editingUser: updated || null, ...(updated ? {} : { sheetMode: '' }) });
     });
@@ -207,9 +213,10 @@ Page(withInputHints({
       if (!await confirm('确认' + (user.status === 1 ? '停用' : '启用') + ' ' + user.username + '？')) return;
       await api('/users/' + user.id, 'PATCH', { status: user.status === 1 ? 0 : 1 });
       wx.showToast({ title: user.status === 1 ? '账号已停用' : '账号已启用' });
-      await this.loadUsers();
+      cache.invalidate('accounts:');
+      await this.loadUsers({ force: true });
       const updated = this.data.users.find(u => u.id === user.id);
       this.setData({ editingUser: updated || null, ...(updated ? {} : { sheetMode: '' }) });
     });
   },
-}));
+});

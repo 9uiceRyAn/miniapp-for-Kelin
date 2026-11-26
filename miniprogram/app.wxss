@@ -19,6 +19,7 @@ view,
 text,
 button,
 input,
+textarea,
 scroll-view {
   box-sizing: border-box;
 }
@@ -41,8 +42,12 @@ button {
   .device-nav.workspace-shell .drawer-button {top:calc(var(--ws-safe-top,env(safe-area-inset-top)) + (var(--nav-height,48px) - 44px) / 2)}
   .device-nav.workspace-shell .workspace-sidebar {padding-top:var(--ws-safe-top,env(safe-area-inset-top))}
   .device-nav .workspace-sidebar .workspace-brand {min-height:var(--nav-height,48px);padding-right:var(--nav-right,16px)}
-  .device-nav.account-page,.device-nav.learning-page {padding-top:var(--ws-safe-top,env(safe-area-inset-top))}
-  .device-nav.account-page .account-header,.device-nav.learning-page>.nav,.device-nav.workspace-shell .detail-nav {min-height:var(--nav-height,48px);height:auto;box-sizing:border-box;padding-right:var(--nav-right,96px)}
+  .device-nav.account-page {padding-top:var(--ws-safe-top,env(safe-area-inset-top))}
+  .device-nav.account-page .account-header,.device-nav.workspace-shell .detail-nav {min-height:var(--nav-height,48px);height:auto;box-sizing:border-box;padding-right:var(--nav-right,96px)}
 }
-.tab-library {width:19px;height:14px;margin-top:3px;border:1.5px solid currentColor;border-radius:3px;box-sizing:border-box}
-.tab-library::before {content:"";position:absolute;left:0;top:-4px;width:8px;height:3px;border:1.5px solid currentColor;border-bottom:0;border-radius:2px 2px 0 0}
+.ws-placeholder {
+  color: var(--ws-tertiary, #969696);
+  font-weight: 400;
+}
+
+@import "./styles/workspace-icons.wxss";

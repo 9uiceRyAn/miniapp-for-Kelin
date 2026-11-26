@@ -178,7 +178,7 @@ export async function execute(input: EngineInput) {
       }),
     };
   }
-  if (process.env.TAVILY_API_KEY)
+  if (process.env.SEARXNG_BASE_URL || process.env.TAVILY_API_KEY)
     definitions.web_search = {
       description: '搜索互联网，返回实际网页来源及引用键。',
       schema: z.object({ query: z.string() }),

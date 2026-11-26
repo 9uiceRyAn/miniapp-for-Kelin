@@ -1,12 +1,12 @@
 const workspace = require('../../utils/workspace');
-const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
+const cache = require('../../utils/cache');
 
 function emptyForm() {
   return { name: '', description: '', content: '', toolPermission: 'read_only', audience: 'all', enabled: true };
 }
 
-Page(withInputHints({
+Page({
   data: {
     mainTab: 'profile',
     section: 'agents-manage',
@@ -42,17 +42,26 @@ Page(withInputHints({
     this.setData({ onlyMine });
     this.load();
   },
-  async load() {
-    this.setData({ loading: true });
+  async load(options = {}) {
+    const cacheKey = 'studio:agents:' + (this.data.onlyMine ? 'mine' : 'all');
+    const cached = !options.force ? cache.get(cacheKey, { maxAge: 30 * 1000 }) : null;
+    if (cached) {
+      this.setData({ items: cached.value, loading: false });
+      if (cached.fresh) return;
+    } else {
+      this.setData({ loading: true });
+    }
     try {
       const res = await l.request('/api/ai/agents?' + l.query({
         scope: 'manage',
         onlyMine: this.data.onlyMine ? 'true' : '',
         pageSize: 50,
       }));
-      this.setData({ items: res.items || [] });
+      const items = res.items || [];
+      cache.set(cacheKey, items);
+      this.setData({ items });
     } catch (e) {
-      l.error(e);
+      if (!cached) l.error(e);
     } finally {
       this.setData({ loading: false });
     }
@@ -94,8 +103,8 @@ Page(withInputHints({
   async save() {
     const { form, editingId, saving } = this.data;
     if (saving) return;
-    if (!String(form.name || '').trim()) return this.setData({ formError: '请输入名称' });
-    if (!String(form.content || '').trim()) return this.setData({ formError: '请输入 Prompt' });
+    if (!form.name.trim()) return this.setData({ formError: '请输入名称' });
+    if (!form.content.trim()) return this.setData({ formError: '请输入 Prompt' });
     this.setData({ saving: true, formError: '' });
     try {
       if (editingId) {
@@ -105,7 +114,9 @@ Page(withInputHints({
       }
       this.setData({ sheetOpen: false });
       wx.showToast({ title: '已保存' });
-      await this.load();
+      cache.invalidate('studio:agents:');
+      cache.invalidate('agents:');
+      await this.load({ force: true });
     } catch (err) {
       this.setData({ formError: err.message || '保存失败' });
     } finally {
@@ -125,24 +136,21 @@ Page(withInputHints({
         try {
           if (tapIndex === 0) {
             await l.request('/api/ai/agents/' + item.id + '/meta', 'PATCH', { enabled: !item.enabled });
-            await this.load();
+            cache.invalidate('studio:agents:');
+            cache.invalidate('agents:');
+            await this.load({ force: true });
           } else if (tapIndex === 1) {
             await l.request('/api/ai/agents/' + item.id + '/meta', 'PATCH', { pinned: !item.pinned });
-            await this.load();
+            cache.invalidate('studio:agents:');
+            cache.invalidate('agents:');
+            await this.load({ force: true });
           } else if (tapIndex === 2) {
-            wx.showModal({
-              title: '确认删除',
-              content: `确定删除「${item.name}」？`,
-              confirmColor: '#a12540',
-              success: async res => {
-                if (!res.confirm) return;
-                try {
-                  await l.request('/api/ai/agents/' + item.id, 'DELETE', {});
-                  wx.showToast({ title: '已删除' });
-                  await this.load();
-                } catch (err) { l.error(err); }
-              },
-            });
+            if (!(await l.confirm(`确定删除「${item.name}」？`, { title: '确认删除', confirmColor: '#a12540' }))) return;
+            await l.request('/api/ai/agents/' + item.id, 'DELETE', {});
+            wx.showToast({ title: '已删除' });
+            cache.invalidate('studio:agents:');
+            cache.invalidate('agents:');
+            await this.load({ force: true });
           }
         } catch (err) {
           l.error(err);
@@ -150,4 +158,4 @@ Page(withInputHints({
       },
     });
   },
-}));
+});

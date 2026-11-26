@@ -21,17 +21,6 @@ async function rows(sql, values = [], db = pool) {
 async function one(sql, values = [], db = pool) {
   return (await rows(sql, values, db))[0];
 }
-async function capability(user, name = 'platform_admin') {
-  return Boolean(
-    await one(
-      'SELECT user_id FROM kl_capabilities WHERE user_id=? AND capability=?',
-      [user.id, name],
-    ),
-  );
-}
-async function admin(user) {
-  if (!(await capability(user))) fail(403, '需要平台管理员权限');
-}
 function teacher(user) {
   if (user.role !== 'teacher') fail(403, '需要教师权限');
 }
@@ -49,13 +38,8 @@ function page(query = {}) {
   );
   return { page: number, pageSize: size, offset: (number - 1) * size };
 }
-const route = (fn) => async (req, res, next) => {
-  try {
-    res.json({ success: true, data: await fn(req, res) });
-  } catch (e) {
-    next(e);
-  }
-};
+const route = (fn) => async (req, res) =>
+  res.json({ success: true, data: await fn(req, res) });
 function parameters(input = {}) {
   const allowed = {
     temperature: [0, 2],
@@ -89,8 +73,6 @@ module.exports = {
   rows,
   one,
   transaction,
-  capability,
-  admin,
   teacher,
   page,
   containsPattern,

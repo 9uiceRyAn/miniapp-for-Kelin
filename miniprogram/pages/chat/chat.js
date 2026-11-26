@@ -1,8 +1,11 @@
-const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
 const workspace = require('../../utils/workspace');
 const markdown = require('../../utils/markdown');
 const fileUtil = require('../../utils/file');
+const cache = require('../../utils/cache');
+const storage = require('../../utils/storage');
+
+const CHAT_CACHE_TTL = 30 * 1000;
 function renderInstant(message) {
   if (message.role !== 'assistant' || message.renderText !== undefined) return message;
   return { ...message, renderText: markdown.prepareMarkdown(message.data?.text || '') };
@@ -29,7 +32,7 @@ const toolNames = {
   calculate: '计算',
   web_search: '搜索网页',
 };
-Page(withInputHints({
+Page({
   data: {
     mainTab: 'chat',
     section: 'chat',
@@ -49,12 +52,13 @@ Page(withInputHints({
     messages: [],
     assets: [],
     text: '',
+    hasText: false,
     question: null,
     questionTitle: '',
     running: false,
     sending: false,
     runId: '',
-    partial: '',
+    hasPartial: false,
     pendingText: '',
     streamHead: '',
     streamTail: '',
@@ -70,6 +74,7 @@ Page(withInputHints({
   async onLoad(options) {
     this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
+    this._ownerId = storage.getUser()?.id;
     this.setData({ id: options.id, mainTab: options.mode === 'library' ? 'library' : 'chat' });
     this._visible = true;
     if (options.questionId) {
@@ -91,7 +96,13 @@ Page(withInputHints({
         l.error(e);
       }
     }
+    const cached = options.id ? cache.get('chat:conv:' + options.id, { maxAge: CHAT_CACHE_TTL }) : null;
+    if (cached) {
+      this.setData(cached.value);
+    }
+    const recentPromise = this.loadRecent();
     await this.load();
+    if (!this.draftKey()) return;
     let initialAssetIds = [];
     if (options.initialAssets) {
       let rawAssets = options.initialAssets;
@@ -103,34 +114,47 @@ Page(withInputHints({
       const draft = wx.getStorageSync(this.draftKey());
       if (draft || initialAssetIds.length) {
         const selectedSet = new Set([...(draft?.selectedAssets || []), ...initialAssetIds]);
+        const draftText = draft?.text || '';
+        this._text = draftText;
         this.setData({
-          text: draft?.text || '',
+          text: draftText,
+          hasText: Boolean(draftText.trim()),
           ...(options.questionId ? {} : { question: draft?.question || null, questionTitle: draft?.questionTitle || '' }),
           assets: this.data.assets.map(asset => ({ ...asset, selected: selectedSet.has(asset.resourceId) })),
         });
       }
     }
-    await this.loadRecent();
     if ((options.initialText || initialAssetIds.length) && !this.data.readOnly) {
       let initialText = options.initialText || '';
       try { initialText = decodeURIComponent(initialText); }
       catch (e) { /* Already plain text can contain a literal percent sign. */ }
-      this.setData({ text: initialText });
+      this._text = initialText;
+      this.setData({ text: initialText, hasText: Boolean(initialText.trim()) });
       await this.send();
     }
+    await recentPromise;
   },
   onShow() {
     this._visible = true;
-    if (this.data.conversation) {
-      this.setData({ running: false, partial: '', pendingText: '' });
+    if (
+      this.data.conversation &&
+      (this._wasRunningOnHide || Date.now() - (this._lastLoadedAt || 0) > 30000)
+    ) {
+      this._wasRunningOnHide = false;
+      this.clearStreamBuffer();
+      this.setData({ running: false, hasPartial: false, pendingText: '' });
       this.load();
     }
   },
   onHide() {
-    if (this.data.id && !this.data.readOnly && wx.setStorageSync) {
-      wx.setStorageSync(this.draftKey(), { text: this.data.text, question: this.data.question, questionTitle: this.data.questionTitle, selectedAssets: this.data.assets.filter(asset => asset.selected).map(asset => asset.resourceId) });
+    const draftKey = this.draftKey();
+    if (draftKey && this.data.id && !this.data.readOnly) {
+      const currentText = this._text !== undefined ? this._text : this.data.text;
+      wx.setStorageSync(draftKey, { text: currentText, question: this.data.question, questionTitle: this.data.questionTitle, selectedAssets: this.data.assets.filter(asset => asset.selected).map(asset => asset.resourceId) });
     }
+    this._wasRunningOnHide = Boolean(this.data.running);
     this._visible = false;
+    this.clearStreamBuffer();
     clearTimeout(this._timer);
     if (this._stream) this._stream.abort();
   },
@@ -138,19 +162,23 @@ Page(withInputHints({
     this.onHide();
   },
   back() {
-    wx.navigateBack();
+    if (getCurrentPages().length > 1) wx.navigateBack();
+    else wx.redirectTo({ url: '/pages/learning/index?section=' + (this.data.mainTab === 'library' ? 'library' : 'agents') });
   },
   ...workspace.drawer,
   ...workspace.recentMethods(l, page => page.data.conversation?.agent_id),
-  draftKey() { return 'learning-chat-draft:' + require('../../utils/storage').getUser().id + ':' + this.data.id; },
-  home() { wx.reLaunch({ url: '/pages/home/home' }); },
+  draftKey() {
+    const id = storage.getUser()?.id;
+    if (id == null || (this._ownerId != null && this._ownerId !== id)) return '';
+    return 'learning-chat-draft:' + id + ':' + this.data.id;
+  },
   async selectMain(e) {
     const id = e.currentTarget.dataset.id;
     if (id === this.data.mainTab) { this.closeDrawer(); return; }
     if (id === 'library') return this.selectSection(e);
     return workspace.returnToWorkspace(e, getCurrentPages(), wx);
   },
-  openConnections() { l.go('/pages/admin/admin?mode=connections'); },
+  openConnections() { l.go('/pages/admin/admin'); },
   async selectSection(e) {
     if (e.currentTarget.dataset.id === 'library' && this.data.teacher) {
       try {
@@ -167,11 +195,29 @@ Page(withInputHints({
     wx.redirectTo({ url: '/pages/chat/chat?id=' + e.currentTarget.dataset.id });
   },
   input(e) {
-    this.setData({ text: e.detail.value });
+    const value = e.detail.value;
+    this._text = value;
     this._textVersion = (this._textVersion || 0) + 1;
+    const hasText = Boolean(String(value || '').trim());
+    if (hasText !== this.data.hasText) this.setData({ hasText });
   },
   removeQuestion() {
     this.setData({ question: null, questionTitle: '' });
+  },
+  saveConversationCache() {
+    if (!this.data.id || !this.data.conversation) return;
+    cache.set('chat:conv:' + this.data.id, {
+      conversation: this.data.conversation,
+      mainTab: this.data.mainTab,
+      teacher: this.data.teacher,
+      libraryActions: this.data.libraryActions,
+      questionActions: this.data.questionActions,
+      assets: this.data.assets,
+      readOnly: this.data.readOnly,
+      messages: this.data.messages,
+      hasOlder: this.data.hasOlder,
+      progress: this.data.progress,
+    });
   },
   async load() {
     const request = (this._conversationRequest || 0) + 1;
@@ -179,7 +225,7 @@ Page(withInputHints({
     try {
       const result = await l.request('/api/ai/conversations/' + this.data.id);
       if (request !== this._conversationRequest) return;
-      const user = require('../../utils/storage').getUser();
+      const user = storage.getUser();
       this.setData({
         conversation: result.conversation,
         mainTab: result.conversation.mode === 'library' ? 'library' : 'chat',
@@ -203,15 +249,20 @@ Page(withInputHints({
       if (result.conversation.active_run) {
         if (!this.data.running) {
           this._sequence = 0;
+          this.clearStreamBuffer();
           this.setData({
             running: true,
             runId: result.conversation.active_run,
-            partial: '',
+            hasPartial: false,
+            streamHead: '',
+            streamTail: '',
           });
           this.connect();
         }
       }
       await this.mergeMessages(result);
+      this.saveConversationCache();
+      this._lastLoadedAt = Date.now();
       if (
         (result.libraryActions?.some(x => x.status === 'applying') || result.assets.some((x) =>
           ['queued', 'processing'].includes(x.status),
@@ -230,6 +281,8 @@ Page(withInputHints({
     this.setData({ confirmingAction: id });
     try {
       await l.request('/api/ai/conversations/' + this.data.id + '/library-actions/' + id + '/confirm', 'POST', {});
+      cache.invalidate('drive:');
+      cache.invalidate('question:');
       await this.load();
     } catch (e) { l.error(e); await this.load(); }
     finally { this.setData({ confirmingAction: '' }); }
@@ -240,6 +293,9 @@ Page(withInputHints({
     this.setData({ confirmingAction: id });
     try {
       const outcome = await l.request('/api/ai/conversations/' + this.data.id + '/question-actions/' + id + '/confirm', 'POST', {});
+      cache.invalidate('bank:');
+      cache.invalidate('question:');
+      cache.invalidate('admin-bank:');
       wx.showToast({ title: outcome.status === 'confirmed' ? '已确认执行' : '部分操作失败', icon: 'none' });
       await this.load();
     } catch (e) { l.error(e); await this.load(); }
@@ -255,20 +311,16 @@ Page(withInputHints({
     } catch (e) { l.error(e); }
     finally { this.setData({ confirmingAction: '' }); }
   },
-  async retryAnswer() {
-    if (this.data.running || this.data.sending) return;
-    this.setData({ text: this.data.text || '请重新回答上一题。', retryAvailable: false });
-    await this.send();
-  },
   async send() {
     if (this.data.running || this.data.sending || this.data.uploading || this.data.readOnly) return;
+    const text = this._text !== undefined ? this._text : this.data.text;
     if (
-      !this.data.text.trim() &&
+      !text.trim() &&
       !this.data.question &&
       !this.data.assets.some((x) => x.selected)
     )
       return;
-    const { text, question } = this.data;
+    const { question } = this.data;
     const textVersion = this._textVersion;
     const assets = this.data.assets.filter(x => x.selected).map(x => x.resourceId);
     const payload = { text, question, assets };
@@ -283,14 +335,20 @@ Page(withInputHints({
         'POST',
         { requestId, ...payload },
       );
+      cache.invalidate('recent:conversations');
+      cache.invalidate('history:');
       this._sendRequest = null;
       this._sequence = 0;
+      this.clearStreamBuffer();
+      if (textVersion === this._textVersion) this._text = '';
       this.setData({
-        ...(textVersion === this._textVersion ? { text: '' } : {}),
+        ...(textVersion === this._textVersion ? { text: '', hasText: false } : {}),
         ...(question === this.data.question ? { question: null, questionTitle: '' } : {}),
         running: true,
         runId: result.runId,
-        partial: '',
+        hasPartial: false,
+        streamHead: '',
+        streamTail: '',
         pendingText: '',
         progress: '正在准备回答',
         error: '',
@@ -327,23 +385,63 @@ Page(withInputHints({
     await this.mergeMessages(result);
   },
   async mergeMessages(result) {
-    const known = new Set(this.data.messages.map(message => message.id));
+    const existing = this.data.messages || [];
+    const known = new Set(existing.map(message => message.id));
     const incomingRaw = result.messages.filter(message => !known.has(message.id));
-    const incoming = incomingRaw.map(renderInstant);
-    const messages = new Map(this.data.messages.map(message => [message.id, message]));
-    incoming.forEach(message => messages.set(message.id, message));
-    const merged = [...messages.values()].sort((a, b) => a.seq - b.seq);
+    const incoming = incomingRaw.map(renderInstant).sort((a, b) => a.seq - b.seq);
+    const latestFromExisting = existing[existing.length - 1];
+    const latest = incoming.length
+      ? (latestFromExisting && latestFromExisting.seq > incoming[incoming.length - 1].seq ? latestFromExisting : incoming[incoming.length - 1])
+      : latestFromExisting;
     const update = {
-      messages: merged,
-      hasOlder: merged.length > 0 && merged[0].seq > 1,
-      pendingText: '',
-      ...(this.data.running ? {} : { partial: '' }),
+      ...(this.data.pendingText ? { pendingText: '' } : {}),
+      ...(this.data.running || !this.data.hasPartial ? {} : { hasPartial: false, streamHead: '', streamTail: '' }),
     };
-    const latest = merged[merged.length - 1];
     if (!this.data.running && latest && latest.role === 'assistant' && latest.created_at) {
       update.progress = fileUtil.formatDate(latest.created_at);
     }
+    if (!incoming.length) {
+      if (Object.keys(update).length) this.setData(update);
+      return;
+    }
+    const canAppendOnly = existing.length > 0 && incoming[0].seq > existing[existing.length - 1].seq;
+    if (canAppendOnly) {
+      const baseLen = existing.length;
+      incoming.forEach((msg, i) => {
+        update[`messages[${baseLen + i}]`] = msg;
+      });
+      update.hasOlder = existing[0].seq > 1;
+    } else {
+      const messages = new Map(existing.map(message => [message.id, message]));
+      incoming.forEach(message => messages.set(message.id, message));
+      const merged = [...messages.values()].sort((a, b) => a.seq - b.seq);
+      update.messages = merged;
+      update.hasOlder = merged.length > 0 && merged[0].seq > 1;
+    }
     this.setData(update);
+    this.saveConversationCache();
+  },
+  clearStreamBuffer() {
+    if (this._streamFlushTimer) {
+      clearTimeout(this._streamFlushTimer);
+      this._streamFlushTimer = null;
+    }
+    this._partial = undefined;
+    this._pendingDelta = '';
+  },
+  flushStreamDelta() {
+    this._streamFlushTimer = null;
+    const delta = this._pendingDelta || '';
+    if (!delta) return;
+    this._pendingDelta = '';
+    const head = this._partial || '';
+    this._partial = head + delta;
+    this.setData({
+      streamHead: head,
+      streamTail: delta,
+      streamTick: this.data.streamTick + 1,
+      hasPartial: true,
+    });
   },
   consume(event) {
     if (event.seq <= this._sequence) return;
@@ -351,13 +449,11 @@ Page(withInputHints({
     if (event.type === 'text-delta') {
       const tail = event.data.text || '';
       if (!tail) return;
-      // Only the newest fragment fades; all earlier text stays stable.
-      this.setData({
-        streamHead: this.data.partial,
-        streamTail: tail,
-        streamTick: this.data.streamTick + 1,
-        partial: this.data.partial + tail,
-      });
+      if (this._partial === undefined) this._partial = '';
+      this._pendingDelta = (this._pendingDelta || '') + tail;
+      if (!this._streamFlushTimer) {
+        this._streamFlushTimer = setTimeout(() => this.flushStreamDelta(), 60);
+      }
     }
     else if (event.type === 'tool-started')
       this.setData({
@@ -374,12 +470,17 @@ Page(withInputHints({
       ].includes(event.type)
     ) {
       const completed = event.type === 'run-completed';
-      const pendingText = completed && this.data.partial
-        ? markdown.prepareMarkdown(this.data.partial)
+      const fullPartial = (this._partial || '') + (this._pendingDelta || '');
+      this.clearStreamBuffer();
+      const pendingText = completed && fullPartial
+        ? markdown.prepareMarkdown(fullPartial)
         : '';
       this.setData({
         running: false,
         pendingText,
+        hasPartial: false,
+        streamHead: '',
+        streamTail: '',
         progress: completed
           ? fileUtil.formatDate(event.created_at || new Date().toISOString())
           : event.data.message ||
@@ -448,7 +549,7 @@ Page(withInputHints({
   async attach() {
     if (this.data.sending || this.data.running || this.data.uploading || this.data.readOnly) return;
     try {
-      const files = l.pickFiles ? await l.pickFiles(true) : [await l.pickFile(true)];
+      const files = await l.pickFiles(true);
       if (!files || !files.length) return;
       this.setData({ uploading: true });
       for (const file of files) {
@@ -495,6 +596,7 @@ Page(withInputHints({
             false,
         })),
       });
+      this.saveConversationCache();
       if (
         this.data.assets.some((x) =>
           ['queued', 'processing'].includes(x.status),
@@ -553,14 +655,9 @@ Page(withInputHints({
         match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
       const draft = JSON.parse(match ? match[1] : text);
       if (!draft.content) throw new Error('生成结果尚未包含完整草稿');
-      const confirmed = await new Promise((resolve, reject) => {
-        wx.showModal({
-          title: '应用教学草稿',
-          content: '应用后将替换教师工作台中的草稿。',
-          confirmText: '应用',
-          success: result => resolve(result.confirm),
-          fail: reject,
-        });
+      const confirmed = await l.confirm('应用后将替换教师工作台中的草稿。', {
+        title: '应用教学草稿',
+        confirmText: '应用',
       });
       if (!confirmed) return;
       const agent = await l.request(
@@ -572,7 +669,8 @@ Page(withInputHints({
         parameters: agent.draft_parameters,
         builderConversationId: this.data.id,
       });
-      this.getOpenerEventChannel?.()?.emit('draftApplied');
+      cache.invalidate('agents:');
+      cache.invalidate('studio:');
       wx.showToast({ title: '已应用到草稿' });
     } catch (e) {
       l.error(e);
@@ -580,4 +678,4 @@ Page(withInputHints({
       this.setData({ applyingDraft: false });
     }
   },
-}));
+});

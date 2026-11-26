@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { signature, matches } = require('./signatures');
-const { rows, one, fail, hash, capability } = require('./core');
+const { rows, one, fail, hash } = require('./core');
 const ROOT = path.resolve(
   process.env.LEARNING_STORAGE_ROOT ||
     path.join(__dirname, '../../uploads/learning'),
@@ -51,17 +51,13 @@ async function verify(mediaId, value) {
   );
   if (!session) fail(401, '登录已过期');
   const item = await one(
-    'SELECT m.*,r.resource_id,r.release_status FROM kl_media m JOIN kl_revisions r ON r.id=m.revision_id WHERE m.id=?',
+    'SELECT m.*,r.resource_id FROM kl_media m JOIN kl_revisions r ON r.id=m.revision_id WHERE m.id=?',
     [mediaId],
   );
   if (!item) fail(404, '媒体不存在');
-  const resource = await requireResource(session, item.resource_id);
-  await requirePublishedQuestion(session, resource, item.release_status);
+  await requireResource(session, item.resource_id);
   if (!item.storage_path) fail(410, '原媒体不可用');
   return item;
-}
-async function requirePublishedQuestion() {
-  // Question bank no longer uses draft/publish gating; withdrawn items are blocked by requireResource.
 }
 async function requireResource(user, resourceId) {
   const resource = await one('SELECT * FROM kl_resources WHERE id=?', [
@@ -118,7 +114,6 @@ module.exports = {
   ticket,
   verify,
   requireResource,
-  requirePublishedQuestion,
   references,
   mime,
 };

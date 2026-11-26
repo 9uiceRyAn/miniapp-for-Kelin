@@ -38,49 +38,34 @@ const INITIAL_PRESETS = [
 ];
 
 async function ensurePresetAgents() {
-  try {
-    const [teachers] = await c.pool.query("SELECT id FROM users WHERE role='teacher' AND status=1 ORDER BY id ASC LIMIT 1");
-    const ownerId = teachers[0]?.id;
-    if (!ownerId) return;
-    const settings = await models.settings();
-    let modelId = settings.defaultChatModelId;
-    if (!modelId) {
-      const enabledModels = await models.list(false);
-      modelId = enabledModels[0]?.id || null;
-    }
-    const modelObj = modelId ? await models.resolve(modelId, true).catch(() => null) : null;
-    for (const preset of INITIAL_PRESETS) {
-      const exists = await c.one('SELECT id,draft_skill_id FROM kl_agents WHERE preset_key=?', [preset.presetKey]);
-      if (exists) {
-        if (preset.presetKey === 'question_curator' && exists.draft_skill_id) {
-          const curSkill = await c.one('SELECT data FROM kl_skills WHERE id=?', [exists.draft_skill_id]);
-          const curData = curSkill ? c.json(curSkill.data) : {};
-          const curContent = String(curData.content || '');
-          if (curContent.includes('create_question_draft') && !curContent.includes('read_question_skill')) {
-            const skillId = c.id(), versionId = c.id();
-            const skillData = { ...curData, content: preset.content };
-            await c.transaction(async db => {
-              await c.rows('INSERT INTO kl_skills(id,agent_id,data,content_hash) VALUES(?,?,?,?)', [skillId, exists.id, JSON.stringify(skillData), c.hash(JSON.stringify(skillData))], db);
-              await c.rows('INSERT INTO kl_versions(id,agent_id,skill_id,model,purpose) VALUES(?,?,?,?,?)', [versionId, exists.id, skillId, JSON.stringify(modelObj || {}), 'published'], db);
-              await c.rows('UPDATE kl_agents SET description=?,draft_skill_id=?,published_version=? WHERE id=?', [preset.description, skillId, versionId, exists.id], db);
-            });
-          }
-        }
-        continue;
-      }
-      const agentId = c.id(), skillId = c.id(), versionId = c.id();
-      const skillData = { content: preset.content, references: [], toolInstructions: '' };
-      await c.transaction(async db => {
-        await c.rows(
-          "INSERT INTO kl_agents(id,owner_id,name,description,draft_skill_id,draft_model_id,draft_parameters,tool_permission,audience,preset_key,published_version,status,enabled) VALUES(?,?,?,?,?,?,'{}',?,?,?,?,'published',1)",
-          [agentId, ownerId, preset.name, preset.description, skillId, modelObj?.id || null, preset.toolPermission, preset.audience, preset.presetKey, versionId],
-          db,
-        );
-        await c.rows('INSERT INTO kl_skills(id,agent_id,data,content_hash) VALUES(?,?,?,?)', [skillId, agentId, JSON.stringify(skillData), c.hash(JSON.stringify(skillData))], db);
-        await c.rows('INSERT INTO kl_versions(id,agent_id,skill_id,model,purpose) VALUES(?,?,?,?,?)', [versionId, agentId, skillId, JSON.stringify(modelObj || {}), 'published'], db);
-      });
-    }
-  } catch {}
+  const [teachers] = await c.pool.query("SELECT id FROM users WHERE role='teacher' AND status=1 ORDER BY id ASC LIMIT 1");
+  const ownerId = teachers[0]?.id;
+  if (!ownerId) return;
+  const settings = await models.settings();
+  let modelId = settings.defaultChatModelId;
+  if (!modelId) {
+    const enabledModels = await models.list(false);
+    modelId = enabledModels[0]?.id || null;
+  }
+  const modelObj = modelId ? await models.resolve(modelId, true).catch(() => null) : null;
+  for (const preset of INITIAL_PRESETS) {
+    const exists = await c.one('SELECT id FROM kl_agents WHERE preset_key=?', [preset.presetKey]);
+    if (exists) continue;
+    const agentId = c.id(), skillId = c.id(), versionId = c.id();
+    const skillData = { content: preset.content, references: [], toolInstructions: '' };
+    await c.transaction(async db => {
+      await c.rows(
+        "INSERT INTO kl_agents(id,owner_id,name,description,draft_skill_id,draft_model_id,draft_parameters,tool_permission,audience,preset_key,published_version,status,enabled) VALUES(?,?,?,?,?,?,'{}',?,?,?,?,'published',1)",
+        [agentId, ownerId, preset.name, preset.description, skillId, modelObj?.id || null, preset.toolPermission, preset.audience, preset.presetKey, versionId],
+        db,
+      );
+      await c.rows('INSERT INTO kl_skills(id,agent_id,data,content_hash) VALUES(?,?,?,?)', [skillId, agentId, JSON.stringify(skillData), c.hash(JSON.stringify(skillData))], db);
+      await c.rows('INSERT INTO kl_versions(id,agent_id,skill_id,model,purpose) VALUES(?,?,?,?,?)', [versionId, agentId, skillId, JSON.stringify(modelObj || {}), 'published'], db);
+    }).catch(async (error) => {
+      if (error.code !== 'ER_DUP_ENTRY' ||
+          !(await c.one('SELECT id FROM kl_agents WHERE preset_key=?', [preset.presetKey]))) throw error;
+    });
+  }
 }
 
 async function owned(user, id) {
@@ -165,22 +150,34 @@ async function create(user, input) {
   const id = c.id();
   const toolPermission = input.toolPermission === 'read_write' ? 'read_write' : 'read_only';
   const audience = input.audience === 'teacher_only' ? 'teacher_only' : 'all';
-  await c.rows(
-    'INSERT INTO kl_agents(id,owner_id,name,description,draft_parameters,tool_permission,audience,enabled) VALUES(?,?,?,?,?,?,?,?)',
-    [
-      id,
-      user.id,
-      String(input.name || '新的教学助手').slice(0, 191),
-      String(input.description || ''),
-      '{}',
-      toolPermission,
-      audience,
-      input.enabled === false ? 0 : 1,
-    ],
-  );
-  if (typeof input.content === 'string' && input.content.trim()) {
-    await saveAgent(user, id, input);
+  const enabled = input.enabled === false ? 0 : 1;
+  const content = typeof input.content === 'string' ? input.content.trim() : '';
+  if (!content) {
+    await c.rows(
+      'INSERT INTO kl_agents(id,owner_id,name,description,draft_parameters,tool_permission,audience,enabled) VALUES(?,?,?,?,?,?,?,?)',
+      [id, user.id, String(input.name || '新的教学助手').slice(0, 191), String(input.description || ''), '{}', toolPermission, audience, enabled],
+    );
+    return { id };
   }
+  const name = String(input.name || '').trim().slice(0, 191);
+  if (!name) c.fail(400, '请输入助手名称');
+  const model = input.modelId ? await models.resolve(input.modelId) : await resolveDefaultModel();
+  const skillId = c.id(), versionId = c.id();
+  const data = {
+    content,
+    references: input.references || [],
+    toolInstructions: String(input.toolInstructions || ''),
+    builderConversationId: input.builderConversationId || null,
+  };
+  await c.transaction(async db => {
+    await c.rows(
+      "INSERT INTO kl_agents(id,owner_id,name,description,draft_skill_id,draft_model_id,draft_parameters,tool_permission,audience,enabled,published_version,status) VALUES(?,?,?,?,?,?,'{}',?,?,?,?,'published')",
+      [id, user.id, name, String(input.description || '').trim(), skillId, model?.id || null, toolPermission, audience, enabled, versionId],
+      db,
+    );
+    await c.rows('INSERT INTO kl_skills(id,agent_id,data,content_hash) VALUES(?,?,?,?)', [skillId, id, JSON.stringify(data), c.hash(JSON.stringify(data))], db);
+    await c.rows('INSERT INTO kl_versions(id,agent_id,skill_id,model,purpose) VALUES(?,?,?,?,?)', [versionId, id, skillId, JSON.stringify(model || {}), 'published'], db);
+  });
   return { id };
 }
 

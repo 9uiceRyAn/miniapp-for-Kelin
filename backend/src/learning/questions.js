@@ -256,7 +256,6 @@ async function detail(user, resourceId, revisionId, sessionHash) {
     [revisionId || resource.current_revision, resourceId],
   );
   if (!revision) c.fail(404, '资料修订不存在');
-  await media.requirePublishedQuestion(user, resource, revision.release_status);
   return {
     ...c.json(revision.data),
     ownerId: resource.owner_id,

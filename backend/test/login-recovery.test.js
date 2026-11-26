@@ -26,6 +26,18 @@ function loginPage(t) {
   return { page, destinations };
 }
 
+test('a response from a previous login cannot populate the active account', async t => {
+  loginPage(t);
+  storage.saveSession({ token: 'first', user: { id: 1 } });
+  let finish;
+  wx.request = options => { finish = options.success; };
+  const pending = api.me();
+  storage.saveSession({ token: 'second', user: { id: 2 } });
+  finish({ statusCode: 200, data: { success: true, data: { id: 1 } } });
+  await assert.rejects(pending, error => error.statusCode === 409);
+  assert.equal(storage.getUser().id, 2);
+});
+
 test('a network outage preserves both saved login credentials', async t => {
   const { page } = loginPage(t);
   storage.saveSession({ token: 'old', rememberToken: 'device' });
@@ -103,40 +115,27 @@ test('WeChat login defaults to register mode with student selected and allows ro
   assert.equal(page.data.wechatRole, 'student');
 });
 
-test('WeChat registration uploads chosen avatar and falls back to wechatDisplayName', async t => {
+test('WeChat registration falls back to wechatDisplayName when form displayName is empty', async t => {
   const { page, destinations } = loginPage(t);
   page.setData({ wechatTicket: 'ticket', wechatAction: 'register', wechatRole: 'teacher', wechatRegisterCode: 't-code' });
-  page.wechatChooseAvatar({ detail: { avatarUrl: 'wxfile://tmp_avatar.jpg' } });
   page.onWechatNicknameBlur({ currentTarget: { dataset: { hintId: 'wxNickname' } }, detail: { value: '张老师' } });
 
-  let uploadCalls = 0;
-  global.wx.uploadFile = ({ url, filePath, name, header, success }) => {
-    uploadCalls += 1;
-    assert.ok(url.endsWith('/api/auth/avatar'));
-    assert.equal(filePath, 'wxfile://tmp_avatar.jpg');
-    assert.equal(name, 'file');
-    assert.equal(header.Authorization, 'Bearer tok-123');
-    success({ statusCode: 200, data: JSON.stringify({ success: true, data: { avatarUrl: '/api/auth/avatars/1_abc.jpg' } }) });
-  };
   t.mock.method(api, 'request', async ({ data }) => {
     assert.deepEqual(data, { ticket: 'ticket', action: 'register', role: 'teacher', registerCode: 't-code', displayName: '张老师' });
     return { token: 'tok-123', user: { id: 3, displayName: '张老师', role: 'teacher' } };
   });
 
   await page.wechatComplete({ detail: { value: { displayName: '' } } });
-  assert.equal(uploadCalls, 1);
-  assert.equal(storage.get(storage.KEYS.USER).avatarUrl, '/api/auth/avatars/1_abc.jpg');
-  assert.deepEqual(destinations, ['/pages/learning/index']);
+  assert.equal(storage.get(storage.KEYS.USER).displayName, '张老师');
+  assert.deepEqual(destinations, ['/pages/learning/index?section=agents']);
 });
 
-test('WeChat registration still completes when avatar upload fails', async t => {
+test('WeChat registration completes with form displayName for student role', async t => {
   const { page, destinations } = loginPage(t);
   page.setData({ wechatTicket: 'ticket', wechatAction: 'register', wechatRole: 'student', wechatRegisterCode: 's-code' });
-  page.wechatChooseAvatar({ detail: { avatarUrl: 'wxfile://tmp_avatar.jpg' } });
-  global.wx.uploadFile = ({ fail }) => fail(new Error('network error'));
   t.mock.method(api, 'request', async () => ({ token: 'tok-456', user: { id: 4, displayName: '李同学', role: 'student' } }));
 
   await page.wechatComplete({ detail: { value: { displayName: '李同学' } } });
   assert.equal(storage.getToken(), 'tok-456');
-  assert.deepEqual(destinations, ['/pages/learning/index']);
+  assert.deepEqual(destinations, ['/pages/learning/index?section=agents']);
 });

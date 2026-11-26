@@ -1,8 +1,11 @@
 const c = require('./core');
-const { estimate } = require('./pricing');
+const { estimate, matchCatalogPrice } = require('./pricing');
 const { bignumber } = require('mathjs');
 async function gateway(endpoint, body, method = 'POST') {
-  const management = endpoint === '/model/new' || endpoint === '/model/update';
+  const management =
+    endpoint === '/model/new' ||
+    endpoint === '/model/update' ||
+    endpoint === '/model/delete';
   const key = management
     ? process.env.LITELLM_MODEL_ADMIN_KEY
     : process.env.LITELLM_CALL_KEY;
@@ -21,7 +24,11 @@ async function gateway(endpoint, body, method = 'POST') {
     },
   );
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) c.fail(502, `模型网关请求失败 (${response.status})`);
+  if (!response.ok) {
+    if (endpoint === '/model/delete' && response.status === 404)
+      return { deleted: true };
+    c.fail(502, `模型网关请求失败 (${response.status})`);
+  }
   return result;
 }
 function publicModel(row) {
@@ -39,13 +46,34 @@ function publicModel(row) {
   };
 }
 async function list(all = false) {
-  return (
+  const rows = (
     await c.rows(
       'SELECT * FROM kl_models' +
         (all ? '' : ' WHERE enabled=TRUE') +
         ' ORDER BY created_at,id',
     )
   ).map(publicModel);
+  if (!all || !rows.length) return rows;
+  const priceRows = await c.rows(
+    'SELECT * FROM kl_prices ORDER BY effective_at DESC,created_at DESC',
+  );
+  const latestPrices = new Map();
+  for (const row of priceRows) {
+    if (!latestPrices.has(row.model_id)) {
+      latestPrices.set(row.model_id, {
+        id: row.id,
+        model_id: row.model_id,
+        currency: row.currency,
+        rates: c.json(row.rates),
+        effective_at: row.effective_at,
+      });
+    }
+  }
+  return rows.map((row) => ({
+    ...row,
+    currentPrice: latestPrices.get(row.id) || null,
+    matchedPrice: matchCatalogPrice(row.upstream_model),
+  }));
 }
 async function resolve(id, allowDisabled = false) {
   const model = await c.one('SELECT * FROM kl_models WHERE id=?', [id]);
@@ -171,7 +199,35 @@ async function create(input) {
       JSON.stringify(c.parameters(input.parameters || {})),
     ],
   );
-  return resolve(id);
+  const matched = matchCatalogPrice(upstreamModel);
+  if (matched) {
+    await addPrice(id, {
+      currency: matched.currency,
+      rates: matched.rates,
+    }).catch(() => {});
+  }
+  const created = await resolve(id);
+  return {
+    ...created,
+    matchedPrice: matched,
+    currentPrice: await price(id),
+  };
+}
+async function remove(id) {
+  const model = await c.one('SELECT * FROM kl_models WHERE id=?', [id]);
+  if (!model) c.fail(404, '模型不存在');
+  if (model.credential_ref) {
+    await gateway('/model/delete', { id: model.credential_ref });
+  }
+  await c.transaction(async db => {
+    await db.execute('DELETE FROM kl_models WHERE id=?', [id]);
+    await db.execute(
+      "DELETE FROM kl_settings WHERE name IN ('defaultChatModelId','builderModelId','visionModelId') AND JSON_UNQUOTE(data)=?",
+      [id],
+    );
+    await db.execute('UPDATE kl_agents SET draft_model_id=NULL WHERE draft_model_id=?', [id]);
+  });
+  return { deleted: true, id };
 }
 async function update(id, input) {
   const model = await resolve(id, true);
@@ -465,59 +521,38 @@ async function probeSingle(user, model, kind) {
     c.fail(422, '模型没有返回有效内容');
 }
 async function probe(user, id, kind = 'all') {
+  if (kind !== 'all' && !['text', 'tools', 'vision'].includes(kind)) c.fail(400, '未知能力测试');
   const model = await resolve(id);
-  if (kind === 'all') {
-    const results = {};
-    const verified = { ...(model.capabilities.verified || {}) };
-    const passed = [];
-    const failed = [];
-    for (const k of ['text', 'tools', 'vision']) {
-      try {
-        await probeSingle(user, model, k);
-        verified[k] = new Date().toISOString();
-        results[k] = { ok: true };
-        passed.push(k);
-      } catch (e) {
-        results[k] = { ok: false, message: e.message };
-        failed.push(k);
-        delete verified[k];
-      }
+  const targets = kind === 'all' ? ['text', 'tools', 'vision'] : [kind];
+  const results = {};
+  const verified = { ...(model.capabilities.verified || {}) };
+  const passed = [], failed = [];
+  for (const k of targets) {
+    try {
+      await probeSingle(user, model, k);
+      verified[k] = new Date().toISOString();
+      results[k] = { ok: true };
+      passed.push(k);
+    } catch (e) {
+      if (kind !== 'all') throw e;
+      results[k] = { ok: false, message: e.message };
+      failed.push(k);
+      delete verified[k];
     }
-    const capabilities = {
-      ...model.capabilities,
-      text: true,
-      tools: true,
-      vision: true,
-      verified,
-    };
-    await c.rows('UPDATE kl_models SET capabilities=? WHERE id=?', [
-      JSON.stringify(capabilities),
-      id,
-    ]);
-    if (!passed.length) c.fail(422, results.text?.message || '模型连接测试失败');
-    return {
-      kind: 'all',
-      results,
-      message: failed.length
-        ? `文字/工具/视觉部分通过 (${passed.length}/3)`
-        : '全部能力验证通过',
-    };
   }
-  if (!['text', 'tools', 'vision'].includes(kind)) c.fail(400, '未知能力测试');
-  await probeSingle(user, model, kind);
   const capabilities = {
     ...model.capabilities,
-    [kind]: true,
-    verified: {
-      ...model.capabilities.verified,
-      [kind]: new Date().toISOString(),
-    },
+    ...(kind === 'all' ? { text: true, tools: true, vision: true } : { [kind]: true }),
+    verified,
   };
-  await c.rows('UPDATE kl_models SET capabilities=? WHERE id=?', [
-    JSON.stringify(capabilities),
-    id,
-  ]);
-  return { message: '能力验证通过', kind };
+  await c.rows('UPDATE kl_models SET capabilities=? WHERE id=?', [JSON.stringify(capabilities), id]);
+  if (kind !== 'all') return { message: '能力验证通过', kind };
+  if (!passed.length) c.fail(422, results.text?.message || '模型连接测试失败');
+  return {
+    kind: 'all',
+    results,
+    message: failed.length ? `文字/工具/视觉部分通过 (${passed.length}/3)` : '全部能力验证通过',
+  };
 }
 module.exports = {
   probe,
@@ -525,6 +560,7 @@ module.exports = {
   list,
   resolve,
   create,
+  remove,
   discover,
   normalizeBaseURL,
   toLitellmModel,

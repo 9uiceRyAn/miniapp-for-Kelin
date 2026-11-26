@@ -27,6 +27,10 @@ module.exports = async function questionManagementTests({ t, api, origin, teache
     await api('GET', '/api/question-bank/items/' + current.resourceId, null, student.token, 200);
     const managed = await api('GET', base + '/items?collection=managed-test', null, teacher.token);
     assert.equal(managed.total, 1);
+    const facets = await api('GET', base + '/facets', null, teacher.token);
+    assert.ok(facets.some(row => row.collection === input.collection && row.subject === input.subject));
+    await api('GET', base + '/facets', null, student.token, 403);
+    await api('POST', base + '/items', { ...input, sourceId: 'invalid-tag', tags: [123] }, teacher.token, 400);
     await api('POST', base + '/items', input, teacher.token, 409);
     await api('POST', base + '/items', { ...input, sourceId: 'bad-tags', tags: 'bad' }, teacher.token, 400);
   });

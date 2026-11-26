@@ -132,11 +132,7 @@ async function extract(bytes, extension, context) {
       .map((body, i) => ({ label: `第 ${i + 1} 段`, body }));
   }
   if (extension === '.pdf') {
-    const canvas = await import('@napi-rs/canvas');
-    globalThis.DOMMatrix ||= canvas.DOMMatrix;
-    globalThis.Path2D ||= canvas.Path2D;
-    globalThis.ImageData ||= canvas.ImageData;
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const { canvas, pdfjs } = await require('./pdf-runtime').loadPdfRuntime();
     const loading = pdfjs.getDocument({
       data: new Uint8Array(bytes),
       useSystemFonts: true,

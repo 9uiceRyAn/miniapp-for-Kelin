@@ -215,9 +215,6 @@ test(
         );
       }
       const [teacher, otherTeacher, student, otherStudent] = users;
-      await c.rows("INSERT INTO kl_capabilities VALUES(?,'platform_admin')", [
-        teacher.user.id,
-      ]);
       await api('GET', '/api/ai/admin/models', null, teacher.token, 403);
       const grant = await api('POST', '/api/ai/admin/unlock', { password: 'fixture-admin' }, teacher.token);
       managementTokens.set(teacher.token, grant.token);
@@ -798,30 +795,10 @@ test(
           );
           assert.equal(messages.length, 1);
           assert.match(c.json(messages[0].data).text, /Known partial/);
-          const rendered = await api(
-            'POST',
-            '/api/ai/messages/' + messages[0].id + '/render',
-            {},
-            student.token,
-          );
-          assert.equal(rendered.formulas.length, 1);
-          const formulaResponse = await fetch(
-            origin + rendered.formulas[0].path,
-            { headers: { Authorization: 'Bearer ' + student.token } },
-          );
-          assert.equal(formulaResponse.status, 200);
-          assert.match(await formulaResponse.text(), /<svg/);
-          await api(
-            'POST',
-            '/api/ai/messages/' + messages[0].id + '/render',
-            {},
-            otherStudent.token,
-            403,
-          );
         },
       );
       await t.test(
-        'model configuration is optional for bank browsing and administrator capability grants no conversation access',
+        'model configuration is optional for bank browsing and non-teachers have no admin or conversation access',
         async () => {
           const count = calls,
             oldBase = process.env.LITELLM_BASE_URL;
@@ -839,10 +816,6 @@ test(
           }
           assert.equal(calls, count);
           const platform = users[4];
-          await c.rows(
-            "INSERT INTO kl_capabilities VALUES(?,'platform_admin')",
-            [platform.user.id],
-          );
           await api('GET', '/api/ai/admin/models', null, platform.token, 403);
           await api(
             'GET',
@@ -985,13 +958,12 @@ test(
 
       await require('./question-management.integration')({ t, api, origin, teacher, student, c });
       await t.test(
-        'existing files, marks and logout remain isolated and operational',
+        'drive upload, marks and logout remain isolated and operational',
         async () => {
           const form = new FormData();
-          form.append('category', 'A');
           form.append('clientFileName', 'notes.txt');
           form.append('file', new Blob(['abc']), 'notes.txt');
-          const uploaded = await fetch(origin + '/api/files/upload', {
+          const uploaded = await fetch(origin + '/api/drive/files/upload', {
             method: 'POST',
             headers: { Authorization: 'Bearer ' + teacher.token },
             body: form,
@@ -999,23 +971,13 @@ test(
           assert.equal(uploaded.status, 201);
           const uploadedFile = (await uploaded.json()).data;
           const download = await fetch(
-            origin + '/api/files/' + uploadedFile.id + '/download',
+            origin + '/api/drive/files/' + uploadedFile.id + '/download',
             { headers: { Authorization: 'Bearer ' + student.token } },
           );
           assert.equal(await download.text(), 'abc');
-          const zip = await fetch(origin + '/api/files/export/A', {
-            headers: { Authorization: 'Bearer ' + student.token },
-          });
-          assert.equal(zip.status, 200);
-          assert.equal(
-            Buffer.from(await zip.arrayBuffer())
-              .subarray(0, 2)
-              .toString(),
-            'PK',
-          );
           await api(
             'DELETE',
-            '/api/files/' + uploadedFile.id,
+            '/api/drive/files/' + uploadedFile.id,
             null,
             student.token,
             403,
@@ -1047,23 +1009,8 @@ test(
           assert.ok(indexed.resourceId);
           const file = await c.one('SELECT id FROM files WHERE id=?', [uploadedFile.id]);
           await api('PUT', '/api/marks/' + file.id, {}, student.token);
-          const marks = await api(
-              'GET',
-              '/api/marks?category=A',
-              null,
-              student.token,
-            ),
-            others = await api(
-              'GET',
-              '/api/marks?category=A',
-              null,
-              otherStudent.token,
-            );
-          assert.deepEqual(marks.fileIds, [file.id]);
-          assert.deepEqual(others.fileIds, []);
           await api('DELETE', '/api/marks/' + file.id, null, student.token);
-          await api('GET', '/api/files/counts', null, student.token);
-          await api('DELETE', '/api/files/' + file.id, null, teacher.token);
+          await api('DELETE', '/api/drive/files/' + file.id, null, teacher.token);
           assert.equal(
             (
               await c.rows('SELECT * FROM user_file_marks WHERE file_id=?', [
@@ -1072,7 +1019,6 @@ test(
             ).length,
             0,
           );
-          await assert.rejects(media.requireResource(tu, indexed.resourceId));
           await api('POST', '/api/auth/logout', {}, student.token);
           await api('GET', '/api/ai/agents', null, student.token, 401);
           if (signedMediaPath)

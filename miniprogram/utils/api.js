@@ -55,6 +55,7 @@ function request({
 
   return new Promise(
     (resolve, reject) => {
+      const token = auth ? storage.getToken() : '';
       wx.request({
         url:
           `${API_BASE_URL}${path}`,
@@ -68,12 +69,14 @@ function request({
           'Content-Type':
             'application/json',
 
-          ...(auth
-            ? authHeader()
-            : {}),
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
         },
 
         success(res) {
+          if (auth && token !== storage.getToken()) {
+            reject(makeError('登录会话已切换', 409));
+            return;
+          }
           const statusCode =
             Number(
               res.statusCode || 500,
@@ -281,17 +284,6 @@ module.exports = {
       data: {
         rememberToken,
       },
-    });
-  },
-
-  files(category) {
-    return request({
-      path:
-        `/api/files?category=${
-          encodeURIComponent(
-            category,
-          )
-        }`,
     });
   },
 

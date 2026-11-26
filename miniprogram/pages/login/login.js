@@ -1,10 +1,9 @@
 const workspace = require('../../utils/workspace');
-const withInputHints = require('../../utils/input-hints');
 const api = require('../../utils/api');
 const storage = require('../../utils/storage');
 const wechat = require('../../utils/wechat.js');
 
-Page(withInputHints({
+Page({
   ...wechat,
   data: {
     username: '',
@@ -18,7 +17,6 @@ Page(withInputHints({
     focusedField: '',
     wechatEnabled: false,
     wechatStatus: '正在检查微信登录服务…',
-    wechatAvatarPath: '',
     wechatDisplayName: '',
   },
 
@@ -97,19 +95,16 @@ Page(withInputHints({
     this.setData({ password: event.detail.value, errorMessage: '' });
   },
 
-  onUsernameFocus(event) {
-    this.onInputHintFocus(event);
+  onUsernameFocus() {
     this.setData({ focusedField: 'username' });
   },
 
-  onPasswordFocus(event) {
-    this.onInputHintFocus(event);
+  onPasswordFocus() {
     this.setData({ focusedField: 'password' });
   },
 
-  onInputBlur(event) {
-    this.onInputHintBlur(event);
-    if (!this.data.inputHintFocus) this.setData({ focusedField: '' });
+  onInputBlur() {
+    if (this.data.focusedField) this.setData({ focusedField: '' });
   },
 
   togglePassword() {
@@ -183,4 +178,4 @@ Page(withInputHints({
     if (this.data.loading || this.data.autoLoggingIn) return;
     wx.navigateTo({ url: '/pages/register/register' });
   },
-}));
+});

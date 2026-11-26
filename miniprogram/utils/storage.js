@@ -6,6 +6,7 @@ const KEYS = {
 };
 
 function get(key, fallback = null) {
+  if (typeof wx === 'undefined') return fallback;
   try {
     const value = wx.getStorageSync(key);
     return value === '' || value === undefined ? fallback : value;
@@ -16,6 +17,7 @@ function get(key, fallback = null) {
 }
 
 function set(key, value) {
+  if (typeof wx === 'undefined') return;
   try {
     wx.setStorageSync(key, value);
   } catch (error) {
@@ -24,6 +26,7 @@ function set(key, value) {
 }
 
 function remove(key) {
+  if (typeof wx === 'undefined') return;
   try {
     wx.removeStorageSync(key);
   } catch (error) {
@@ -33,11 +36,20 @@ function remove(key) {
 
 function saveSession(payload) {
   if (payload.token) set(KEYS.TOKEN, payload.token);
-  if (payload.user) set(KEYS.USER, payload.user);
+  if (payload.user) {
+    const prevUser = get(KEYS.USER, null);
+    if (prevUser && prevUser.id != null && payload.user.id != null && String(prevUser.id) !== String(payload.user.id)) {
+      require('./cache').clear();
+      require('./learning').clearManagementToken();
+    }
+    set(KEYS.USER, payload.user);
+  }
   if (payload.rememberToken) set(KEYS.REMEMBER_TOKEN, payload.rememberToken);
 }
 
 function clearSession({ keepRememberToken = false } = {}) {
+  require('./learning').clearManagementToken();
+  require('./cache').clear();
   remove(KEYS.TOKEN);
   remove(KEYS.USER);
   if (!keepRememberToken) remove(KEYS.REMEMBER_TOKEN);

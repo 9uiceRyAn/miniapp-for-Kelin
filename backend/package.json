@@ -11,7 +11,6 @@
     "migrate": "node scripts/learning.js migrate",
     "sample": "node scripts/learning.js sample",
     "import:questions": "node scripts/learning.js import",
-    "grant-admin": "node scripts/learning.js grant-admin",
     "prestart": "npm run build",
     "check:mini": "node scripts/compile-mini.js"
   },
@@ -26,8 +25,6 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mammoth": "1.13.0",
-    "marked": "18.1.2",
-    "mathjax-full": "3.2.2",
     "mathjs": "15.2.0",
     "multer": "^2.2.0",
     "mysql2": "^3.23.3",

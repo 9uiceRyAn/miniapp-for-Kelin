@@ -4,8 +4,8 @@
  <view class="account-body">
   <text class="account-title">AI助手</text>
   <view wx:if="{{autoLoggingIn}}" class="account-notice">正在使用已记住的设备自动登录…</view>
-  <view class="account-group"><text class="account-label">用户名</text><view class="account-input-wrap {{focusedField==='username'?'focused':''}}"><input data-hint-id="hint0" class="account-input" value="{{username}}" placeholder="{{inputHintFocus==='hint0'?'':'请输入用户名'}}" maxlength="30" bindinput="onUsernameInput" bindfocus="onUsernameFocus" bindblur="onInputBlur" confirm-type="next"/></view></view>
-  <view class="account-group"><text class="account-label">密码</text><view class="account-input-wrap {{focusedField==='password'?'focused':''}}"><input data-hint-id="hint1" class="account-input" value="{{password}}" password="{{!showPassword}}" placeholder="{{inputHintFocus==='hint1'?'':'请输入密码'}}" maxlength="72" bindinput="onPasswordInput" bindfocus="onPasswordFocus" bindblur="onInputBlur" confirm-type="done" bindconfirm="submitLogin"/><text class="account-password-toggle" bindtap="togglePassword">{{showPassword?'隐藏':'显示'}}</text></view></view>
+  <view class="account-group"><text class="account-label">用户名</text><view class="account-input-wrap {{focusedField==='username'?'focused':''}}"><input class="account-input" value="{{username}}" placeholder="请输入用户名" placeholder-class="ws-placeholder" maxlength="30" bindinput="onUsernameInput" bindfocus="onUsernameFocus" bindblur="onInputBlur" confirm-type="next"/></view></view>
+  <view class="account-group"><text class="account-label">密码</text><view class="account-input-wrap {{focusedField==='password'?'focused':''}}"><input class="account-input" value="{{password}}" password="{{!showPassword}}" placeholder="请输入密码" placeholder-class="ws-placeholder" maxlength="72" bindinput="onPasswordInput" bindfocus="onPasswordFocus" bindblur="onInputBlur" confirm-type="done" bindconfirm="submitLogin"/><text class="account-password-toggle" bindtap="togglePassword">{{showPassword?'隐藏':'显示'}}</text></view></view>
   <checkbox-group class="account-options" bindchange="changeRememberOptions">
    <label class="account-check"><checkbox value="username" checked="{{rememberUsername}}" color="#242424"/><text>记住用户名</text></label>
    <label class="account-check"><checkbox value="device" checked="{{rememberDevice}}" color="#242424"/><text>记住这台设备</text></label>
@@ -13,7 +13,7 @@
   <view wx:if="{{errorMessage}}" class="account-error">{{errorMessage}}</view>
   <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" bindtap="submitLogin" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">{{autoLoggingIn?'正在自动登录':loading?'正在验证':'登录'}}</button>
   <view class="account-wechat">
-   <button class="account-wechat-button" type="primary" plain="{{true}}" bindtap="wechatLogin" loading="{{loading && wechatEnabled}}" disabled="{{!wechatEnabled||loading||autoLoggingIn}}">微信快捷登录</button>
+   <button hover-class="motion-pressed" hover-stay-time="70" class="account-wechat-button" type="primary" plain="{{true}}" bindtap="wechatLogin" loading="{{loading && wechatEnabled}}" disabled="{{!wechatEnabled||loading||autoLoggingIn}}">微信快捷登录</button>
    <text wx:if="{{wechatStatus}}" class="account-wechat-status">{{wechatStatus}}</text>
    <block wx:if="{{wechatTicket}}">
     <view class="account-wechat-panel">
@@ -25,11 +25,11 @@
       <block wx:if="{{wechatAction==='bind'}}">
        <view class="account-group">
         <text class="account-label">原账号用户名</text>
-        <view class="account-input-wrap"><input class="account-input" data-hint-id="wxhint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint0'?'':'请输入原账号用户名'}}" value="{{username}}" data-field="username" bindinput="wechatField"/></view>
+        <view class="account-input-wrap"><input class="account-input" placeholder="请输入原账号用户名" placeholder-class="ws-placeholder" value="{{username}}" data-field="username" bindinput="wechatField"/></view>
        </view>
        <view class="account-group">
         <text class="account-label">原账号密码</text>
-        <view class="account-input-wrap"><input class="account-input" data-hint-id="wxhint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint1'?'':'请输入原账号密码'}}" password="{{true}}" value="{{password}}" data-field="password" bindinput="wechatField"/></view>
+        <view class="account-input-wrap"><input class="account-input" placeholder="请输入原账号密码" placeholder-class="ws-placeholder" password="{{true}}" value="{{password}}" data-field="password" bindinput="wechatField"/></view>
        </view>
       </block>
       <block wx:else>
@@ -43,23 +43,13 @@
          <text class="account-role-desc">管理资料与教学助手</text>
         </view>
        </view>
-       <view class="account-wechat-avatar-row">
-        <button class="account-wechat-avatar-btn" open-type="chooseAvatar" bind:chooseavatar="wechatChooseAvatar" aria-label="选择微信头像">
-         <image wx:if="{{wechatAvatarPath}}" class="account-wechat-avatar-img" src="{{wechatAvatarPath}}" mode="aspectFill"/>
-         <text wx:else class="account-wechat-avatar-placeholder">+</text>
-        </button>
-        <view class="account-wechat-avatar-copy">
-         <text class="account-wechat-avatar-title">微信头像（选填）</text>
-         <text class="account-wechat-avatar-hint">{{wechatAvatarPath?'已选择，点击可更换':'点击左侧圆框使用微信头像'}}</text>
-        </view>
-       </view>
        <view class="account-group">
         <text class="account-label">微信昵称 / 用户名（选填）</text>
-        <view class="account-input-wrap"><input class="account-input" type="nickname" name="displayName" value="{{wechatDisplayName}}" maxlength="30" data-hint-id="wxNickname" bindinput="wechatNicknameInput" bindfocus="onInputHintFocus" bindblur="onWechatNicknameBlur" placeholder="{{inputHintFocus==='wxNickname'?'':'点击使用微信昵称或手动输入'}}"/></view>
+        <view class="account-input-wrap"><input class="account-input" type="nickname" name="displayName" value="{{wechatDisplayName}}" maxlength="30" bindinput="wechatNicknameInput" bindblur="onWechatNicknameBlur" placeholder="点击使用微信昵称或手动输入" placeholder-class="ws-placeholder"/></view>
        </view>
        <view class="account-group">
         <text class="account-label">{{wechatRole==='teacher'?'教师':'学生'}}注册码</text>
-        <view class="account-input-wrap"><input class="account-input" password="{{true}}" data-hint-id="wxhint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='wxhint2'?'':'请输入内部注册码'}}" value="{{wechatRegisterCode}}" data-field="wechatRegisterCode" bindinput="wechatField"/></view>
+        <view class="account-input-wrap"><input class="account-input" password="{{true}}" placeholder="请输入内部注册码" placeholder-class="ws-placeholder" value="{{wechatRegisterCode}}" data-field="wechatRegisterCode" bindinput="wechatField"/></view>
        </view>
       </block>
       <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" form-type="submit" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">{{wechatAction==='register'?'完成注册':'确认绑定'}}</button>

@@ -9,10 +9,13 @@ const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(e => 
   next(e);
 });
 async function official(url) {
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  } catch { fail(502, '微信服务暂不可用，请重试'); }
+  if (!response.ok) fail(502, '微信服务暂不可用');
   let result;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!response.ok) fail(502, '微信服务暂不可用');
     result = await response.json();
   } catch { fail(502, '微信服务暂不可用，请重试'); }
   if (result.errcode || !result.openid) fail(401, '微信授权已失效，请重新授权');
@@ -27,7 +30,8 @@ function config() {
 async function session(db, user) {
   if (user.status !== 1) fail(403, '账号已停用');
   const token = randomToken();
-  await db.execute('INSERT INTO auth_sessions(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(NOW(),INTERVAL 12 HOUR))', [user.id, hashToken(token)]);
+  const ttlHours = Number(process.env.SESSION_TTL_HOURS || 12);
+  await db.execute('INSERT INTO auth_sessions(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(NOW(),INTERVAL ? HOUR))', [user.id, hashToken(token), ttlHours]);
   return { token, user: { id: user.id, username: user.username, displayName: user.display_name || user.username, role: user.role, avatarUrl: user.avatar_url || '' } };
 }
 async function identify(db, appid, identity) {

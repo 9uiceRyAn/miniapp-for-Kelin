@@ -1,6 +1,6 @@
 const express = require('express'),
   multer = require('multer');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireTeacher } = require('../middleware/auth');
 const c = require('./core'),
   q = require('./questions'),
   media = require('./media'),
@@ -17,10 +17,6 @@ const upload = multer({
 });
 const wrap = c.route;
 const { decodeUploadName } = require('../utils/upload-name');
-async function requireTeacherAccess(req, res, next) {
-  c.teacher(req.user);
-  next();
-}
 function uploadName(file, preferred) {
   return typeof preferred === 'string' && preferred.trim() ? preferred : decodeUploadName(file.originalname);
 }
@@ -36,18 +32,14 @@ function install(app) {
   });
   bank.use(requireAuth);
   const management = require('./question-management');
-  bank.use('/admin', requireTeacherAccess);
-  bank.get('/admin/facets', wrap(req => management.facets()));
+  bank.use('/admin', requireTeacher);
+  bank.get('/admin/facets', wrap(() => management.facets()));
   bank.get('/admin/taxonomy', wrap(() => management.taxonomyTree()));
-  bank.get('/admin/skills/export', async (req, res, next) => {
-    try {
-      const buffer = await require('./question-skills').buildSkillBundleBuffer();
-      res.set('Content-Type', 'application/zip');
-      res.set('Content-Disposition', 'attachment; filename="kelin-question-bank-skill.zip"');
-      res.send(buffer);
-    } catch (error) {
-      next(error);
-    }
+  bank.get('/admin/skills/export', async (req, res) => {
+    const buffer = await require('./question-skills').buildSkillBundleBuffer();
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', 'attachment; filename="kelin-question-bank-skill.zip"');
+    res.send(buffer);
   });
   bank.post('/admin/subjects', wrap(req => management.saveSubject(req.body)));
   bank.patch('/admin/subjects/:code', wrap(req => management.saveSubject({ ...req.body, code: req.params.code })));
@@ -101,18 +93,6 @@ function install(app) {
         delete item.search_text;
       }
       return data;
-    }),
-  );
-  bank.get(
-    '/items/:id/revisions/:revisionId/media/:mediaId',
-    wrap(async (req) => {
-      await q.detail(req.user, req.params.id, req.params.revisionId);
-      const found = await c.one(
-        'SELECT id FROM kl_media WHERE id=? AND revision_id=?',
-        [req.params.mediaId, req.params.revisionId],
-      );
-      if (!found) c.fail(404, '媒体不属于此修订');
-      return media.ticket(found.id, req.authTokenHash);
     }),
   );
   bank.get(
@@ -291,10 +271,6 @@ function install(app) {
     }),
   );
   ai.post(
-    '/agents/:id/builder-sessions',
-    wrap((req) => agents.conversation(req.user, req.params.id, 'builder')),
-  );
-  ai.post(
     '/agents/:id/test-conversations',
     wrap((req) => agents.conversation(req.user, req.params.id, 'test')),
   );
@@ -413,16 +389,6 @@ function install(app) {
     wrap((req) => models.usage(req.user, req.query, 'teacher')),
   );
   ai.get(
-    '/teacher/agents/:id/usage',
-    wrap((req) =>
-      models.usage(
-        req.user,
-        { ...req.query, agentId: req.params.id },
-        'teacher',
-      ),
-    ),
-  );
-  ai.get(
     '/teacher/agents/:id/conversations',
     wrap((req) =>
       agents.history(req.user, { ...req.query, teacherAgentId: req.params.id }),
@@ -450,41 +416,24 @@ function install(app) {
     }),
   );
   const access = require('./connection-access');
-  ai.post(['/admin/unlock', '/connections/unlock'], wrap(access.unlock));
-  ai.use('/connections', access.authorize);
-  ai.use('/admin', requireTeacherAccess, access.authorize);
+  ai.post('/admin/unlock', wrap(access.unlock));
+  ai.use('/admin', access.authorize);
+  ai.get('/admin/models', wrap(() => models.list(true)));
   ai.get(
-    ['/admin/models', '/connections/models'],
-    wrap(() => models.list(true)),
-  );
-  ai.get(
-    ['/admin/storage', '/connections/storage'],
+    '/admin/storage',
     wrap(() => require('../utils/server-storage').getStorageSummary(require('../utils/file-storage').UPLOAD_ROOT)),
   );
+  ai.post('/admin/models/discover', wrap((req) => models.discover(req.body)));
+  ai.post('/admin/models', wrap((req) => models.create(req.body)));
+  ai.patch('/admin/models/:id', wrap((req) => models.update(req.params.id, req.body)));
+  ai.delete('/admin/models/:id', wrap((req) => models.remove(req.params.id)));
   ai.post(
-    ['/admin/models/discover', '/connections/models/discover'],
-    wrap((req) => models.discover(req.body)),
+    '/admin/models/:id/test',
+    wrap((req) => models.probe(req.user, req.params.id, req.body.kind || 'all')),
   );
-  ai.post(
-    ['/admin/models', '/connections/models'],
-    wrap((req) => models.create(req.body)),
-  );
-  ai.patch(
-    ['/admin/models/:id', '/connections/models/:id'],
-    wrap((req) => models.update(req.params.id, req.body)),
-  );
-  ai.post(
-    ['/admin/models/:id/test', '/connections/models/:id/test'],
-    wrap((req) =>
-      models.probe(req.user, req.params.id, req.body.kind || 'all'),
-    ),
-  );
-  ai.post(
-    ['/admin/prices', '/connections/prices'],
-    wrap((req) => models.addPrice(req.body.modelId, req.body)),
-  );
+  ai.post('/admin/prices', wrap((req) => models.addPrice(req.body.modelId, req.body)));
   ai.get(
-    ['/admin/prices', '/connections/prices'],
+    '/admin/prices',
     wrap(async () => {
       const rows = await c.rows(
         'SELECT p.*,m.name modelName FROM kl_prices p LEFT JOIN kl_models m ON m.id=p.model_id ORDER BY p.effective_at DESC LIMIT 100',
@@ -493,25 +442,26 @@ function install(app) {
     }),
   );
   ai.put(
-    ['/admin/settings', '/connections/settings'],
+    '/admin/settings',
     wrap(async (req) => {
-      if (req.body.defaultModelId !== undefined) {
-        await models.resolve(req.body.defaultModelId);
-        for (const key of ['defaultChatModelId', 'builderModelId', 'visionModelId']) {
-          await c.rows(
-            'INSERT INTO kl_settings(name,data) VALUES(?,?) ON DUPLICATE KEY UPDATE data=VALUES(data)',
-            [key, JSON.stringify(req.body.defaultModelId)],
-          );
-        }
+      const keys = ['defaultChatModelId', 'builderModelId', 'visionModelId'];
+      const updates = [];
+      for (const key of keys) {
+        const value = req.body[key] !== undefined ? req.body[key] : req.body.defaultModelId;
+        if (value !== undefined) updates.push([key, value]);
       }
-      for (const key of ['defaultChatModelId', 'builderModelId', 'visionModelId'])
-        if (req.body[key] !== undefined) {
-          await models.resolve(req.body[key]);
-          await c.rows(
+      await c.transaction(async db => {
+        for (const id of [...new Set(updates.map(([, value]) => value))].sort()) {
+          if (!(await c.one('SELECT id FROM kl_models WHERE id=? AND enabled=TRUE FOR SHARE', [id], db)))
+            c.fail(400, '所选模型不可用');
+        }
+        for (const [key, value] of updates) {
+          await db.execute(
             'INSERT INTO kl_settings(name,data) VALUES(?,?) ON DUPLICATE KEY UPDATE data=VALUES(data)',
-            [key, JSON.stringify(req.body[key])],
+            [key, JSON.stringify(value)],
           );
         }
+      });
       return models.settings();
     }),
   );
@@ -519,21 +469,6 @@ function install(app) {
     '/admin/usage',
     wrap((req) => models.usage(req.user, req.query, 'admin')),
   );
-  ai.post(
-    '/messages/:id/render',
-    wrap((req) => require('./presentation').render(req.user, req.params.id)),
-  );
-  ai.get('/messages/:id/formulas/:hash', async (req, res) => {
-    res
-      .type('image/svg+xml')
-      .send(
-        await require('./presentation').formula(
-          req.user,
-          req.params.id,
-          req.params.hash,
-        ),
-      );
-  });
   app.use('/api/ai', ai);
 }
 module.exports = { install };

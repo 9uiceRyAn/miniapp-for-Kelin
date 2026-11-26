@@ -1,8 +1,6 @@
 const c = require('./core');
 const agents = require('./agents');
-const models = require('./models');
 const management = require('./question-management');
-const questionSkills = require('./question-skills');
 
 async function open(user) {
   c.teacher(user);
@@ -11,35 +9,9 @@ async function open(user) {
   if (!agent) {
     agent = await c.one("SELECT * FROM kl_agents WHERE tool_permission='read_write' AND status='published' AND enabled=1 ORDER BY pinned DESC, created_at DESC LIMIT 1");
   }
-  if (agent) {
-    const conv = await agents.conversation(user, agent.id, 'question_curator');
-    return { id: conv.id };
-  }
-  const settings = await models.settings();
-  const modelId = settings.defaultChatModelId || settings.builderModelId;
-  if (!modelId) c.fail(503, '请先在「平台与 API 管理」配置默认模型');
-  const model = await models.resolve(modelId);
-  const agentId = c.hash('question-curator:' + user.id).slice(0, 36);
-  const id = c.id();
-  await c.transaction(async db => {
-    await c.rows(
-      "INSERT IGNORE INTO kl_agents(id,owner_id,name,description,draft_parameters,tool_permission,audience,status) VALUES(?,?,?,?,'{}','read_write','teacher_only','system')",
-      [agentId, user.id, '题库整理助手', '协助教师查重、补标签、生成草稿与提交修改确认卡片'],
-      db,
-    );
-    const snapshot = {
-      model,
-      toolPermission: 'read_write',
-      skill: {
-        content:
-          '你是可林留学题库整理助手。可自由查询题库、查看题目详情、读取学科分类 Skill（read_question_skill）与线上标签（list_taxonomy），并使用 inspect_pdf_layout + crop_attachment_image 对上传的 PDF/图片切图后，通过 create_question（传入 attachments）直接录入带图新题。任何修改或删除已有题目的操作都必须调用确认卡片工具，等待教师点击确认后才生效。' +
-          questionSkills.catalogPrompt(),
-        toolInstructions: '',
-      },
-    };
-    await c.rows('INSERT INTO kl_conversations(id,owner_id,agent_id,mode,snapshot) VALUES(?,?,?,?,?)', [id, user.id, agentId, 'question_curator', JSON.stringify(snapshot)], db);
-  });
-  return { id };
+  if (!agent) c.fail(503, '请先在「平台与 API 管理」配置默认模型');
+  const conv = await agents.conversation(user, agent.id, 'question_curator');
+  return { id: conv.id };
 }
 
 async function cards(user, conversationId) {
@@ -81,7 +53,6 @@ async function confirm(user, conversationId, actionId) {
   await agents.getConversation(user, conversationId, true);
   const card = await c.one('SELECT * FROM kl_question_actions WHERE id=? AND conversation_id=?', [actionId, conversationId]);
   if (!card) c.fail(404, '操作卡片不存在');
-  if (card.status !== 'pending') c.fail(409, '该操作卡片已处理');
   const claimed = await c.rows("UPDATE kl_question_actions SET status='applying' WHERE id=? AND status='pending'", [actionId]);
   if (claimed.affectedRows !== 1) c.fail(409, '该操作卡片已处理');
   try {
@@ -118,7 +89,6 @@ async function reject(user, conversationId, actionId) {
   await agents.getConversation(user, conversationId, true);
   const card = await c.one('SELECT * FROM kl_question_actions WHERE id=? AND conversation_id=?', [actionId, conversationId]);
   if (!card) c.fail(404, '操作卡片不存在');
-  if (card.status !== 'pending') c.fail(409, '该操作卡片已处理');
   const changed = await c.rows("UPDATE kl_question_actions SET status='rejected' WHERE id=? AND status='pending'", [actionId]);
   if (changed.affectedRows !== 1) c.fail(409, '该操作卡片已处理');
   return { id: actionId, status: 'rejected' };

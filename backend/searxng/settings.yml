@@ -1,0 +1,23 @@
+use_default_settings: true
+
+server:
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "zh-CN"
+  formats:
+    - html
+    - json
+
+engines:
+  - name: bing
+    disabled: false
+  - name: baidu
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: wikipedia
+    disabled: false

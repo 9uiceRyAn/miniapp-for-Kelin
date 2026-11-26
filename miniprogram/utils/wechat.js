@@ -5,34 +5,13 @@ function request(path, data) {
   return api.request({ path: '/api/auth/wechat/' + path, method: 'POST', data, auth: false });
 }
 
-function uploadAvatar(filePath, token) {
-  return new Promise((resolve, reject) => {
-    wx.uploadFile({
-      url: api.API_BASE_URL + '/api/auth/avatar',
-      filePath,
-      name: 'file',
-      header: { Authorization: 'Bearer ' + token },
-      success(res) {
-        let body;
-        try { body = JSON.parse(res.data); } catch { return reject(new Error('头像上传响应无效')); }
-        if (res.statusCode >= 200 && res.statusCode < 300 && body.success && body.data?.avatarUrl) {
-          resolve(body.data.avatarUrl);
-        } else {
-          reject(new Error(body.message || '头像上传失败'));
-        }
-      },
-      fail: reject,
-    });
-  });
-}
-
 function finish(page, data) {
   if (page._left) return;
   storage.remove(storage.KEYS.REMEMBER_TOKEN);
   storage.saveSession(data);
-  page.setData({ wechatTicket: '', wechatAvatarPath: '', wechatDisplayName: '' });
+  page.setData({ wechatTicket: '', wechatDisplayName: '' });
   wx.reLaunch({
-    url: '/pages/learning/index',
+    url: '/pages/learning/index?section=agents',
     fail: () => page.setData({ loading: false }),
   });
 }
@@ -50,7 +29,6 @@ module.exports = {
           wechatTicket: data.ticket,
           wechatAction: 'register',
           wechatRole: 'student',
-          wechatAvatarPath: '',
           wechatDisplayName: '',
           wechatRegisterCode: '',
           loading: false,
@@ -73,15 +51,10 @@ module.exports = {
     if (role !== 'student' && role !== 'teacher') return;
     this.setData({ wechatRole: role, errorMessage: '' });
   },
-  wechatChooseAvatar(e) {
-    const avatarUrl = e.detail?.avatarUrl || '';
-    if (avatarUrl) this.setData({ wechatAvatarPath: avatarUrl, errorMessage: '' });
-  },
   wechatNicknameInput(e) {
     this.setData({ wechatDisplayName: e.detail?.value ?? '', errorMessage: '' });
   },
   onWechatNicknameBlur(e) {
-    if (typeof this.onInputHintBlur === 'function') this.onInputHintBlur(e);
     if (e.detail && e.detail.value !== undefined) {
       this.setData({ wechatDisplayName: e.detail.value });
     }
@@ -100,12 +73,6 @@ module.exports = {
             displayName,
           };
       const data = await request('complete', { ticket, action, ...fields });
-      if (action === 'register' && this.data.wechatAvatarPath && data.token) {
-        try {
-          const avatarUrl = await uploadAvatar(this.data.wechatAvatarPath, data.token);
-          data.user = { ...data.user, avatarUrl };
-        } catch {}
-      }
       finish(this, data);
     } catch (e) {
       this.setData({

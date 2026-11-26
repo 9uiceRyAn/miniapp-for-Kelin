@@ -5,8 +5,6 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-const { CATEGORIES, cleanCategory } = require('../utils/file-category');
-
 async function fileExists(fileId) {
   const [rows] = await pool.execute(
     `
@@ -20,62 +18,6 @@ async function fileExists(fileId) {
 
   return Boolean(rows.length);
 }
-
-/**
- * 当前用户在某个分类中已经标记的文件。
- *
- * GET /api/marks?category=A
- */
-router.get(
-  '/',
-  requireAuth,
-  async (req, res) => {
-    try {
-      const category =
-        cleanCategory(req.query.category);
-
-      if (!CATEGORIES.has(category)) {
-        return res.status(400).json({
-          success: false,
-          message: '文件分类无效',
-        });
-      }
-
-      const [rows] = await pool.execute(
-        `
-        SELECT m.file_id
-        FROM user_file_marks m
-        JOIN files f
-          ON f.id = m.file_id
-        WHERE m.user_id = ?
-          AND f.category = ?
-          AND f.deleted_at IS NULL
-        ORDER BY m.marked_at DESC
-        `,
-        [req.user.id, category],
-      );
-
-      return res.json({
-        success: true,
-        data: {
-          fileIds: rows.map(
-            (row) => Number(row.file_id),
-          ),
-        },
-      });
-    } catch (error) {
-      console.error(
-        'list marks error:',
-        error,
-      );
-
-      return res.status(500).json({
-        success: false,
-        message: '获取文件标记失败',
-      });
-    }
-  },
-);
 
 /**
  * 标记文件。

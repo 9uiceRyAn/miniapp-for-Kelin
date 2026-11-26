@@ -184,20 +184,8 @@ async function main() {
       ),
     );
   }
-  if (command === 'grant-admin') {
-    const userId = option('user-id');
-    if (!/^\d+$/.test(userId || '')) throw new Error('需要显式 --user-id');
-    if (!(await c.one('SELECT id FROM users WHERE id=?', [userId])))
-      throw new Error('账号不存在');
-    await c.rows(
-      "INSERT IGNORE INTO kl_capabilities VALUES(?,'platform_admin')",
-      [userId],
-    );
-    console.log('Granted platform_admin to user ' + userId);
-    return;
-  }
   throw new Error(
-    '命令: migrate | sample --source OUTPUT --out DIRECTORY | import --source DIRECTORY [--dry-run] | grant-admin --user-id ID',
+    '命令: migrate | sample --source OUTPUT --out DIRECTORY | import --source DIRECTORY [--dry-run]',
   );
 }
 if (require.main === module)

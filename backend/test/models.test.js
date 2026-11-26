@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { pool } = require('../src/db');
 const models = require('../src/learning/models');
+const pricing = require('../src/learning/pricing');
 
 test('normalizeBaseURL normalizes OpenAI v1 chat URLs and rejects invalid values', () => {
   assert.equal(models.normalizeBaseURL('https://api.example.com/v1/'), 'https://api.example.com/v1');
@@ -144,4 +145,148 @@ test('models.discover reports auth failure without leaking key and handles empty
     models.discover({ baseURL: 'https://relay.example.com/v1' }),
     (err) => err.status === 422 && /未返回可用模型/.test(err.message),
   );
+});
+
+test('matchCatalogPrice matches mainstream models across prefixes, tags, and dates', () => {
+  const gpt4o = pricing.matchCatalogPrice('gpt-4o');
+  assert.ok(gpt4o);
+  assert.equal(gpt4o.currency, 'USD');
+  assert.equal(gpt4o.rates.input, '2.5');
+  assert.equal(gpt4o.rates.output, '10');
+
+  const prefixed = pricing.matchCatalogPrice('openai/gpt-4o');
+  assert.equal(prefixed.matchedModel, 'gpt-4o');
+
+  const deepseek = pricing.matchCatalogPrice('deepseek-ai/DeepSeek-Chat');
+  assert.ok(deepseek);
+  assert.equal(deepseek.matchedModel, 'deepseek-chat');
+
+  const gemini = pricing.matchCatalogPrice('gemini-2.5-pro-preview-05-06');
+  assert.ok(gemini);
+  assert.equal(gemini.matchedModel, 'gemini-2.5-pro');
+
+  assert.equal(pricing.matchCatalogPrice('totally-unknown-custom-model-xyz'), null);
+  assert.equal(pricing.matchCatalogPrice('gpt-4o-custom-pricing'), null);
+  assert.equal(pricing.matchCatalogPrice('constructor'), null);
+});
+
+test('models.create auto-seeds matched catalog price and models.list returns currentPrice + matchedPrice', async (t) => {
+  const prevBase = process.env.LITELLM_BASE_URL;
+  const prevKey = process.env.LITELLM_MODEL_ADMIN_KEY;
+  process.env.LITELLM_BASE_URL = 'http://127.0.0.1:4000';
+  process.env.LITELLM_MODEL_ADMIN_KEY = 'admin-key';
+  t.after(() => {
+    if (prevBase !== undefined) process.env.LITELLM_BASE_URL = prevBase;
+    else delete process.env.LITELLM_BASE_URL;
+    if (prevKey !== undefined) process.env.LITELLM_MODEL_ADMIN_KEY = prevKey;
+    else delete process.env.LITELLM_MODEL_ADMIN_KEY;
+  });
+
+  const calls = [];
+  let insertedModel = null;
+  let insertedPrice = null;
+  t.mock.method(global, 'fetch', async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ model_info: { id: 'remote-4o' } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+  t.mock.method(pool, 'execute', async (sql, params) => {
+    if (sql.startsWith('INSERT INTO kl_models')) {
+      insertedModel = {
+        id: params[0],
+        name: params[1],
+        gateway_id: params[2],
+        upstream_model: params[3],
+        credential_ref: params[4],
+        enabled: 1,
+        capabilities: params[5],
+        parameters: params[6],
+      };
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.startsWith('INSERT INTO kl_prices')) {
+      insertedPrice = {
+        id: params[0],
+        model_id: params[1],
+        currency: params[2],
+        rates: params[3],
+        effective_at: params[4],
+      };
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.startsWith('SELECT * FROM kl_models WHERE id=?')) {
+      return [[insertedModel]];
+    }
+    if (sql.startsWith('SELECT * FROM kl_models ORDER BY')) {
+      return [[insertedModel]];
+    }
+    if (sql.startsWith('SELECT * FROM kl_prices WHERE model_id=?')) {
+      return [[insertedPrice]];
+    }
+    if (sql.startsWith('SELECT * FROM kl_prices ORDER BY')) {
+      return [[insertedPrice]];
+    }
+    return [[]];
+  });
+
+  const created = await models.create({
+    name: 'GPT-4o',
+    baseURL: 'https://api.example.com/v1',
+    upstreamModel: 'gpt-4o',
+    apiKey: 'sk-test',
+  });
+  assert.ok(calls.some((c) => c.url.endsWith('/model/new')));
+  assert.ok(calls.some((c) => c.url.endsWith('/model/update')));
+  assert.equal(created.currentPrice.currency, 'USD');
+  assert.equal(created.currentPrice.rates.input, '2.5');
+  assert.equal(created.matchedPrice.matchedModel, 'gpt-4o');
+
+  const listed = await models.list(true);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].currentPrice.rates.output, '10');
+  assert.equal(listed[0].matchedPrice.matchedModel, 'gpt-4o');
+});
+
+test('models.remove deletes gateway model, clears settings & agent refs, and preserves usage/prices', async (t) => {
+  const prevBase = process.env.LITELLM_BASE_URL;
+  const prevKey = process.env.LITELLM_MODEL_ADMIN_KEY;
+  process.env.LITELLM_BASE_URL = 'http://127.0.0.1:4000';
+  process.env.LITELLM_MODEL_ADMIN_KEY = 'admin-key';
+  t.after(() => {
+    if (prevBase !== undefined) process.env.LITELLM_BASE_URL = prevBase;
+    else delete process.env.LITELLM_BASE_URL;
+    if (prevKey !== undefined) process.env.LITELLM_MODEL_ADMIN_KEY = prevKey;
+    else delete process.env.LITELLM_MODEL_ADMIN_KEY;
+  });
+
+  const deletedGatewayIds = [];
+  t.mock.method(global, 'fetch', async (url, init) => {
+    assert.equal(url, 'http://127.0.0.1:4000/model/delete');
+    deletedGatewayIds.push(JSON.parse(init.body).id);
+    return new Response('{}', { status: 404 });
+  });
+
+  const executed = [];
+  const connection = {
+    beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {},
+    execute: async (sql, params) => { executed.push({ sql, params }); return [{ affectedRows: 1 }]; },
+  };
+  t.mock.method(pool, 'getConnection', async () => connection);
+  t.mock.method(pool, 'execute', async (sql, params) => {
+    executed.push({ sql, params });
+    if (sql.startsWith('SELECT * FROM kl_models WHERE id=?')) {
+      return [[{ id: 'm1', credential_ref: 'remote-m1' }]];
+    }
+    return [{ affectedRows: 1 }];
+  });
+
+  const res = await models.remove('m1');
+  assert.deepEqual(res, { deleted: true, id: 'm1' });
+  assert.deepEqual(deletedGatewayIds, ['remote-m1']);
+  assert.ok(executed.some((e) => e.sql.startsWith('DELETE FROM kl_settings') && e.sql.includes('JSON_UNQUOTE(data)=?') && e.params[0] === 'm1'));
+  assert.ok(executed.some((e) => e.sql.includes('UPDATE kl_agents SET draft_model_id=NULL') && e.params[0] === 'm1'));
+  assert.ok(executed.some((e) => e.sql === 'DELETE FROM kl_models WHERE id=?' && e.params[0] === 'm1'));
+  assert.ok(!executed.some((e) => e.sql.includes('DELETE FROM kl_usage') || e.sql.includes('DELETE FROM kl_prices')));
 });

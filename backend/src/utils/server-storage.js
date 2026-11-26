@@ -23,25 +23,17 @@ async function queryUploads() {
   let activeBytes = 0;
   let trashCount = 0;
   let trashBytes = 0;
-  try {
-    const [rows] = await pool.query(
-      'SELECT (deleted_at IS NOT NULL) AS in_trash, COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS bytes FROM files GROUP BY (deleted_at IS NOT NULL)',
-    );
-    for (const row of rows) {
-      if (row.in_trash) {
-        trashCount = Number(row.cnt || 0);
-        trashBytes = Number(row.bytes || 0);
-      } else {
-        activeCount = Number(row.cnt || 0);
-        activeBytes = Number(row.bytes || 0);
-      }
+  const [rows] = await pool.query(
+    'SELECT (deleted_at IS NOT NULL) AS in_trash, COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS bytes FROM files GROUP BY (deleted_at IS NOT NULL)',
+  );
+  for (const row of rows) {
+    if (row.in_trash) {
+      trashCount = Number(row.cnt || 0);
+      trashBytes = Number(row.bytes || 0);
+    } else {
+      activeCount = Number(row.cnt || 0);
+      activeBytes = Number(row.bytes || 0);
     }
-  } catch {
-    try {
-      const [rows] = await pool.query('SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS bytes FROM files');
-      activeCount = Number(rows[0]?.cnt || 0);
-      activeBytes = Number(rows[0]?.bytes || 0);
-    } catch {}
   }
   return { activeCount, activeBytes, trashCount, trashBytes };
 }
@@ -73,4 +65,4 @@ async function questionMediaUsage() {
   return { bytes };
 }
 
-module.exports = { getStorageSummary, statDisk };
+module.exports = { getStorageSummary };

@@ -1,3 +1,5 @@
+const cache = require('./cache');
+
 // Group recent conversations by agent identity while retaining disclosure state.
 function groupConversations(rows, previous, activeAgentId) {
   const expanded = new Map((previous || []).map(group => [group.id, group.expanded]));
@@ -22,15 +24,33 @@ const drawer = {
 };
 function recentMethods(l, activeAgent = () => null) {
   return {
-    async loadRecent(append = false) {
+    async loadRecent(append = false, options = {}) {
       if (append && (this.data.recentLoading || !this.data.recentHasMore)) return;
+      const RECENT_CACHE_KEY = 'recent:conversations';
+      const RECENT_MAX_AGE = 20000;
+      let cached = null;
+      if (!append && !options.force) {
+        cached = cache.get(RECENT_CACHE_KEY, { maxAge: RECENT_MAX_AGE });
+        if (cached) {
+          if (!this.data.recentConversations.length) {
+            this.setData({
+              recentConversations: cached.value,
+              recentPage: 1,
+              recentHasMore: cached.value.length === 20,
+              conversationGroups: groupConversations(cached.value, this.data.conversationGroups, activeAgent(this)),
+            });
+          }
+          if (cached.fresh) return;
+        }
+      }
       const requestId = (this._recentRequestId || 0) + 1;
       this._recentRequestId = requestId;
       const page = append ? this.data.recentPage + 1 : 1;
-      this.setData({ recentLoading: true });
+      if (!cached) this.setData({ recentLoading: true });
       try {
         const rows = await l.request('/api/ai/conversations?' + l.query({ page }));
         if (requestId !== this._recentRequestId) return;
+        if (!append) cache.set(RECENT_CACHE_KEY, rows, { persist: true });
         const unique = new Map((append ? this.data.recentConversations : []).concat(rows).map(row => [row.id, row]));
         const recentConversations = Array.from(unique.values());
         this.setData({ recentConversations, recentPage: page, recentHasMore: rows.length === 20,
@@ -96,4 +116,4 @@ const profileNav = {
     if (this.data.section !== 'admin') wx.redirectTo({ url: '/pages/admin/admin' });
   },
 };
-module.exports = { navigationStyle, groupConversations, drawer, profileNav, recentMethods, returnToWorkspace };
+module.exports = { navigationStyle, drawer, profileNav, recentMethods, returnToWorkspace };

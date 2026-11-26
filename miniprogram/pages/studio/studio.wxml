@@ -1,13 +1,13 @@
 <view class="device-nav workspace-shell" style="{{navigationStyle}}">
-  <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
+  <button hover-class="motion-pressed" hover-stay-time="70" class="drawer-button {{drawerOpen?'is-behind':''}}" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-hidden="{{drawerOpen}}" aria-label="打开侧栏"><view class="ws-ico ws-ico-menu"/></button>
   <include src="../../templates/workspace-sidebar.wxml"/>
   <view class="workspace-main">
     <view class="workspace-header">
-      <view class="header-start"><text>AI Agent 预设管理</text></view>
+      <view class="header-start"><button hover-class="motion-pressed" hover-stay-time="70" class="header-back" bindtap="back" aria-label="返回"><view class="ws-ico ws-ico-back"/></button><text>AI Agent 预设管理</text></view>
     </view>
     <view class="workspace-content">
       <view class="ws-toolbar-primary">
-        <button class="ws-btn ws-btn-primary" bindtap="openCreate">＋ 新建助手</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="openCreate">＋ 新建助手</button>
       </view>
     <text class="subpage-subtitle">只需填写名称、简介、一段话 Prompt、工具权限与可用范围；保存即对选定范围生效。</text>
 
@@ -32,8 +32,8 @@
           </view>
         </view>
         <view class="ws-list-actions">
-          <button class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.id}}" bindtap="openEdit">编辑</button>
-          <button class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="openMenu" aria-label="更多操作">⋯</button>
+          <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.id}}" bindtap="openEdit">编辑</button>
+          <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="openMenu" aria-label="更多操作">⋯</button>
         </view>
       </view>
     </view>
@@ -52,7 +52,7 @@
           <text class="ws-sheet-title">{{editingId?'编辑教学助手':'新建教学助手'}}</text>
           <text class="ws-sheet-subtitle">配置助手角色、工具权限与可见范围</text>
         </view>
-        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭">×</button>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭"><view class="ws-ico ws-ico-close ws-ico-sm"/></button>
       </view>
       <scroll-view scroll-y class="ws-sheet-body">
         <text class="ws-field-label">名称</text>
@@ -62,10 +62,8 @@
           data-field="name"
           bindinput="formInput"
           maxlength="191"
-          data-hint-id="agentName"
-          bindfocus="onInputHintFocus"
-          bindblur="onInputHintBlur"
-          placeholder="{{inputHintFocus==='agentName'?'':'例如：数学答疑助教'}}"
+          placeholder="例如：数学答疑助教"
+          placeholder-class="ws-placeholder"
         />
 
         <text class="ws-field-label">简介（选填）</text>
@@ -75,10 +73,8 @@
           data-field="description"
           bindinput="formInput"
           maxlength="300"
-          data-hint-id="agentDesc"
-          bindfocus="onInputHintFocus"
-          bindblur="onInputHintBlur"
-          placeholder="{{inputHintFocus==='agentDesc'?'':'一句话说明助手用途'}}"
+          placeholder="一句话说明助手用途"
+          placeholder-class="ws-placeholder"
         />
 
         <text class="ws-field-label">Prompt（一段话指令）</text>
@@ -89,10 +85,8 @@
           data-field="content"
           bindinput="formInput"
           maxlength="-1"
-          data-hint-id="agentPrompt"
-          bindfocus="onInputHintFocus"
-          bindblur="onInputHintBlur"
-          placeholder="{{inputHintFocus==='agentPrompt'?'':'描述助手的角色定位、回答风格和注意事项…'}}"
+          placeholder="描述助手的角色定位、回答风格和注意事项…"
+          placeholder-class="ws-placeholder"
         />
 
         <text class="ws-field-label">工具权限</text>
@@ -111,8 +105,8 @@
         <view class="ws-sheet-spacer"/>
       </scroll-view>
       <view class="ws-sheet-footer">
-        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
-        <button class="ws-btn ws-btn-primary" bindtap="save" loading="{{saving}}" disabled="{{saving||!form.name||!form.content}}">保存</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="save" loading="{{saving}}" disabled="{{saving||!form.name||!form.content}}">保存</button>
       </view>
     </view>
   </block>

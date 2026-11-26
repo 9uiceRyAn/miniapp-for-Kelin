@@ -1,33 +1,24 @@
 const workspace = require('../../utils/workspace');
-const withInputHints = require('../../utils/input-hints');
 const l = require('../../utils/learning');
-
-function formatBytes(bytes) {
-  const n = Number(bytes || 0);
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
-  if (n < 1024 * 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  return (n / (1024 * 1024 * 1024 * 1024)).toFixed(2) + ' TB';
-}
+const cache = require('../../utils/cache');
 
 function viewStorage(raw) {
   if (!raw || !raw.disk) return null;
   const usedPercent = Number(raw.disk.usedPercent || 0);
   return {
-    freeLabel: formatBytes(raw.disk.freeBytes),
-    totalLabel: formatBytes(raw.disk.totalBytes),
+    freeLabel: l.formatBytes(raw.disk.freeBytes),
+    totalLabel: l.formatBytes(raw.disk.totalBytes),
     usedPercent,
     highUsage: usedPercent >= 85,
-    questionBankLabel: raw.questionBank ? formatBytes(raw.questionBank.bytes) : '暂无数据',
+    questionBankLabel: raw.questionBank ? l.formatBytes(raw.questionBank.bytes) : '暂无数据',
     activeCount: Number(raw.uploads?.activeCount || 0),
-    activeLabel: formatBytes(raw.uploads?.activeBytes || 0),
+    activeLabel: l.formatBytes(raw.uploads?.activeBytes || 0),
     trashCount: Number(raw.uploads?.trashCount || 0),
-    trashLabel: formatBytes(raw.uploads?.trashBytes || 0),
+    trashLabel: l.formatBytes(raw.uploads?.trashBytes || 0),
   };
 }
 
-Page(withInputHints({
+Page({
   data: {
     mainTab: 'profile',
     section: 'admin',
@@ -36,8 +27,9 @@ Page(withInputHints({
     locked: true,
     password: '',
     models: [],
-    priceModels: [],
     prices: [],
+    priceTarget: null,
+    modelPrices: [],
     sheetMode: '',
     name: '',
     upstreamModel: '',
@@ -52,12 +44,10 @@ Page(withInputHints({
     storage: null,
     storageLoading: false,
     settings: {},
-    selected: 0,
     currency: 'USD',
     inputPrice: '',
     outputPrice: '',
     cachedPrice: '',
-    creditPrice: '',
     rotateKey: '',
     editId: '',
     editName: '',
@@ -70,14 +60,13 @@ Page(withInputHints({
     this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     try {
-      const me = await l.request('/api/ai/me');
-      if (me.user.role !== 'teacher') {
-        wx.navigateBack();
-        return;
-      }
+      const me = await l.getMe((m) => {
+        if (m.user.role !== 'teacher') wx.navigateBack();
+      });
+      if (me.user.role !== 'teacher') return;
       if (l.getManagementToken()) {
         this.setData({ locked: false });
-        await this.load();
+        await this.load({ force: true });
       }
     } catch (e) {
       l.error(e);
@@ -103,7 +92,6 @@ Page(withInputHints({
       return await l.managementRequest('/api/ai/admin/' + path, method, data);
     } catch (error) {
       if (error.statusCode === 403 && error.payload?.code === 'MANAGEMENT_LOCKED') {
-        l.clearManagementToken();
         this.setData({ locked: true, sheetMode: '', apiKey: '', rotateKey: '', editId: '' });
       }
       throw error;
@@ -124,9 +112,6 @@ Page(withInputHints({
       patch.fetchedModelIndex = 0;
     }
     this.setData(patch);
-  },
-  pick(e) {
-    this.setData({ selected: Number(e.detail.value) });
   },
   pickFetchedModel(e) {
     const idx = Number(e.detail.value);
@@ -152,27 +137,86 @@ Page(withInputHints({
       error: '',
     });
   },
-  openPriceSheet() {
-    this.setData({ sheetMode: 'price', error: '' });
+  openModelPriceSheet(model) {
+    const source = model.currentPrice || model.matchedPrice || null;
+    const rates = source?.rates || {};
+    this.setData({
+      sheetMode: 'price',
+      priceTarget: model,
+      modelPrices: this.formatPriceHistory(model.id),
+      currency: source?.currency || 'USD',
+      inputPrice: rates.input !== undefined ? String(rates.input) : '',
+      outputPrice: rates.output !== undefined ? String(rates.output) : '',
+      cachedPrice: rates.cachedInput !== undefined ? String(rates.cachedInput) : '',
+      error: '',
+    });
   },
-  async load() {
+  applyMatchedPrice() {
+    const matched = this.data.priceTarget?.matchedPrice;
+    if (!matched) return;
+    this.setData({
+      currency: matched.currency || 'USD',
+      inputPrice: matched.rates?.input !== undefined ? String(matched.rates.input) : '',
+      outputPrice: matched.rates?.output !== undefined ? String(matched.rates.output) : '',
+      cachedPrice: matched.rates?.cachedInput !== undefined ? String(matched.rates.cachedInput) : '',
+      error: '',
+    });
+    wx.showToast({ title: '已填入参考计费价格', icon: 'none' });
+  },
+  formatPriceHistory(modelId) {
+    return (this.data.prices || [])
+      .filter((p) => p.model_id === modelId)
+      .map((p) => ({
+        ...p,
+        rateSummary: `${p.currency} ${p.rates?.input ?? '-'} / ${p.rates?.output ?? '-'}${p.rates?.cachedInput !== undefined ? ' (缓存 ' + p.rates.cachedInput + ')' : ''}`,
+      }));
+  },
+  applyOverview({ models, prices, storage, settings }) {
+    const targetId = this.data.priceTarget?.id;
+    const nextTarget = targetId
+      ? models.find((m) => m.id === targetId) || this.data.priceTarget
+      : this.data.priceTarget;
+    this.setData({
+      models,
+      prices,
+      priceTarget: nextTarget,
+      storage,
+      settings,
+    });
+    if (targetId) {
+      this.setData({ modelPrices: this.formatPriceHistory(targetId) });
+    }
+  },
+  async load(options = {}) {
+    const cached = !options.force ? cache.get('admin:overview', { maxAge: 30 * 1000 }) : null;
+    if (cached) {
+      this.applyOverview(cached.value);
+      if (cached.fresh) return;
+    }
     try {
-      const [me, models, prices, storage] = await Promise.all([
+      const [me, rawModels, prices, storage] = await Promise.all([
         l.request('/api/ai/me'),
         this.manage('models'),
         this.manage('prices'),
         this.manage('storage').catch(() => null),
       ]);
-      this.setData({
-        models,
-        priceModels: models.concat({ id: 'tavily', name: 'Tavily 搜索服务' }),
-        prices,
-        storage: viewStorage(storage),
-        settings: me.settings || {},
-      });
+      cache.set('me', me, { persist: true });
+      const models = (rawModels || []).map((m) => ({
+        ...m,
+        priceSummary: m.currentPrice
+          ? `${m.currentPrice.currency} ${m.currentPrice.rates?.input ?? '-'} / ${m.currentPrice.rates?.output ?? '-'} / 百万token`
+          : m.matchedPrice
+            ? `未保存(匹配参考 ${m.matchedPrice.rates?.input}/${m.matchedPrice.rates?.output})`
+            : '未配置价格',
+      }));
+      const overview = { models, prices, storage: viewStorage(storage), settings: me.settings || {} };
+      cache.set('admin:overview', overview);
+      this.applyOverview(overview);
     } catch (e) {
-      this.setData({ error: e.message });
-      l.error(e);
+      if (!cached) {
+        this.setData({ error: e.message });
+        l.error(e);
+      }
     }
   },
   async refreshStorage() {
@@ -180,7 +224,10 @@ Page(withInputHints({
     this.setData({ storageLoading: true });
     try {
       const storage = await this.manage('storage');
-      this.setData({ storage: viewStorage(storage) });
+      const formatted = viewStorage(storage);
+      this.setData({ storage: formatted });
+      const cached = cache.get('admin:overview');
+      if (cached) cache.set('admin:overview', { ...cached.value, storage: formatted });
     } catch (e) {
       l.error(e);
     } finally {
@@ -189,7 +236,7 @@ Page(withInputHints({
   },
   async fetchModels() {
     if (this.data.fetchingModels || this.data.saving) return;
-    const baseURL = String(this.data.baseURL || '').trim();
+    const baseURL = this.data.baseURL.trim();
     if (!baseURL) {
       this.setData({ error: '请先填写 API 网址' });
       return;
@@ -198,14 +245,14 @@ Page(withInputHints({
     this.discoveryRequest = request;
     this.setData({ fetchingModels: true, error: '' });
     try {
-      const apiKey = String(this.data.apiKey || '').trim();
+      const apiKey = this.data.apiKey.trim();
       const res = await this.manage('models/discover', 'POST', {
         baseURL,
         ...(apiKey ? { apiKey } : {}),
       });
       if (this.discoveryRequest !== request || this.data.sheetMode !== 'create') return;
       const fetchedModels = res.models || [];
-      const currentModel = String(this.data.upstreamModel || '').trim();
+      const currentModel = this.data.upstreamModel.trim();
       const existingIndex = fetchedModels.indexOf(currentModel);
       const fetchedModelIndex = existingIndex >= 0 ? existingIndex : 0;
       const patch = {
@@ -225,14 +272,13 @@ Page(withInputHints({
   },
   async create() {
     this.discoveryRequest = null;
-    this.setData({ fetchingModels: false });
-    this.setData({ saving: true, error: '' });
+    this.setData({ fetchingModels: false, saving: true, error: '' });
     try {
       await this.manage('models', 'POST', {
-        name: String(this.data.name || '').trim(),
-        upstreamModel: String(this.data.upstreamModel || '').trim(),
-        baseURL: String(this.data.baseURL || '').trim(),
-        apiKey: String(this.data.apiKey || '').trim(),
+        name: this.data.name.trim(),
+        upstreamModel: this.data.upstreamModel.trim(),
+        baseURL: this.data.baseURL.trim(),
+        apiKey: this.data.apiKey.trim(),
         capabilities: { text: true, tools: true, vision: true },
       });
       this.setData({
@@ -245,7 +291,8 @@ Page(withInputHints({
         sheetMode: '',
       });
       wx.showToast({ title: '模型已添加' });
-      await this.load();
+      cache.invalidate('admin:');
+      await this.load({ force: true });
     } catch (e) {
       this.setData({ apiKey: '', error: e.message });
     } finally {
@@ -258,7 +305,8 @@ Page(withInputHints({
     try {
       const result = await this.manage('models/' + id + '/test', 'POST', { kind: 'all' });
       wx.showToast({ title: result.message || '连接测试通过', icon: 'none' });
-      await this.load();
+      cache.invalidate('admin:');
+      await this.load({ force: true });
     } catch (err) {
       l.error(err);
     } finally {
@@ -269,19 +317,33 @@ Page(withInputHints({
     const model = this.data.models[e.currentTarget.dataset.index];
     if (!model) return;
     wx.showActionSheet({
-      itemList: ['设为默认模型', '轮换密钥', model.enabled ? '停用模型' : '启用模型'],
+      itemList: ['设为默认模型', '计费价格', '轮换密钥', model.enabled ? '停用模型' : '启用模型', '删除模型'],
       success: async ({ tapIndex }) => {
         if (tapIndex === 0) await this.setDefault(model.id);
-        else if (tapIndex === 1) this.setData({ sheetMode: 'rotate', editId: model.id, editName: model.name, rotateKey: '', error: '' });
-        else if (tapIndex === 2) await this.toggleEnabled(model);
+        else if (tapIndex === 1) this.openModelPriceSheet(model);
+        else if (tapIndex === 2) this.setData({ sheetMode: 'rotate', editId: model.id, editName: model.name, rotateKey: '', error: '' });
+        else if (tapIndex === 3) await this.toggleEnabled(model);
+        else if (tapIndex === 4) this.confirmDeleteModel(model);
       },
     });
+  },
+  async confirmDeleteModel(model) {
+    if (!(await l.confirm(`确定删除「${model.name}」？删除后将从网关移除该连接，历史费用记录仍会保留。`, { title: '删除模型', confirmColor: '#d93025' }))) return;
+    try {
+      await this.manage('models/' + model.id, 'DELETE');
+      wx.showToast({ title: '模型已删除' });
+      cache.invalidate('admin:');
+      await this.load({ force: true });
+    } catch (e) {
+      l.error(e);
+    }
   },
   async toggleEnabled(model) {
     try {
       await this.manage('models/' + model.id, 'PATCH', { enabled: !model.enabled });
       wx.showToast({ title: model.enabled ? '已停用' : '已启用' });
-      await this.load();
+      cache.invalidate('admin:');
+      await this.load({ force: true });
     } catch (e) {
       l.error(e);
     }
@@ -302,38 +364,34 @@ Page(withInputHints({
     try {
       await this.manage('settings', 'PUT', { defaultModelId: id });
       wx.showToast({ title: '已设为默认模型' });
-      await this.load();
+      cache.invalidate('admin:');
+      await this.load({ force: true });
     } catch (e) {
       l.error(e);
     }
   },
   async price() {
-    const model = this.data.priceModels[this.data.selected];
+    const model = this.data.priceTarget;
     if (!model) return;
     this.setData({ saving: true, error: '' });
     try {
-      const rates =
-        model.id === 'tavily'
-          ? { credit: this.data.creditPrice }
-          : {
-              input: this.data.inputPrice,
-              output: this.data.outputPrice,
-              ...(this.data.cachedPrice !== '' ? { cachedInput: this.data.cachedPrice } : {}),
-            };
+      const rates = {
+        input: this.data.inputPrice,
+        output: this.data.outputPrice,
+        ...(this.data.cachedPrice !== '' ? { cachedInput: this.data.cachedPrice } : {}),
+      };
       await this.manage('prices', 'POST', {
         modelId: model.id,
         currency: this.data.currency.toUpperCase(),
         rates,
       });
       wx.showToast({ title: '价格版本已保存' });
-      await this.load();
+      cache.invalidate('admin:');
+      await this.load({ force: true });
     } catch (e) {
       this.setData({ error: e.message });
     } finally {
       this.setData({ saving: false });
     }
   },
-  usage() {
-    l.go('/pages/learning/index?section=usage&scope=admin');
-  },
-}));
+});

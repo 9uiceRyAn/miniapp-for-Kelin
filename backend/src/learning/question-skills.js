@@ -203,11 +203,9 @@ async function buildSkillBundleBuffer() {
 }
 
 module.exports = {
-  SKILLS_ROOT,
   listSkills,
   readSkill,
   catalogPrompt,
-  exportSkillMarkdown,
   exportItemsExample,
   buildSkillBundleBuffer,
 };

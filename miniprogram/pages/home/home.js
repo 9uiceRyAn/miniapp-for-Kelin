@@ -1,17 +1,17 @@
 const workspace = require('../../utils/workspace');
-const withInputHints = require('../../utils/input-hints');
 const drive = require('../../utils/drive');
 // 题库管理：筛选题目、编辑修订、上传媒体、预览导入和删除恢复。
 const l = require('../../utils/learning');
+const cache = require('../../utils/cache');
 const states = [
   { value: 'active', label: '正常题目' },
   { value: 'deleted', label: '已删除' },
 ];
 const kindNames = { question: '题目', answer: '答案', ms: '评分标准', sm: '参考解答', audio: '音频', source: '附件' };
 const endpoint = '/api/question-bank/admin';
-Page(withInputHints({
+Page({
   data: {
-    mainTab: 'profile', section: 'question-management', drawerOpen: false, safeTop: 0,
+    mainTab: 'profile', section: 'question-management', drawerOpen: false,
     teacher: false, admin: false, checking: true,
     items: [], total: 0, page: 1, loading: false, error: '', q: '',
     states, stateIndex: 0, subjects: [{ value: '', label: '全部学科' }], subjectIndex: 0,
@@ -21,19 +21,19 @@ Page(withInputHints({
     importPreview: null, importBusy: false, importResult: '',
     zipSheetOpen: false, downloadingSkill: false,
     batchMode: false, selectedCount: 0,
-    taxonomyOpen: false, taxSubjects: [], taxCollections: [], taxTags: [], collectionTagOptions: [],
+    taxonomyOpen: false, taxSubjects: [], taxCollections: [], taxTags: [],
     newSubjectCode: '', newSubjectLabel: '', newColSubject: '', newColCode: '', newColLabel: '', newTagCol: '', newTagCode: '', newTagLabel: '',
-    aiBusy: false, aiDrafts: [], aiAttachment: null,
   },
   onResize() { this.setData({ navigationStyle: workspace.navigationStyle(wx) }); },
   async onLoad(options = {}) {
     this.setData({ navigationStyle: workspace.navigationStyle(wx) });
     if (!l.guard()) return;
     try {
-      const me = await l.request('/api/ai/me');
-      const isTeacher = me.user.role === 'teacher';
-      this.setData({ teacher: isTeacher, admin: isTeacher, checking: false });
-      if (!isTeacher) return;
+      const me = await l.getMe((m) => {
+        const t = m.user.role === 'teacher';
+        this.setData({ teacher: t, admin: t, checking: false });
+      });
+      if (me.user.role !== 'teacher') return;
       await this.readFacets();
       await this.load(true);
       this._ready = true;
@@ -42,9 +42,9 @@ Page(withInputHints({
       else if (options.action === 'zip') this.openZipImportSheet();
     } catch (error) { this.setData({ checking: false, error: error.message }); l.error(error); }
   },
-  onShow() { if (this._ready) this.load(true); },
+  onShow() { if (this._ready) this.load(true, { force: true, background: true }); },
   onPullDownRefresh() {
-    const refresh = this.data.admin ? this.readFacets().then(() => this.load(true)) : Promise.resolve();
+    const refresh = this.data.admin ? this.readFacets(true).then(() => this.load(true, { force: true })) : Promise.resolve();
     return refresh.finally(() => wx.stopPullDownRefresh());
   },
   ...workspace.drawer,
@@ -53,8 +53,7 @@ Page(withInputHints({
     if (getCurrentPages().length > 1) wx.navigateBack();
     else wx.redirectTo({ url: '/pages/learning/index?section=profile' });
   },
-  async readFacets() {
-    const rows = await l.request(endpoint + '/facets');
+  applyFacets(rows) {
     this._facets = rows;
     const map = new Map();
     for (const row of rows) map.set(row.subject, { value: row.subject, label: row.subjectLabel || row.subject });
@@ -63,6 +62,21 @@ Page(withInputHints({
     this.setData({ subjects, subjectIndex: Math.max(0, subjects.findIndex(x => x.value === selected)) });
     this.setCollections(this.data.collections[this.data.collectionIndex]?.value);
   },
+  async readFacets(force = false) {
+    const cached = !force ? cache.get('admin-bank:facets', { maxAge: 60 * 1000 }) : null;
+    if (cached) {
+      this.applyFacets(cached.value);
+      if (cached.fresh) return;
+      l.request(endpoint + '/facets').then((rows) => {
+        cache.set('admin-bank:facets', rows);
+        this.applyFacets(rows);
+      }).catch(() => {});
+      return;
+    }
+    const rows = await l.request(endpoint + '/facets');
+    cache.set('admin-bank:facets', rows);
+    this.applyFacets(rows);
+  },
   setCollections(selected = '') {
     const subject = this.data.subjects[this.data.subjectIndex]?.value;
     const map = new Map();
@@ -70,19 +84,32 @@ Page(withInputHints({
     const collections = [{ value: '', label: '全部数据集' }, ...map.values()];
     this.setData({ collections, collectionIndex: Math.max(0, collections.findIndex(x => x.value === selected)) });
   },
-  async load(reset = false) {
+  async load(reset = false, options = {}) {
     if (!this.data.admin || (this.data.loading && !reset)) return;
-    const request = (this._request || 0) + 1; this._request = request;
+    const request = (this._request || 0) + 1;
+    this._request = request;
+    const subject = this.data.subjects[this.data.subjectIndex]?.value;
+    const collection = this.data.collections[this.data.collectionIndex]?.value;
+    const state = states[this.data.stateIndex].value;
+    const cacheKey = reset ? 'admin-bank:items:' + l.query({ q: this.data.q, subject, collection, state }) : '';
+    const cached = (cacheKey && !options.force) ? cache.get(cacheKey, { maxAge: 30 * 1000 }) : null;
+    if (cached) {
+      this.setData({ items: cached.value.items, total: cached.value.total, page: cached.value.page, loading: false, error: '' });
+      if (cached.fresh) return;
+    }
     const page = reset ? 1 : this.data.page + 1;
-    this.setData({ loading: true, error: '' });
+    if (!cached && !options.background) this.setData({ loading: true, error: '' });
     try {
       const result = await l.request(endpoint + '/items?' + l.query({
-        q: this.data.q, subject: this.data.subjects[this.data.subjectIndex]?.value,
-        collection: this.data.collections[this.data.collectionIndex]?.value,
-        state: states[this.data.stateIndex].value, page,
+        q: this.data.q, subject,
+        collection,
+        state, page,
       }));
       if (request !== this._request) return;
-      const items = result.items.map(item => ({ ...item, thumbnailUrl: item.thumbnail ? l.url(item.thumbnail.path) : '', stateLabel: item.visibility === 'withdrawn' ? '已删除' : '' }));
+      const items = result.items.map(item => ({ ...item, thumbnailUrl: item.thumbnail ? l.url(item.thumbnail.path) : '' }));
+      if (reset && cacheKey) {
+        cache.set(cacheKey, { items, total: result.total, page });
+      }
       this.setData({ items: reset ? items : this.data.items.concat(items), total: result.total, page });
     } catch (error) { if (request === this._request) { this.setData({ error: error.message }); l.error(error); } }
     finally { if (request === this._request) this.setData({ loading: false }); }
@@ -149,7 +176,7 @@ Page(withInputHints({
   newQuestion() {
     if (!this.data.admin) return;
     this.formOptions(this.data.subjects[this.data.subjectIndex]?.value, '');
-    this.setData({ inputHintFocus: '', formOpen: true, drawerOpen: false, editingId: '', editingRevision: '', formError: '',
+    this.setData({ formOpen: true, drawerOpen: false, editingId: '', editingRevision: '', formError: '',
       form: { title: '', sourceId: '', questionText: '', answerText: '', tagsText: '', attachments: [] } });
   },
   async editQuestion(event) {
@@ -157,11 +184,11 @@ Page(withInputHints({
     try {
       const item = await l.request(endpoint + '/items/' + event.currentTarget.dataset.id);
       this.formOptions(item.subject, item.collection, item);
-      this.setData({ inputHintFocus: '', formOpen: true, drawerOpen: false, editingId: item.resourceId, editingRevision: item.revisionId, formError: '',
+      this.setData({ formOpen: true, drawerOpen: false, editingId: item.resourceId, editingRevision: item.revisionId, formError: '',
         form: { title: item.title, sourceId: item.id, questionText: item.question_text || '', answerText: item.answer_text || '', tagsText: (item.tags || []).map(code => code + ' | ' + (item.tag_names?.[code] || code)).join('\n'), attachments: item.attachments.map(a => ({ ...a, key: a.id, name: a.label, kindLabel: kindNames[a.kind] || '附件', previewUrl: a.path ? l.url(a.path) : '' })) } });
     } catch (error) { l.error(error); }
   },
-  closeForm() { if (!this.data.saving && !this.data.uploading) { this.resetInputHints(); this.setData({ formOpen: false, formError: '' }); } },
+  closeForm() { if (!this.data.saving && !this.data.uploading) { this.setData({ formOpen: false, formError: '' }); } },
   formInput(event) { this.setData({ ['form.' + event.currentTarget.dataset.field]: event.detail.value }); },
   formPick(event) {
     const field = event.currentTarget.dataset.field;
@@ -210,7 +237,10 @@ Page(withInputHints({
         attachments: form.attachments.map(a => ({ id: a.id, token: a.token, kind: a.kind, label: a.label })),
       });
       this.setData({ formOpen: false }); wx.showToast({ title: '题目已保存', icon: 'success' });
-      await this.readFacets(); await this.load(true);
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
+      cache.invalidate('question:detail:');
+      await this.readFacets(true); await this.load(true, { force: true });
     } catch (error) { this.setData({ formError: error.message }); }
     finally { this.setData({ saving: false }); }
   },
@@ -220,14 +250,14 @@ Page(withInputHints({
     wx.showModal({ title: '删除题目', content: '确定删除“' + item.title + '”？删除后会从题库和检索中移除，可在“已删除”中恢复。', confirmText: '删除', confirmColor: '#a12540',
       success: async result => {
         if (!result.confirm) return;
-        try { await l.request(endpoint + '/items/' + item.resourceId, 'DELETE', { expectedRevisionId: item.revisionId }); await this.load(true); wx.showToast({ title: '题目已删除', icon: 'success' }); }
+        try { await l.request(endpoint + '/items/' + item.resourceId, 'DELETE', { expectedRevisionId: item.revisionId }); cache.invalidate('admin-bank:'); cache.invalidate('bank:'); cache.invalidate('question:detail:'); await this.load(true, { force: true }); wx.showToast({ title: '题目已删除', icon: 'success' }); }
         catch (error) { l.error(error); }
       } });
   },
   async restoreQuestion(event) {
     const item = this.data.items.find(x => x.resourceId === event.currentTarget.dataset.id);
     if (!item) return;
-    try { await l.request(endpoint + '/items/' + item.resourceId + '/restore', 'POST', { expectedRevisionId: item.revisionId }); await this.load(true); wx.showToast({ title: '题目已恢复', icon: 'success' }); }
+    try { await l.request(endpoint + '/items/' + item.resourceId + '/restore', 'POST', { expectedRevisionId: item.revisionId }); cache.invalidate('admin-bank:'); cache.invalidate('bank:'); cache.invalidate('question:detail:'); await this.load(true, { force: true }); wx.showToast({ title: '题目已恢复', icon: 'success' }); }
     catch (error) { l.error(error); }
   },
   async importQuestions() {
@@ -252,7 +282,10 @@ Page(withInputHints({
     try {
       const result = await l.request(endpoint + '/imports/confirm', 'POST', { token: this.data.importPreview.token });
       this.setData({ importPreview: null, importResult: '已处理 ' + result.items + ' 道题目 · 新增 ' + result.created + ' 道 · 新增修订 ' + result.revisions + ' 份 · 复用修订 ' + result.unchanged + ' 份' });
-      await this.readFacets(); await this.load(true);
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
+      cache.invalidate('question:detail:');
+      await this.readFacets(true); await this.load(true, { force: true });
     } catch (error) { this.setData({ error: error.message }); }
     finally { this.setData({ importBusy: false }); }
   },
@@ -277,7 +310,10 @@ Page(withInputHints({
       const res = await l.request(endpoint + '/items/batch', 'POST', { ids, action });
       wx.showToast({ title: `已完成 ${res.succeeded.length} 题` });
       this.setData({ batchMode: false, selectedCount: 0 });
-      await this.load(true);
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
+      cache.invalidate('question:detail:');
+      await this.load(true, { force: true });
     } catch (err) { l.error(err); }
   },
   async openTaxonomy() {
@@ -301,22 +337,28 @@ Page(withInputHints({
     try {
       await l.request(endpoint + '/subjects', 'POST', { code: this.data.newSubjectCode, label: this.data.newSubjectLabel });
       this.setData({ newSubjectCode: '', newSubjectLabel: '' });
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
       await this.openTaxonomy();
-      await this.readFacets();
+      await this.readFacets(true);
     } catch (err) { l.error(err); }
   },
   async addCollection() {
     try {
       await l.request(endpoint + '/collections', 'POST', { subjectCode: this.data.newColSubject, code: this.data.newColCode, label: this.data.newColLabel });
       this.setData({ newColCode: '', newColLabel: '' });
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
       await this.openTaxonomy();
-      await this.readFacets();
+      await this.readFacets(true);
     } catch (err) { l.error(err); }
   },
   async addTag() {
     try {
       await l.request(endpoint + '/tags', 'POST', { collectionCode: this.data.newTagCol, code: this.data.newTagCode, label: this.data.newTagLabel });
       this.setData({ newTagCode: '', newTagLabel: '' });
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
       await this.openTaxonomy();
     } catch (err) { l.error(err); }
   },
@@ -324,54 +366,11 @@ Page(withInputHints({
     const { kind, id } = e.currentTarget.dataset;
     try {
       await l.request(endpoint + '/' + kind + '/' + encodeURIComponent(id), 'DELETE', {});
+      cache.invalidate('admin-bank:');
+      cache.invalidate('bank:');
       await this.openTaxonomy();
-      await this.readFacets();
+      await this.readFacets(true);
     } catch (err) { l.error(err); }
-  },
-  toggleFormTag(e) {
-    const { code, label } = e.currentTarget.dataset;
-    const lines = String(this.data.form.tagsText || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-    const existsIdx = lines.findIndex(line => line.split('|')[0].trim() === code);
-    if (existsIdx >= 0) lines.splice(existsIdx, 1);
-    else lines.push(`${code} | ${label}`);
-    this.setData({ 'form.tagsText': lines.join('\n') });
-  },
-  async aiIngest() {
-    if (this.data.aiBusy) return;
-    try {
-      const file = await l.pickFile(true);
-      this.setData({ aiBusy: true });
-      const res = await l.upload(endpoint + '/ai-ingest', file);
-      this.setData({ aiDrafts: res.candidates || [], aiAttachment: res.attachment || null });
-    } catch (err) {
-      if (!String(err?.errMsg || '').includes('cancel')) l.error(err);
-    } finally {
-      this.setData({ aiBusy: false });
-    }
-  },
-  closeAiDrafts() {
-    this.setData({ aiDrafts: [], aiAttachment: null });
-  },
-  applyAiDraft(e) {
-    const draft = this.data.aiDrafts[Number(e.currentTarget.dataset.index)];
-    if (!draft) return;
-    this.formOptions(this.data.subjects[this.data.subjectIndex]?.value, '');
-    const att = this.data.aiAttachment ? [{ ...this.data.aiAttachment, key: this.data.aiAttachment.token, kindLabel: '题目' }] : [];
-    this.setData({
-      aiDrafts: [],
-      aiAttachment: null,
-      formOpen: true,
-      editingId: '',
-      editingRevision: '',
-      form: {
-        title: draft.title || '',
-        sourceId: '',
-        questionText: draft.questionText || '',
-        answerText: draft.answerText || '',
-        tagsText: (draft.tags || []).map(t => `${t} | ${t}`).join('\n'),
-        attachments: att,
-      },
-    });
   },
   async openCurator() {
     const pages = getCurrentPages();
@@ -383,4 +382,4 @@ Page(withInputHints({
       wx.redirectTo({ url: '/pages/learning/index?section=agents&presetKey=question_curator' });
     }
   },
-}));
+});

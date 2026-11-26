@@ -6,7 +6,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 
-const { pool } = require('../db');
+const { pool, transaction } = require('../db');
 const { requireAuth, requireTeacher } = require('../middleware/auth');
 const { decodeUploadName } = require('../utils/upload-name');
 const { UPLOAD_ROOT, storedFilePath } = require('../utils/file-storage');
@@ -178,180 +178,162 @@ function publicDriveFile(row, user, markedSet) {
 
 router.use(requireAuth);
 
-router.get('/tree', async (req, res, next) => {
-  try {
-    await ensureLegacyFolders();
-    const [rows] = await pool.query(
-      'SELECT id, parent_id, name, owner_id, legacy_category FROM drive_folders WHERE deleted_at IS NULL ORDER BY legacy_category IS NULL, legacy_category, name, id',
+router.get('/tree', async (req, res) => {
+  await ensureLegacyFolders();
+  const [rows] = await pool.query(
+    'SELECT id, parent_id, name, owner_id, legacy_category FROM drive_folders WHERE deleted_at IS NULL ORDER BY legacy_category IS NULL, legacy_category, name, id',
+  );
+  res.json({ success: true, data: { folders: rows } });
+});
+
+router.get('/items', async (req, res) => {
+  await ensureLegacyFolders();
+  const folderId = req.query.folderId ? Number(req.query.folderId) : null;
+  const q = String(req.query.q || '').trim();
+  const hideMarked = req.query.hideMarked === 'true';
+  const onlyMarked = req.query.onlyMarked === 'true';
+  const sort = req.query.sort === 'name' ? 'name' : req.query.sort === 'size' ? 'size' : 'time';
+
+  if (folderId && !(await folderById(folderId))) {
+    return res.status(404).json({ success: false, message: '文件夹不存在' });
+  }
+
+  const [markRows] = await pool.execute('SELECT file_id FROM user_file_marks WHERE user_id = ?', [req.user.id]);
+  const markedSet = new Set(markRows.map(r => Number(r.file_id)));
+
+  let folders = [];
+  let files = [];
+
+  if (q) {
+    const [fRows] = await pool.execute(
+      `SELECT d.*, u.display_name AS owner_name FROM drive_folders d LEFT JOIN users u ON u.id = d.owner_id
+       WHERE d.deleted_at IS NULL AND LOCATE(?, d.name) > 0 ORDER BY d.name, d.id LIMIT 100`,
+      [q.slice(0, 100)],
     );
-    res.json({ success: true, data: { folders: rows } });
-  } catch (e) { next(e); }
-});
-
-router.get('/items', async (req, res, next) => {
-  try {
-    await ensureLegacyFolders();
-    const folderId = req.query.folderId ? Number(req.query.folderId) : null;
-    const q = String(req.query.q || '').trim();
-    const hideMarked = req.query.hideMarked === 'true';
-    const onlyMarked = req.query.onlyMarked === 'true';
-    const sort = req.query.sort === 'name' ? 'name' : req.query.sort === 'size' ? 'size' : 'time';
-
-    if (folderId && !(await folderById(folderId))) {
-      return res.status(404).json({ success: false, message: '文件夹不存在' });
-    }
-
-    const [markRows] = await pool.execute('SELECT file_id FROM user_file_marks WHERE user_id = ?', [req.user.id]);
-    const markedSet = new Set(markRows.map(r => Number(r.file_id)));
-
-    let folders = [];
-    let files = [];
-
-    if (q) {
-      const [fRows] = await pool.execute(
-        `SELECT d.*, u.display_name AS owner_name FROM drive_folders d LEFT JOIN users u ON u.id = d.owner_id
-         WHERE d.deleted_at IS NULL AND LOCATE(?, d.name) > 0 ORDER BY d.name, d.id LIMIT 100`,
-        [q.slice(0, 100)],
-      );
-      const [fileRows] = await pool.execute(
-        `SELECT f.*, u.display_name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploader_id
-         WHERE f.deleted_at IS NULL AND LOCATE(?, f.original_name) > 0 ORDER BY f.created_at DESC, f.id DESC LIMIT 200`,
-        [q.slice(0, 100)],
-      );
-      folders = fRows.map(r => publicFolder(r, req.user));
-      files = fileRows.map(r => publicDriveFile(r, req.user, markedSet));
-    } else {
-      const [fRows] = await pool.execute(
-        `SELECT d.*, u.display_name AS owner_name FROM drive_folders d LEFT JOIN users u ON u.id = d.owner_id
-         WHERE d.deleted_at IS NULL AND ${folderId === null ? 'd.parent_id IS NULL' : 'd.parent_id = ?'}
-         ORDER BY d.legacy_category IS NULL, d.legacy_category, ${sort === 'name' ? 'd.name ASC' : 'd.updated_at DESC'}, d.id DESC`,
-        folderId === null ? [] : [folderId],
-      );
-      const orderBy = sort === 'name' ? 'f.original_name ASC' : sort === 'size' ? 'f.file_size DESC' : 'f.created_at DESC';
-      const [fileRows] = await pool.execute(
-        `SELECT f.*, u.display_name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploader_id
-         WHERE f.deleted_at IS NULL AND ${folderId === null ? 'f.folder_id IS NULL' : 'f.folder_id = ?'}
-         ORDER BY ${orderBy}, f.id DESC`,
-        folderId === null ? [] : [folderId],
-      );
-      folders = fRows.map(r => publicFolder(r, req.user));
-      files = fileRows.map(r => publicDriveFile(r, req.user, markedSet));
-    }
-
-    if (hideMarked) files = files.filter(f => !f.marked);
-    if (onlyMarked) files = files.filter(f => f.marked);
-
-    const trail = folderId ? await breadcrumbs(folderId) : [];
-    res.json({
-      success: true,
-      data: {
-        breadcrumbs: trail,
-        folders,
-        files,
-        markedIds: [...markedSet],
-      },
-    });
-  } catch (e) { next(e); }
-});
-
-router.post('/folders', async (req, res, next) => {
-  try {
-    const parentId = req.body.parentId ? Number(req.body.parentId) : null;
-    const name = safeName(req.body.name, '');
-    if (!name) return res.status(400).json({ success: false, message: '请输入文件夹名称' });
-    if (parentId && !(await folderById(parentId))) {
-      return res.status(404).json({ success: false, message: '父文件夹不存在' });
-    }
-    if (await siblingFolderExists(parentId, name)) {
-      return res.status(409).json({ success: false, message: '当前目录下已存在同名文件夹' });
-    }
-    const [result] = await pool.execute(
-      'INSERT INTO drive_folders (parent_id, name, owner_id) VALUES (?, ?, ?)',
-      [parentId, name, req.user.id],
+    const [fileRows] = await pool.execute(
+      `SELECT f.*, u.display_name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploader_id
+       WHERE f.deleted_at IS NULL AND LOCATE(?, f.original_name) > 0 ORDER BY f.created_at DESC, f.id DESC LIMIT 200`,
+      [q.slice(0, 100)],
     );
-    const created = await folderById(result.insertId);
-    res.status(201).json({ success: true, data: publicFolder(created, req.user) });
-  } catch (e) { next(e); }
+    folders = fRows.map(r => publicFolder(r, req.user));
+    files = fileRows.map(r => publicDriveFile(r, req.user, markedSet));
+  } else {
+    const [fRows] = await pool.execute(
+      `SELECT d.*, u.display_name AS owner_name FROM drive_folders d LEFT JOIN users u ON u.id = d.owner_id
+       WHERE d.deleted_at IS NULL AND ${folderId === null ? 'd.parent_id IS NULL' : 'd.parent_id = ?'}
+       ORDER BY d.legacy_category IS NULL, d.legacy_category, ${sort === 'name' ? 'd.name ASC' : 'd.updated_at DESC'}, d.id DESC`,
+      folderId === null ? [] : [folderId],
+    );
+    const orderBy = sort === 'name' ? 'f.original_name ASC' : sort === 'size' ? 'f.file_size DESC' : 'f.created_at DESC';
+    const [fileRows] = await pool.execute(
+      `SELECT f.*, u.display_name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploader_id
+       WHERE f.deleted_at IS NULL AND ${folderId === null ? 'f.folder_id IS NULL' : 'f.folder_id = ?'}
+       ORDER BY ${orderBy}, f.id DESC`,
+      folderId === null ? [] : [folderId],
+    );
+    folders = fRows.map(r => publicFolder(r, req.user));
+    files = fileRows.map(r => publicDriveFile(r, req.user, markedSet));
+  }
+
+  if (hideMarked) files = files.filter(f => !f.marked);
+  if (onlyMarked) files = files.filter(f => f.marked);
+
+  const trail = folderId ? await breadcrumbs(folderId) : [];
+  res.json({
+    success: true,
+    data: {
+      breadcrumbs: trail,
+      folders,
+      files,
+      markedIds: [...markedSet],
+    },
+  });
 });
 
-router.patch('/folders/:id', async (req, res, next) => {
-  try {
-    const folder = await folderById(req.params.id);
-    if (!folder) return res.status(404).json({ success: false, message: '文件夹不存在' });
-    if (!canMutate(req.user, folder.owner_id)) {
-      return res.status(403).json({ success: false, message: '只能修改自己创建的文件夹' });
-    }
-    const nextName = req.body.name !== undefined ? safeName(req.body.name, '') : folder.name;
-    if (!nextName) return res.status(400).json({ success: false, message: '文件夹名称不能为空' });
-    const nextParent = req.body.parentId !== undefined
-      ? (req.body.parentId ? Number(req.body.parentId) : null)
-      : folder.parent_id;
-    if (nextParent === folder.id) {
-      return res.status(400).json({ success: false, message: '不能将文件夹移动到自身' });
-    }
-    if (nextParent) {
-      if (!(await folderById(nextParent))) {
-        return res.status(404).json({ success: false, message: '目标文件夹不存在' });
-      }
-      const subtree = await collectSubtreeFolderIds(folder.id);
-      if (subtree.includes(nextParent)) {
-        return res.status(400).json({ success: false, message: '不能将文件夹移动到其子目录中' });
-      }
-    }
-    if (await siblingFolderExists(nextParent, nextName, folder.id)) {
-      return res.status(409).json({ success: false, message: '目标目录下已存在同名文件夹' });
-    }
-    await pool.execute('UPDATE drive_folders SET name = ?, parent_id = ? WHERE id = ?', [nextName, nextParent, folder.id]);
-    res.json({ success: true, data: publicFolder(await folderById(folder.id), req.user) });
-  } catch (e) { next(e); }
+router.post('/folders', async (req, res) => {
+  const parentId = req.body.parentId ? Number(req.body.parentId) : null;
+  const name = safeName(req.body.name, '');
+  if (!name) return res.status(400).json({ success: false, message: '请输入文件夹名称' });
+  if (parentId && !(await folderById(parentId))) {
+    return res.status(404).json({ success: false, message: '父文件夹不存在' });
+  }
+  if (await siblingFolderExists(parentId, name)) {
+    return res.status(409).json({ success: false, message: '当前目录下已存在同名文件夹' });
+  }
+  const [result] = await pool.execute(
+    'INSERT INTO drive_folders (parent_id, name, owner_id) VALUES (?, ?, ?)',
+    [parentId, name, req.user.id],
+  );
+  const created = await folderById(result.insertId);
+  res.status(201).json({ success: true, data: publicFolder(created, req.user) });
 });
 
-router.delete('/folders/:id', async (req, res, next) => {
-  try {
-    const folder = await folderById(req.params.id);
-    if (!folder) return res.status(404).json({ success: false, message: '文件夹不存在' });
-    if (!canMutate(req.user, folder.owner_id)) {
-      return res.status(403).json({ success: false, message: '只能删除自己创建的文件夹' });
+router.patch('/folders/:id', async (req, res) => {
+  const folder = await folderById(req.params.id);
+  if (!folder) return res.status(404).json({ success: false, message: '文件夹不存在' });
+  if (!canMutate(req.user, folder.owner_id)) {
+    return res.status(403).json({ success: false, message: '只能修改自己创建的文件夹' });
+  }
+  const nextName = req.body.name !== undefined ? safeName(req.body.name, '') : folder.name;
+  if (!nextName) return res.status(400).json({ success: false, message: '文件夹名称不能为空' });
+  const nextParent = req.body.parentId !== undefined
+    ? (req.body.parentId ? Number(req.body.parentId) : null)
+    : folder.parent_id;
+  if (nextParent === folder.id) {
+    return res.status(400).json({ success: false, message: '不能将文件夹移动到自身' });
+  }
+  if (nextParent) {
+    if (!(await folderById(nextParent))) {
+      return res.status(404).json({ success: false, message: '目标文件夹不存在' });
     }
-    const subtreeIds = await collectSubtreeFolderIds(folder.id);
-    const placeholders = subtreeIds.map(() => '?').join(',');
-    if (!isTeacher(req.user)) {
-      const [otherFolders] = await pool.execute(
-        `SELECT id FROM drive_folders WHERE id IN (${placeholders}) AND owner_id <> ? LIMIT 1`,
-        [...subtreeIds, req.user.id],
-      );
-      const [otherFiles] = await pool.execute(
-        `SELECT id FROM files WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL AND uploader_id <> ? LIMIT 1`,
-        [...subtreeIds, req.user.id],
-      );
-      if (otherFolders.length || otherFiles.length) {
-        return res.status(403).json({ success: false, message: '文件夹内包含其他用户上传的资料，无法删除' });
-      }
+    const subtree = await collectSubtreeFolderIds(folder.id);
+    if (subtree.includes(nextParent)) {
+      return res.status(400).json({ success: false, message: '不能将文件夹移动到其子目录中' });
     }
-    const db = await pool.getConnection();
-    try {
-      await db.beginTransaction();
-      await db.execute(
-        `UPDATE drive_folders SET deleted_at = NOW(), deleted_by = ? WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
-        [req.user.id, ...subtreeIds],
-      );
-      await db.execute(
-        `UPDATE kl_resources r JOIN files f ON f.ai_resource_id = r.id SET r.visibility = 'withdrawn' WHERE f.folder_id IN (${placeholders}) AND f.deleted_at IS NULL`,
-        subtreeIds,
-      );
-      await db.execute(
-        `UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL`,
-        [req.user.id, ...subtreeIds],
-      );
-      await db.commit();
-    } catch (err) {
-      await db.rollback();
-      throw err;
-    } finally {
-      db.release();
+  }
+  if (await siblingFolderExists(nextParent, nextName, folder.id)) {
+    return res.status(409).json({ success: false, message: '目标目录下已存在同名文件夹' });
+  }
+  await pool.execute('UPDATE drive_folders SET name = ?, parent_id = ? WHERE id = ?', [nextName, nextParent, folder.id]);
+  res.json({ success: true, data: publicFolder(await folderById(folder.id), req.user) });
+});
+
+router.delete('/folders/:id', async (req, res) => {
+  const folder = await folderById(req.params.id);
+  if (!folder) return res.status(404).json({ success: false, message: '文件夹不存在' });
+  if (!canMutate(req.user, folder.owner_id)) {
+    return res.status(403).json({ success: false, message: '只能删除自己创建的文件夹' });
+  }
+  const subtreeIds = await collectSubtreeFolderIds(folder.id);
+  const placeholders = subtreeIds.map(() => '?').join(',');
+  if (!isTeacher(req.user)) {
+    const [otherFolders] = await pool.execute(
+      `SELECT id FROM drive_folders WHERE id IN (${placeholders}) AND owner_id <> ? LIMIT 1`,
+      [...subtreeIds, req.user.id],
+    );
+    const [otherFiles] = await pool.execute(
+      `SELECT id FROM files WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL AND uploader_id <> ? LIMIT 1`,
+      [...subtreeIds, req.user.id],
+    );
+    if (otherFolders.length || otherFiles.length) {
+      return res.status(403).json({ success: false, message: '文件夹内包含其他用户上传的资料，无法删除' });
     }
-    res.json({ success: true, data: { deletedFolderIds: subtreeIds } });
-  } catch (e) { next(e); }
+  }
+  await transaction(async (db) => {
+    await db.execute(
+      `UPDATE drive_folders SET deleted_at = NOW(), deleted_by = ? WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
+      [req.user.id, ...subtreeIds],
+    );
+    await db.execute(
+      `UPDATE kl_resources r JOIN files f ON f.ai_resource_id = r.id SET r.visibility = 'withdrawn' WHERE f.folder_id IN (${placeholders}) AND f.deleted_at IS NULL`,
+      subtreeIds,
+    );
+    await db.execute(
+      `UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL`,
+      [req.user.id, ...subtreeIds],
+    );
+  });
+  res.json({ success: true, data: { deletedFolderIds: subtreeIds } });
 });
 
 router.post('/files/upload', upload.single('file'), async (req, res, next) => {
@@ -381,193 +363,178 @@ router.post('/files/upload', upload.single('file'), async (req, res, next) => {
     const fileType = safeExt(originalName).replace('.', '');
     const indexStatus = AI_INDEX_EXTS.has(safeExt(originalName)) ? 'queued' : 'none';
 
+    let result;
     try {
-      const [result] = await pool.execute(
+      [result] = await pool.execute(
         `INSERT INTO files (category, folder_id, original_name, stored_name, storage_path, file_type, mime_type, file_size, uploader_id, ai_index_status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [category, folderId, originalName, storedName, storagePath, fileType, req.file.mimetype || '', Number(req.file.size || 0), req.user.id, indexStatus],
       );
-      const row = await fileById(result.insertId);
-      if (indexStatus === 'queued') triggerAiIndex(req.user, row);
-      res.status(201).json({ success: true, data: publicDriveFile(row, req.user) });
     } catch (dbErr) {
       await fsp.unlink(finalPath).catch(() => {});
       throw dbErr;
     }
+    const row = await fileById(result.insertId);
+    if (indexStatus === 'queued') triggerAiIndex(req.user, row);
+    res.status(201).json({ success: true, data: publicDriveFile(row, req.user) });
   } catch (e) {
     if (tempPath) await fsp.unlink(tempPath).catch(() => {});
     next(e);
   }
 });
 
-router.patch('/files/:id', async (req, res, next) => {
-  try {
-    const file = await fileById(req.params.id);
-    if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
-    if (!canMutate(req.user, file.uploader_id)) {
-      return res.status(403).json({ success: false, message: '只能修改自己上传的文件' });
-    }
-    const nextName = req.body.name !== undefined ? safeName(req.body.name, '') : file.original_name;
-    if (!nextName) return res.status(400).json({ success: false, message: '文件名不能为空' });
-    const nextFolder = req.body.folderId !== undefined
-      ? (req.body.folderId ? Number(req.body.folderId) : null)
-      : file.folder_id;
-    if (nextFolder && !(await folderById(nextFolder))) {
-      return res.status(404).json({ success: false, message: '目标文件夹不存在' });
-    }
-    await pool.execute('UPDATE files SET original_name = ?, folder_id = ? WHERE id = ?', [nextName, nextFolder, file.id]);
-    res.json({ success: true, data: publicDriveFile(await fileById(file.id), req.user) });
-  } catch (e) { next(e); }
+router.patch('/files/:id', async (req, res) => {
+  const file = await fileById(req.params.id);
+  if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
+  if (!canMutate(req.user, file.uploader_id)) {
+    return res.status(403).json({ success: false, message: '只能修改自己上传的文件' });
+  }
+  const nextName = req.body.name !== undefined ? safeName(req.body.name, '') : file.original_name;
+  if (!nextName) return res.status(400).json({ success: false, message: '文件名不能为空' });
+  const nextFolder = req.body.folderId !== undefined
+    ? (req.body.folderId ? Number(req.body.folderId) : null)
+    : file.folder_id;
+  if (nextFolder && !(await folderById(nextFolder))) {
+    return res.status(404).json({ success: false, message: '目标文件夹不存在' });
+  }
+  await pool.execute('UPDATE files SET original_name = ?, folder_id = ? WHERE id = ?', [nextName, nextFolder, file.id]);
+  res.json({ success: true, data: publicDriveFile(await fileById(file.id), req.user) });
 });
 
-router.delete('/files/:id', async (req, res, next) => {
-  try {
-    const file = await fileById(req.params.id);
-    if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
-    if (!canMutate(req.user, file.uploader_id)) {
-      return res.status(403).json({ success: false, message: '只能删除自己上传的文件' });
-    }
-    await pool.execute('UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, file.id]);
-    if (file.ai_resource_id) {
-      await pool.execute("UPDATE kl_resources SET visibility = 'withdrawn' WHERE id = ?", [file.ai_resource_id]).catch(() => {});
-    }
-    res.json({ success: true, data: { id: file.id } });
-  } catch (e) { next(e); }
+router.delete('/files/:id', async (req, res) => {
+  const file = await fileById(req.params.id);
+  if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
+  if (!canMutate(req.user, file.uploader_id)) {
+    return res.status(403).json({ success: false, message: '只能删除自己上传的文件' });
+  }
+  await transaction(async db => {
+    await db.execute('UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, file.id]);
+    await db.execute("UPDATE kl_resources r JOIN files f ON f.ai_resource_id=r.id SET r.visibility='withdrawn' WHERE f.id=?", [file.id]);
+  });
+  res.json({ success: true, data: { id: file.id } });
 });
 
-router.get('/files/:id/download', async (req, res, next) => {
-  try {
-    const file = await fileById(req.params.id);
-    if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
-    const filePath = storedFilePath(file.storage_path);
-    try { await fsp.access(filePath); } catch {
-      return res.status(404).json({ success: false, message: '服务器上的文件不存在' });
-    }
-    return res.download(filePath, file.original_name);
-  } catch (e) { next(e); }
+router.get('/files/:id/download', async (req, res) => {
+  const file = await fileById(req.params.id);
+  if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
+  const filePath = storedFilePath(file.storage_path);
+  try { await fsp.access(filePath); } catch {
+    return res.status(404).json({ success: false, message: '服务器上的文件不存在' });
+  }
+  return res.download(filePath, file.original_name);
 });
 
-router.get('/folders/:id/export', async (req, res, next) => {
-  try {
-    const folder = await folderById(req.params.id);
-    if (!folder) return res.status(404).json({ success: false, message: '文件夹不存在' });
-    const subtreeIds = await collectSubtreeFolderIds(folder.id);
-    const placeholders = subtreeIds.map(() => '?').join(',');
-    const [files] = await pool.execute(
-      `SELECT id, original_name, storage_path FROM files WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL ORDER BY created_at DESC`,
-      subtreeIds,
-    );
-    const available = [];
-    for (const row of files) {
-      try {
-        const p = storedFilePath(row.storage_path);
-        await fsp.access(p);
-        available.push({ row, filePath: p });
-      } catch {}
-    }
-    if (!available.length) return res.status(404).json({ success: false, message: '当前目录没有可导出的文件' });
-    const zipName = `${safeName(folder.name, '资料')}_${Date.now()}.zip`;
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`);
-    const archive = new ZipArchive({ zlib: { level: 6 } });
-    archive.on('error', err => { if (!res.headersSent) res.status(500).json({ success: false, message: 'ZIP 创建失败' }); else res.destroy(err); });
-    archive.pipe(res);
-    available.forEach(({ row, filePath }, i) => {
-      archive.file(filePath, { name: `${String(i + 1).padStart(3, '0')}_${safeName(row.original_name)}` });
-    });
-    await archive.finalize();
-  } catch (e) { next(e); }
+router.get('/folders/:id/export', async (req, res) => {
+  const folder = await folderById(req.params.id);
+  if (!folder) return res.status(404).json({ success: false, message: '文件夹不存在' });
+  const subtreeIds = await collectSubtreeFolderIds(folder.id);
+  const placeholders = subtreeIds.map(() => '?').join(',');
+  const [files] = await pool.execute(
+    `SELECT id, original_name, storage_path FROM files WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL ORDER BY created_at DESC`,
+    subtreeIds,
+  );
+  const available = [];
+  for (const row of files) {
+    try {
+      const p = storedFilePath(row.storage_path);
+      await fsp.access(p);
+      available.push({ row, filePath: p });
+    } catch {}
+  }
+  if (!available.length) return res.status(404).json({ success: false, message: '当前目录没有可导出的文件' });
+  const zipName = `${safeName(folder.name, '资料')}_${Date.now()}.zip`;
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`);
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  archive.on('error', err => { if (!res.headersSent) res.status(500).json({ success: false, message: 'ZIP 创建失败' }); else res.destroy(err); });
+  archive.pipe(res);
+  available.forEach(({ row, filePath }, i) => {
+    archive.file(filePath, { name: `${String(i + 1).padStart(3, '0')}_${safeName(row.original_name)}` });
+  });
+  await archive.finalize();
 });
 
-router.post('/files/:id/reindex', async (req, res, next) => {
-  try {
-    const file = await fileById(req.params.id);
-    if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
-    if (!canMutate(req.user, file.uploader_id)) {
-      return res.status(403).json({ success: false, message: '无权重新索引此文件' });
-    }
-    if (!AI_INDEX_EXTS.has(safeExt(file.original_name))) {
-      return res.status(400).json({ success: false, message: '此文件类型暂不支持文本索引' });
-    }
-    await pool.execute("UPDATE files SET ai_index_status = 'queued', ai_index_error = NULL WHERE id = ?", [file.id]);
-    triggerAiIndex(req.user, file);
-    res.json({ success: true, data: { status: 'queued' } });
-  } catch (e) { next(e); }
+router.post('/files/:id/reindex', async (req, res) => {
+  const file = await fileById(req.params.id);
+  if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
+  if (!canMutate(req.user, file.uploader_id)) {
+    return res.status(403).json({ success: false, message: '无权重新索引此文件' });
+  }
+  if (!AI_INDEX_EXTS.has(safeExt(file.original_name))) {
+    return res.status(400).json({ success: false, message: '此文件类型暂不支持文本索引' });
+  }
+  await pool.execute("UPDATE files SET ai_index_status = 'queued', ai_index_error = NULL WHERE id = ?", [file.id]);
+  triggerAiIndex(req.user, file);
+  res.json({ success: true, data: { status: 'queued' } });
 });
 
-router.get('/trash', async (req, res, next) => {
-  try {
-    const teacher = isTeacher(req.user);
-    const [folders] = await pool.execute(
-      `SELECT d.*, u.display_name AS owner_name FROM drive_folders d LEFT JOIN users u ON u.id = d.owner_id
-       WHERE d.deleted_at IS NOT NULL ${teacher ? '' : 'AND d.owner_id = ?'} ORDER BY d.deleted_at DESC`,
-      teacher ? [] : [req.user.id],
-    );
-    const [files] = await pool.execute(
-      `SELECT f.*, u.display_name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploader_id
-       WHERE f.deleted_at IS NOT NULL ${teacher ? '' : 'AND f.uploader_id = ?'} ORDER BY f.deleted_at DESC`,
-      teacher ? [] : [req.user.id],
-    );
-    res.json({
-      success: true,
-      data: {
-        folders: folders.map(r => ({ ...publicFolder(r, req.user), deleted_at: r.deleted_at })),
-        files: files.map(r => ({ ...publicDriveFile(r, req.user), deleted_at: r.deleted_at })),
-      },
-    });
-  } catch (e) { next(e); }
+router.get('/trash', async (req, res) => {
+  const teacher = isTeacher(req.user);
+  const [folders] = await pool.execute(
+    `SELECT d.*, u.display_name AS owner_name FROM drive_folders d LEFT JOIN users u ON u.id = d.owner_id
+     WHERE d.deleted_at IS NOT NULL ${teacher ? '' : 'AND d.owner_id = ?'} ORDER BY d.deleted_at DESC`,
+    teacher ? [] : [req.user.id],
+  );
+  const [files] = await pool.execute(
+    `SELECT f.*, u.display_name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploader_id
+     WHERE f.deleted_at IS NOT NULL ${teacher ? '' : 'AND f.uploader_id = ?'} ORDER BY f.deleted_at DESC`,
+    teacher ? [] : [req.user.id],
+  );
+  res.json({
+    success: true,
+    data: {
+      folders: folders.map(r => ({ ...publicFolder(r, req.user), deleted_at: r.deleted_at })),
+      files: files.map(r => ({ ...publicDriveFile(r, req.user), deleted_at: r.deleted_at })),
+    },
+  });
 });
 
-router.post('/trash/restore', async (req, res, next) => {
-  try {
-    const { type, id } = req.body;
-    if (type === 'folder') {
-      const folder = await folderById(id, true);
-      if (!folder || !folder.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件夹' });
-      if (!canMutate(req.user, folder.owner_id)) return res.status(403).json({ success: false, message: '只能恢复自己删除的文件夹' });
-      const parentAlive = folder.parent_id ? Boolean(await folderById(folder.parent_id)) : true;
-      await pool.execute(
-        'UPDATE drive_folders SET deleted_at = NULL, deleted_by = NULL, parent_id = ? WHERE id = ?',
-        [parentAlive ? folder.parent_id : null, folder.id],
-      );
-      return res.json({ success: true, data: { id: folder.id } });
-    }
-    const file = await fileById(id, true);
-    if (!file || !file.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件' });
-    if (!canMutate(req.user, file.uploader_id)) return res.status(403).json({ success: false, message: '只能恢复自己删除的文件' });
-    const folderAlive = file.folder_id ? Boolean(await folderById(file.folder_id)) : true;
+router.post('/trash/restore', async (req, res) => {
+  const { type, id } = req.body;
+  if (type === 'folder') {
+    const folder = await folderById(id, true);
+    if (!folder || !folder.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件夹' });
+    if (!canMutate(req.user, folder.owner_id)) return res.status(403).json({ success: false, message: '只能恢复自己删除的文件夹' });
+    const parentAlive = folder.parent_id ? Boolean(await folderById(folder.parent_id)) : true;
     await pool.execute(
+      'UPDATE drive_folders SET deleted_at = NULL, deleted_by = NULL, parent_id = ? WHERE id = ?',
+      [parentAlive ? folder.parent_id : null, folder.id],
+    );
+    return res.json({ success: true, data: { id: folder.id } });
+  }
+  const file = await fileById(id, true);
+  if (!file || !file.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件' });
+  if (!canMutate(req.user, file.uploader_id)) return res.status(403).json({ success: false, message: '只能恢复自己删除的文件' });
+  const folderAlive = file.folder_id ? Boolean(await folderById(file.folder_id)) : true;
+  await transaction(async db => {
+    await db.execute(
       'UPDATE files SET deleted_at = NULL, deleted_by = NULL, folder_id = ? WHERE id = ?',
       [folderAlive ? file.folder_id : null, file.id],
     );
-    if (file.ai_resource_id) {
-      await pool.execute("UPDATE kl_resources SET visibility = 'public' WHERE id = ?", [file.ai_resource_id]).catch(() => {});
-    }
-    res.json({ success: true, data: { id: file.id } });
-  } catch (e) { next(e); }
+    await db.execute("UPDATE kl_resources r JOIN files f ON f.ai_resource_id=r.id SET r.visibility='public' WHERE f.id=?", [file.id]);
+  });
+  res.json({ success: true, data: { id: file.id } });
 });
 
-router.delete('/trash/:type/:id', requireTeacher, async (req, res, next) => {
-  try {
-    const { type, id } = req.params;
-    if (type === 'folder') {
-      const folder = await folderById(id, true);
-      if (!folder?.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件夹' });
-      const [childFiles] = await pool.execute('SELECT id, storage_path FROM files WHERE folder_id = ?', [folder.id]);
-      for (const f of childFiles) {
-        await fsp.unlink(storedFilePath(f.storage_path)).catch(() => {});
-        await pool.execute('DELETE FROM files WHERE id = ?', [f.id]);
-      }
-      await pool.execute('UPDATE drive_folders SET parent_id = NULL WHERE parent_id = ?', [folder.id]);
-      await pool.execute('DELETE FROM drive_folders WHERE id = ?', [folder.id]);
-      return res.json({ success: true, data: { id: folder.id } });
+router.delete('/trash/:type/:id', requireTeacher, async (req, res) => {
+  const { type, id } = req.params;
+  if (type === 'folder') {
+    const folder = await folderById(id, true);
+    if (!folder?.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件夹' });
+    const [childFiles] = await pool.execute('SELECT id, storage_path FROM files WHERE folder_id = ?', [folder.id]);
+    for (const f of childFiles) {
+      await fsp.unlink(storedFilePath(f.storage_path)).catch(() => {});
+      await pool.execute('DELETE FROM files WHERE id = ?', [f.id]);
     }
-    const file = await fileById(id, true);
-    if (!file?.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件' });
-    await fsp.unlink(storedFilePath(file.storage_path)).catch(() => {});
-    await pool.execute('DELETE FROM files WHERE id = ?', [file.id]);
-    res.json({ success: true, data: { id: file.id } });
-  } catch (e) { next(e); }
+    await pool.execute('UPDATE drive_folders SET parent_id = NULL WHERE parent_id = ?', [folder.id]);
+    await pool.execute('DELETE FROM drive_folders WHERE id = ?', [folder.id]);
+    return res.json({ success: true, data: { id: folder.id } });
+  }
+  const file = await fileById(id, true);
+  if (!file?.deleted_at) return res.status(404).json({ success: false, message: '回收站中未找到该文件' });
+  await fsp.unlink(storedFilePath(file.storage_path)).catch(() => {});
+  await pool.execute('DELETE FROM files WHERE id = ?', [file.id]);
+  res.json({ success: true, data: { id: file.id } });
 });
 
 module.exports = router;

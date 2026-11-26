@@ -1,4 +1,3 @@
-@import "../../styles/workspace-tokens.wxss";
 @import "../../styles/workspace-layout.wxss";
 @import "../../styles/workspace-content.wxss";
 @import "../../styles/workspace-components.wxss";
@@ -86,4 +85,32 @@
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+.price-match-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--ws-sidebar);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-sm);
+}
+.price-match-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.price-match-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ws-text);
+}
+.price-match-meta {
+  font-size: 11px;
+  color: var(--ws-secondary);
+  line-height: 1.5;
 }

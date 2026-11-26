@@ -37,7 +37,7 @@ async def authorize(request: Request) -> UserAPIKeyAuth:
         return UserAPIKeyAuth(user_id="kelin-backend", user_role=LitellmUserRoles.INTERNAL_USER,
                               models=models)
     if matches(token, "KELIN_MODEL_ADMIN_KEY"):
-        if route not in {("POST", "/model/new"), ("POST", "/model/update")}:
+        if route not in {("POST", "/model/new"), ("POST", "/model/update"), ("POST", "/model/delete")}:
             raise HTTPException(status_code=403, detail="Model configuration credential cannot access this route")
         return UserAPIKeyAuth(user_id="kelin-model-manager", user_role=LitellmUserRoles.PROXY_ADMIN)
     raise HTTPException(status_code=401, detail="Invalid bearer credential")

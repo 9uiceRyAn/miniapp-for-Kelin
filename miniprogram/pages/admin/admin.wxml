@@ -1,9 +1,9 @@
 <view class="device-nav workspace-shell" style="{{navigationStyle}}">
-  <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
+  <button hover-class="motion-pressed" hover-stay-time="70" class="drawer-button {{drawerOpen?'is-behind':''}}" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-hidden="{{drawerOpen}}" aria-label="打开侧栏"><view class="ws-ico ws-ico-menu"/></button>
   <include src="../../templates/workspace-sidebar.wxml"/>
   <view class="workspace-main">
     <view class="workspace-header">
-      <view class="header-start"><text>平台与 API 管理</text></view>
+      <view class="header-start"><button hover-class="motion-pressed" hover-stay-time="70" class="header-back" bindtap="back" aria-label="返回"><view class="ws-ico ws-ico-back"/></button><text>平台与 API 管理</text></view>
     </view>
     <view class="workspace-content">
     <view wx:if="{{locked}}" class="ws-gate-wrap">
@@ -17,26 +17,22 @@
           data-field="password"
           bindinput="input"
           bindconfirm="unlock"
-          data-hint-id="managementPassword"
-          bindfocus="onInputHintFocus"
-          bindblur="onInputHintBlur"
-          placeholder="{{inputHintFocus==='managementPassword'?'':'输入管理员密码'}}"
+          placeholder="输入管理员密码"
+          placeholder-class="ws-placeholder"
         />
-        <button class="ws-btn ws-btn-primary ws-btn-block" bindtap="unlock" loading="{{busy}}" disabled="{{busy||!password}}">解锁平台管理</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary ws-btn-block" bindtap="unlock" loading="{{busy}}" disabled="{{busy||!password}}">解锁平台管理</button>
         <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
       </view>
     </view>
 
     <block wx:else>
       <view class="ws-toolbar-secondary">
-        <button class="ws-btn ws-btn-primary ws-btn-sm" bindtap="openCreateSheet">＋ 添加模型</button>
-        <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="openPriceSheet">价格配置</button>
-        <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="usage">平台费用</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary ws-btn-sm" bindtap="openCreateSheet">＋ 添加模型</button>
       </view>
       <view wx:if="{{storage}}" class="storage-card">
         <view class="storage-head">
           <text class="storage-title">服务器储存空间</text>
-          <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="refreshStorage" loading="{{storageLoading}}" disabled="{{storageLoading}}">刷新</button>
+          <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="refreshStorage" loading="{{storageLoading}}" disabled="{{storageLoading}}">刷新</button>
         </view>
         <text class="storage-balance" style="display:block;">剩余 {{storage.freeLabel}} / 共 {{storage.totalLabel}}（已用 {{storage.usedPercent}}%）</text>
         <view class="storage-bar">
@@ -57,7 +53,7 @@
               <text wx:if="{{settings.defaultChatModelId===item.id || settings.builderModelId===item.id}}" class="ws-badge ws-badge-success">默认模型</text>
               <text class="ws-badge {{item.enabled?'ws-badge-default':'ws-badge-danger'}}">{{item.enabled?'可用':'已停用'}}</text>
             </view>
-            <text class="ws-list-meta">{{item.upstream_model}}</text>
+            <text class="ws-list-meta">{{item.upstream_model}} · {{item.priceSummary}}</text>
             <view class="ws-badge-row">
               <text class="ws-badge {{item.capabilities.verified.text?'ws-badge-success':'ws-badge-draft'}}">文字 {{item.capabilities.verified.text?'✓':'待测'}}</text>
               <text class="ws-badge {{item.capabilities.verified.tools?'ws-badge-success':'ws-badge-draft'}}">工具 {{item.capabilities.verified.tools?'✓':'待测'}}</text>
@@ -65,8 +61,8 @@
             </view>
           </view>
           <view class="ws-list-actions">
-            <button class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.id}}" bindtap="test" disabled="{{testingId===item.id}}" loading="{{testingId===item.id}}">测试连接</button>
-            <button class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="openModelMenu" aria-label="更多操作">⋯</button>
+            <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.id}}" bindtap="test" disabled="{{testingId===item.id}}" loading="{{testingId===item.id}}">测试连接</button>
+            <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-index="{{index}}" bindtap="openModelMenu" aria-label="更多操作">⋯</button>
           </view>
         </view>
       </view>
@@ -85,18 +81,18 @@
           <text class="ws-sheet-title">添加模型连接</text>
           <text class="ws-sheet-subtitle">支持 OpenAI v1 Chat 兼容接口；默认启用文字、工具调用与视觉识别能力</text>
         </view>
-        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭">×</button>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭"><view class="ws-ico ws-ico-close ws-ico-sm"/></button>
       </view>
       <scroll-view scroll-y class="ws-sheet-body">
         <text class="ws-field-label">显示名称</text>
-        <input class="ws-input" data-hint-id="hint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="name" value="{{name}}" bindinput="input" placeholder="{{inputHintFocus==='hint0'?'':'例如：学习问答模型'}}"/>
+        <input class="ws-input" data-field="name" value="{{name}}" bindinput="input" placeholder="例如：学习问答模型" placeholder-class="ws-placeholder"/>
         <text class="ws-field-label">API 网址（OpenAI v1 Chat 接口）</text>
-        <input class="ws-input" data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="baseURL" value="{{baseURL}}" bindinput="input" placeholder="{{inputHintFocus==='hint1'?'':'例如：https://api.example.com/v1'}}"/>
+        <input class="ws-input" data-field="baseURL" value="{{baseURL}}" bindinput="input" placeholder="例如：https://api.example.com/v1" placeholder-class="ws-placeholder"/>
         <view class="model-field-head">
           <text class="ws-field-label">模型名</text>
-          <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="fetchModels" loading="{{fetchingModels}}" disabled="{{fetchingModels||saving||!baseURL}}">获取模型</button>
+          <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="fetchModels" loading="{{fetchingModels}}" disabled="{{fetchingModels||saving||!baseURL}}">获取模型</button>
         </view>
-        <input class="ws-input" data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="upstreamModel" value="{{upstreamModel}}" bindinput="input" placeholder="{{inputHintFocus==='hint2'?'':'输入模型名，或点击「获取模型」选择'}}"/>
+        <input class="ws-input" data-field="upstreamModel" value="{{upstreamModel}}" bindinput="input" placeholder="输入模型名，或点击「获取模型」选择" placeholder-class="ws-placeholder"/>
         <picker wx:if="{{fetchedModels.length}}" range="{{fetchedModels}}" value="{{fetchedModelIndex}}" bindchange="pickFetchedModel">
           <view class="ws-picker model-picker">
             <text class="model-picker-text">{{upstreamModel || '点击选择已获取的模型'}}（共 {{fetchedModels.length}} 个）</text>
@@ -104,13 +100,13 @@
           </view>
         </picker>
         <text class="ws-field-label">API Key</text>
-        <input class="ws-input" data-hint-id="hint3" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="apiKey" value="{{apiKey}}" bindinput="input" password="{{true}}" placeholder="{{inputHintFocus==='hint3'?'':'输入 API Key'}}"/>
+        <input class="ws-input" data-field="apiKey" value="{{apiKey}}" bindinput="input" password="{{true}}" placeholder="输入 API Key" placeholder-class="ws-placeholder"/>
         <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
         <view class="ws-sheet-spacer"/>
       </scroll-view>
       <view class="ws-sheet-footer">
-        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
-        <button class="ws-btn ws-btn-primary" bindtap="create" loading="{{saving}}" disabled="{{saving||!name||!baseURL||!upstreamModel||!apiKey}}">保存模型</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="create" loading="{{saving}}" disabled="{{saving||!name||!baseURL||!upstreamModel||!apiKey}}">保存模型</button>
       </view>
     </view>
   </block>
@@ -124,17 +120,17 @@
           <text class="ws-sheet-title">轮换密钥</text>
           <text class="ws-sheet-subtitle">更新「{{editName}}」的供应商密钥，保存后所有助手立即生效</text>
         </view>
-        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭">×</button>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭"><view class="ws-ico ws-ico-close ws-ico-sm"/></button>
       </view>
       <scroll-view scroll-y class="ws-sheet-body">
         <text class="ws-field-label">新的 API 密钥</text>
-        <input class="ws-input" password="{{true}}" value="{{rotateKey}}" data-field="rotateKey" bindinput="input" data-hint-id="rotateKey" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='rotateKey'?'':'输入新的 API Key'}}"/>
+        <input class="ws-input" password="{{true}}" value="{{rotateKey}}" data-field="rotateKey" bindinput="input" placeholder="输入新的 API Key" placeholder-class="ws-placeholder"/>
         <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
         <view class="ws-sheet-spacer"/>
       </scroll-view>
       <view class="ws-sheet-footer">
-        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
-        <button class="ws-btn ws-btn-primary" bindtap="rotate" loading="{{saving}}" disabled="{{saving||!rotateKey}}">保存新密钥</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="rotate" loading="{{saving}}" disabled="{{saving||!rotateKey}}">保存新密钥</button>
       </view>
     </view>
   </block>
@@ -146,44 +142,44 @@
       <view class="ws-sheet-header">
         <view>
           <text class="ws-sheet-title">模型计费价格</text>
-          <text class="ws-sheet-subtitle">模型按每百万 token 计价，历史记录保留当时的价格快照</text>
+          <text class="ws-sheet-subtitle">{{priceTarget.name}}{{priceTarget.upstream_model?'（'+priceTarget.upstream_model+'）':''}} · 历史记录保留当时的价格快照</text>
         </view>
-        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭">×</button>
+        <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭"><view class="ws-ico ws-ico-close ws-ico-sm"/></button>
       </view>
       <scroll-view scroll-y class="ws-sheet-body">
-        <text class="ws-field-label">选择模型或服务</text>
-        <picker range="{{priceModels}}" range-key="name" value="{{selected}}" bindchange="pick">
-          <view class="ws-picker"><text>{{priceModels[selected].name||'请选择'}}</text><text>⌄</text></view>
-        </picker>
+        <view wx:if="{{priceTarget.matchedPrice}}" class="price-match-box">
+          <view class="price-match-text">
+            <text class="price-match-title">主流计费表匹配：{{priceTarget.matchedPrice.matchedModel}}</text>
+            <text class="price-match-meta">输入 {{priceTarget.matchedPrice.rates.input}} / 输出 {{priceTarget.matchedPrice.rates.output}}{{priceTarget.matchedPrice.rates.cachedInput?' / 缓存 '+priceTarget.matchedPrice.rates.cachedInput:''}} {{priceTarget.matchedPrice.currency}} / 百万 token</text>
+          </view>
+          <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="applyMatchedPrice">填入参考价</button>
+        </view>
+        <view wx:else class="price-match-box">
+          <text class="price-match-meta">未在主流计费表中匹配到该模型，请手动输入单价。</text>
+        </view>
         <text class="ws-field-label">币种</text>
-        <input class="ws-input" data-hint-id="hint4" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{currency}}" data-field="currency" bindinput="input" placeholder="{{inputHintFocus==='hint4'?'':'三字母币种，例如 USD'}}"/>
-        <block wx:if="{{priceModels[selected].id!=='tavily'}}">
-          <text class="ws-field-label">输入单价 / 百万 token</text>
-          <input class="ws-input" data-hint-id="hint5" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{inputPrice}}" data-field="inputPrice" bindinput="input" placeholder="{{inputHintFocus==='hint5'?'':'例如：2.50'}}"/>
-          <text class="ws-field-label">输出单价 / 百万 token</text>
-          <input class="ws-input" data-hint-id="hint6" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{outputPrice}}" data-field="outputPrice" bindinput="input" placeholder="{{inputHintFocus==='hint6'?'':'例如：10.00'}}"/>
-          <text class="ws-field-label">缓存读取单价 / 百万 token（选填）</text>
-          <input class="ws-input" data-hint-id="hint7" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{cachedPrice}}" data-field="cachedPrice" bindinput="input" placeholder="{{inputHintFocus==='hint7'?'':'可留空'}}"/>
-        </block>
-        <block wx:else>
-          <text class="ws-field-label">每 credit 单价</text>
-          <input class="ws-input" data-hint-id="hint8" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{creditPrice}}" data-field="creditPrice" bindinput="input" placeholder="{{inputHintFocus==='hint8'?'':'例如：0.01'}}"/>
-        </block>
+        <input class="ws-input" value="{{currency}}" data-field="currency" bindinput="input" placeholder="三字母币种，例如 USD" placeholder-class="ws-placeholder"/>
+        <text class="ws-field-label">输入单价 / 百万 token</text>
+        <input class="ws-input" value="{{inputPrice}}" data-field="inputPrice" bindinput="input" placeholder="例如：2.50" placeholder-class="ws-placeholder"/>
+        <text class="ws-field-label">输出单价 / 百万 token</text>
+        <input class="ws-input" value="{{outputPrice}}" data-field="outputPrice" bindinput="input" placeholder="例如：10.00" placeholder-class="ws-placeholder"/>
+        <text class="ws-field-label">缓存读取单价 / 百万 token（选填）</text>
+        <input class="ws-input" value="{{cachedPrice}}" data-field="cachedPrice" bindinput="input" placeholder="可留空" placeholder-class="ws-placeholder"/>
         <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
 
         <view class="ws-section-head">
           <text class="ws-section-title">历史价格版本</text>
-          <text class="ws-section-meta">{{prices.length}} 条</text>
+          <text class="ws-section-meta">{{modelPrices.length}} 条</text>
         </view>
-        <view wx:for="{{prices}}" wx:key="id" class="price-row">
-          <text class="price-row-name">{{item.modelName||item.model_id}}</text>
-          <text class="price-row-meta">{{item.currency}} · {{item.effective_at}}</text>
+        <view wx:for="{{modelPrices}}" wx:key="id" class="price-row">
+          <text class="price-row-name">{{item.rateSummary}}</text>
+          <text class="price-row-meta">{{item.effective_at}}</text>
         </view>
         <view class="ws-sheet-spacer"/>
       </scroll-view>
       <view class="ws-sheet-footer">
-        <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">关闭</button>
-        <button class="ws-btn ws-btn-primary" bindtap="price" loading="{{saving}}" disabled="{{saving}}">保存价格版本</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">关闭</button>
+        <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="price" loading="{{saving}}" disabled="{{saving}}">保存价格版本</button>
       </view>
     </view>
   </block>

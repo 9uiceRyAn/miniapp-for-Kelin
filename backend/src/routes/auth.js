@@ -405,11 +405,7 @@ router.get('/avatars/:filename', (req, res) => {
   if (!/^[A-Za-z0-9_.-]+$/.test(filename) || filename.includes('..')) {
     return res.status(400).json({ success: false, message: '无效的头像文件名' });
   }
-  const avatarRoot = path.resolve(AVATAR_DIR);
-  const filePath = path.resolve(avatarRoot, filename);
-  if (!filePath.startsWith(avatarRoot + path.sep)) {
-    return res.status(400).json({ success: false, message: '无效的头像路径' });
-  }
+  const filePath = path.join(path.resolve(AVATAR_DIR), filename);
   res.set('Cache-Control', 'public, max-age=86400');
   return res.sendFile(filePath, (err) => {
     if (err && !res.headersSent) res.status(404).end();

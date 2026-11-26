@@ -1,46 +1,46 @@
 <view class="device-nav workspace-shell management-shell" style="{{navigationStyle}}">
- <button wx:if="{{!drawerOpen}}" hover-class="motion-pressed" hover-stay-time="70" class="drawer-button" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-label="打开侧栏">☰</button>
+ <button hover-class="motion-pressed" hover-stay-time="70" class="drawer-button {{drawerOpen?'is-behind':''}}" bindtap="toggleDrawer" aria-expanded="{{drawerOpen}}" aria-hidden="{{drawerOpen}}" aria-label="打开侧栏"><view class="ws-ico ws-ico-menu"/></button>
  <include src="../../templates/workspace-sidebar.wxml"/>
  <view class="workspace-main">
-  <view class="workspace-header"><view class="header-start"><text>题库管理</text></view></view>
+  <view class="workspace-header"><view class="header-start"><button hover-class="motion-pressed" hover-stay-time="70" class="header-back" bindtap="back" aria-label="返回"><view class="ws-ico ws-ico-back"/></button><text>题库管理</text></view></view>
   <view class="workspace-content management-content">
    <view wx:if="{{admin}}" class="ws-toolbar-primary">
-    <button class="ws-btn ws-btn-primary" bindtap="openAddQuestionMenu">＋ 添加题</button>
-    <button class="ws-btn ws-btn-secondary" bindtap="openTaxonomy">标签管理</button>
+    <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="openAddQuestionMenu">＋ 添加题</button>
+    <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="openTaxonomy">标签管理</button>
    </view>
    <view wx:if="{{admin}}" class="ws-toolbar-secondary">
-    <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="toggleBatchMode">{{batchMode?'退出批量':'批量管理'}}</button>
+    <button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="toggleBatchMode">{{batchMode?'退出批量':'批量管理'}}</button>
    </view>
    <text class="subpage-subtitle">题库录入即生效；批量导入支持 JSON 或 ZIP（每包最多 1000 题）</text>
-   <view wx:if="{{checking}}" class="manage-empty">正在验证管理权限…</view>
-   <view wx:elif="{{!admin}}" class="manage-empty">仅教师可管理题库</view>
+   <view wx:if="{{checking}}" class="ws-empty">正在验证管理权限…</view>
+   <view wx:elif="{{!admin}}" class="ws-empty">仅教师可管理题库</view>
    <block wx:else>
-    <view class="workspace-search"><input data-hint-id="hint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" value="{{q}}" bindinput="searchInput" bindconfirm="search" placeholder="{{inputHintFocus==='hint0'?'':'搜索题目、原题编号或知识点'}}" confirm-type="search"/><button bindtap="search" aria-label="搜索题目">搜索</button></view>
+    <view class="workspace-search"><input value="{{q}}" bindinput="searchInput" bindconfirm="search" placeholder="搜索题目、原题编号或知识点" placeholder-class="ws-placeholder" confirm-type="search"/><button hover-class="motion-pressed" hover-stay-time="70" bindtap="search" aria-label="搜索题目">搜索</button></view>
      <view class="manage-filters">
-      <picker range="{{subjects}}" range-key="label" value="{{subjectIndex}}" data-field="subjectIndex" bindchange="filter"><view class="manage-filter">{{subjects[subjectIndex].label}}<text>⌄</text></view></picker>
-      <picker range="{{collections}}" range-key="label" value="{{collectionIndex}}" data-field="collectionIndex" bindchange="filter"><view class="manage-filter">{{collections[collectionIndex].label}}<text>⌄</text></view></picker>
-      <picker range="{{states}}" range-key="label" value="{{stateIndex}}" data-field="stateIndex" bindchange="filter"><view class="manage-filter">{{states[stateIndex].label}}<text>⌄</text></view></picker>
+      <picker range="{{subjects}}" range-key="label" value="{{subjectIndex}}" data-field="subjectIndex" bindchange="filter"><view class="ws-picker">{{subjects[subjectIndex].label}}<text>⌄</text></view></picker>
+      <picker range="{{collections}}" range-key="label" value="{{collectionIndex}}" data-field="collectionIndex" bindchange="filter"><view class="ws-picker">{{collections[collectionIndex].label}}<text>⌄</text></view></picker>
+      <picker range="{{states}}" range-key="label" value="{{stateIndex}}" data-field="stateIndex" bindchange="filter"><view class="ws-picker">{{states[stateIndex].label}}<text>⌄</text></view></picker>
      </view>
-    <text wx:if="{{error}}" class="error">{{error}}</text>
+    <text wx:if="{{error}}" class="ws-error-box" style="display:block">{{error}}</text>
     <text wx:if="{{importResult}}" class="manage-import-result">{{importResult}}</text>
     <view class="results-summary"><text>共 {{total}} 道题目</text><text>编辑会保留历史修订</text></view>
-    <view class="manage-list">
-     <view wx:for="{{items}}" wx:key="resourceId" class="manage-row">
-      <view wx:if="{{batchMode}}" class="manage-check {{item.selected?'is-selected':''}}" data-index="{{index}}" bindtap="toggleSelectItem">{{item.selected?'✓':''}}</view>
+    <view class="ws-list" wx:if="{{items.length}}">
+     <view wx:for="{{items}}" wx:key="resourceId" class="ws-list-row">
+      <view wx:if="{{batchMode}}" class="ws-checkbox {{item.selected?'is-checked':''}}" data-index="{{index}}" bindtap="toggleSelectItem">{{item.selected?'✓':''}}</view>
       <view class="manage-row-main" data-id="{{item.resourceId}}" bindtap="openQuestion">
        <image wx:if="{{item.thumbnailUrl}}" class="manage-thumbnail" src="{{item.thumbnailUrl}}" mode="aspectFit"/>
-       <view class="manage-row-copy"><text class="manage-title">{{item.title}}</text><text class="manage-meta">{{item.subject_label}} · {{item.collection_label}}</text><text class="manage-topic" wx:if="{{item.primary_tag_name}}">{{item.primary_tag_name}}</text><view wx:if="{{item.visibility==='withdrawn'}}" class="manage-badges"><text class="manage-state">已删除</text></view></view>
+       <view class="ws-list-main"><text class="ws-list-title">{{item.title}}</text><text class="ws-list-meta">{{item.subject_label}} · {{item.collection_label}}</text><text class="manage-topic" wx:if="{{item.primary_tag_name}}">{{item.primary_tag_name}}</text><view wx:if="{{item.visibility==='withdrawn'}}" class="ws-badge-row"><text class="ws-badge ws-badge-default">已删除</text></view></view>
       </view>
-      <view class="manage-row-actions"><button wx:if="{{item.visibility==='withdrawn'}}" class="manage-restore" data-id="{{item.resourceId}}" bindtap="restoreQuestion">恢复题目</button><block wx:else><button class="manage-edit" data-id="{{item.resourceId}}" bindtap="editQuestion">编辑</button><button class="manage-delete" data-id="{{item.resourceId}}" bindtap="deleteQuestion">删除</button></block></view>
+      <view class="ws-list-actions"><button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{item.visibility==='withdrawn'}}" class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.resourceId}}" bindtap="restoreQuestion">恢复题目</button><block wx:else><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-id="{{item.resourceId}}" bindtap="editQuestion">编辑</button><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-danger ws-btn-sm" data-id="{{item.resourceId}}" bindtap="deleteQuestion">删除</button></block></view>
      </view>
     </view>
-    <view wx:if="{{loading}}" class="manage-empty">正在读取题目…</view><view wx:elif="{{!items.length}}" class="manage-empty">当前条件下暂无题目</view>
-    <button wx:if="{{total > items.length}}" class="manage-more" bindtap="more" loading="{{loading}}">加载更多题目</button>
+    <view wx:if="{{loading}}" class="ws-empty">正在读取题目…</view><view wx:elif="{{!items.length}}" class="ws-empty">当前条件下暂无题目</view>
+    <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{total > items.length}}" class="ws-btn ws-btn-secondary ws-load-more" bindtap="more" loading="{{loading}}">加载更多题目</button>
     <view wx:if="{{batchMode && selectedCount}}" class="batch-bar">
      <text class="ws-section-meta">已选 {{selectedCount}} 题</text>
      <view class="batch-bar-actions">
-      <button wx:if="{{states[stateIndex].value==='deleted'}}" class="ws-btn ws-btn-primary ws-btn-sm" data-action="restore" bindtap="runBatch">批量恢复</button>
-      <button wx:else class="ws-btn ws-btn-danger ws-btn-sm" data-action="delete" bindtap="runBatch">批量删除</button>
+      <button hover-class="motion-pressed" hover-stay-time="70" wx:if="{{states[stateIndex].value==='deleted'}}" class="ws-btn ws-btn-primary ws-btn-sm" data-action="restore" bindtap="runBatch">批量恢复</button>
+      <button hover-class="motion-pressed" hover-stay-time="70" wx:else class="ws-btn ws-btn-danger ws-btn-sm" data-action="delete" bindtap="runBatch">批量删除</button>
      </view>
     </view>
    </block>
@@ -48,42 +48,39 @@
  </view>
  <include src="../../templates/workspace-bottom.wxml"/>
  <block wx:if="{{formOpen}}">
-  <view class="manage-overlay" bindtap="closeForm"/>
-  <view class="manage-sheet" role="dialog" aria-label="{{editingId?'编辑题目':'新建题目'}}">
-   <view class="manage-sheet-header"><view><text class="manage-sheet-title">{{editingId?'编辑题目':'新建题目'}}</text><text class="manage-sheet-subtitle">题干可填写文字，也可上传图片或 PDF</text></view><button class="manage-sheet-close" bindtap="closeForm" disabled="{{saving||uploading}}" aria-label="关闭编辑">×</button></view>
-   <scroll-view scroll-y class="manage-sheet-body">
-    <text class="manage-field-label">题目标题</text><input data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-input" value="{{form.title}}" data-field="title" bindinput="formInput" maxlength="1000" placeholder="{{inputHintFocus==='hint1'?'':'例如：2025 数学 Paper 1 · 第 3 题'}}"/>
+  <view class="ws-overlay" bindtap="closeForm"/>
+  <view class="ws-sheet" role="dialog" aria-label="{{editingId?'编辑题目':'新建题目'}}">
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">{{editingId?'编辑题目':'新建题目'}}</text><text class="ws-sheet-subtitle">题干可填写文字，也可上传图片或 PDF</text></view><button class="ws-sheet-close" bindtap="closeForm" disabled="{{saving||uploading}}" aria-label="关闭编辑"><view class="ws-ico ws-ico-close ws-ico-sm"/></button></view>
+   <scroll-view scroll-y class="ws-sheet-body">
+    <text class="ws-field-label">题目标题</text><input class="ws-input" value="{{form.title}}" data-field="title" bindinput="formInput" maxlength="1000" placeholder="例如：2025 数学 Paper 1 · 第 3 题" placeholder-class="ws-placeholder"/>
     <view class="manage-form-grid">
-     <view><text class="manage-field-label">学科</text><picker range="{{formSubjects}}" range-key="label" value="{{formSubjectIndex}}" data-field="formSubjectIndex" bindchange="formPick" disabled="{{!!editingId}}"><view class="manage-input manage-picker">{{formSubjects[formSubjectIndex].label}}<text wx:if="{{!editingId}}">⌄</text></view></picker></view>
-     <view><text class="manage-field-label">数据集</text><picker range="{{formCollections}}" range-key="label" value="{{formCollectionIndex}}" data-field="formCollectionIndex" bindchange="formPick" disabled="{{!!editingId}}"><view class="manage-input manage-picker">{{formCollections[formCollectionIndex].label}}<text wx:if="{{!editingId}}">⌄</text></view></picker></view>
+     <view><text class="ws-field-label">学科</text><picker range="{{formSubjects}}" range-key="label" value="{{formSubjectIndex}}" data-field="formSubjectIndex" bindchange="formPick" disabled="{{!!editingId}}"><view class="ws-picker">{{formSubjects[formSubjectIndex].label}}<text wx:if="{{!editingId}}">⌄</text></view></picker></view>
+     <view><text class="ws-field-label">数据集</text><picker range="{{formCollections}}" range-key="label" value="{{formCollectionIndex}}" data-field="formCollectionIndex" bindchange="formPick" disabled="{{!!editingId}}"><view class="ws-picker">{{formCollections[formCollectionIndex].label}}<text wx:if="{{!editingId}}">⌄</text></view></picker></view>
     </view>
-    <block wx:if="{{!editingId}}"><text class="manage-field-label">原题编号（选填）</text><input data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-input" value="{{form.sourceId}}" data-field="sourceId" bindinput="formInput" maxlength="191" placeholder="{{inputHintFocus==='hint2'?'':'留空则自动生成'}}"/></block>
-    <text class="manage-field-label">知识点标签</text>
-    <view wx:if="{{collectionTagOptions.length}}" class="tag-chips">
-     <text wx:for="{{collectionTagOptions}}" wx:key="id" class="tag-chip {{item.selected?'is-selected':''}}" data-code="{{item.code}}" data-label="{{item.label}}" bindtap="toggleFormTag">{{item.code}} · {{item.label}}</text>
-    </view>
-    <textarea data-hint-id="hint3" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-textarea manage-tags-input" value="{{form.tagsText}}" data-field="tagsText" bindinput="formInput" maxlength="30000" placeholder="{{inputHintFocus==='hint3'?'':'每行一个：编号 | 名称，例如 1.1 | 二次函数'}}"/>
-    <text class="manage-field-label">题干</text><textarea data-hint-id="hint4" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-textarea" value="{{form.questionText}}" data-field="questionText" bindinput="formInput" maxlength="100000" placeholder="{{inputHintFocus==='hint4'?'':'输入题目文字，或在下方上传题目图片／PDF'}}"/>
-    <text class="manage-field-label">参考答案（选填）</text><textarea data-hint-id="hint5" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" class="manage-textarea" value="{{form.answerText}}" data-field="answerText" bindinput="formInput" maxlength="100000" placeholder="{{inputHintFocus==='hint5'?'':'输入答案或评分要点'}}"/>
-    <view class="manage-attachment-heading"><text class="manage-field-label">题目与答案文件</text><text wx:if="{{uploading}}">正在上传…</text></view>
-    <view class="manage-attachment-actions"><button data-kind="question" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 题目</button><button data-kind="answer" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 答案</button><button data-kind="source" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 附件／音频</button></view>
-    <view wx:for="{{form.attachments}}" wx:key="key" class="manage-attachment"><view class="manage-attachment-name" data-index="{{index}}" bindtap="previewAttachment"><text>{{item.kindLabel}}</text><text>{{item.label}}</text><text wx:if="{{item.available===false}}" class="error">原文件不可用</text></view><button data-index="{{index}}" bindtap="removeAttachment" disabled="{{saving||uploading}}" aria-label="移除文件">×</button></view>
-    <text wx:if="{{formError}}" class="error manage-form-error">{{formError}}</text><view class="manage-sheet-spacer"/>
+    <block wx:if="{{!editingId}}"><text class="ws-field-label">原题编号（选填）</text><input class="ws-input" value="{{form.sourceId}}" data-field="sourceId" bindinput="formInput" maxlength="191" placeholder="留空则自动生成" placeholder-class="ws-placeholder"/></block>
+    <text class="ws-field-label">知识点标签</text>
+    <textarea class="ws-textarea manage-tags-input" value="{{form.tagsText}}" data-field="tagsText" bindinput="formInput" maxlength="30000" placeholder="每行一个：编号 | 名称，例如 1.1 | 二次函数" placeholder-class="ws-placeholder"/>
+    <text class="ws-field-label">题干</text><textarea class="ws-textarea" value="{{form.questionText}}" data-field="questionText" bindinput="formInput" maxlength="100000" placeholder="输入题目文字，或在下方上传题目图片／PDF" placeholder-class="ws-placeholder"/>
+    <text class="ws-field-label">参考答案（选填）</text><textarea class="ws-textarea" value="{{form.answerText}}" data-field="answerText" bindinput="formInput" maxlength="100000" placeholder="输入答案或评分要点" placeholder-class="ws-placeholder"/>
+    <view class="manage-attachment-heading"><text class="ws-field-label">题目与答案文件</text><text wx:if="{{uploading}}">正在上传…</text></view>
+    <view class="manage-attachment-actions"><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-kind="question" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 题目</button><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-kind="answer" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 答案</button><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary ws-btn-sm" data-kind="source" bindtap="addAttachment" disabled="{{saving||uploading}}">＋ 附件／音频</button></view>
+    <view wx:for="{{form.attachments}}" wx:key="key" class="manage-attachment"><view class="manage-attachment-name" data-index="{{index}}" bindtap="previewAttachment"><text>{{item.kindLabel}}</text><text>{{item.label}}</text><text wx:if="{{item.available===false}}" class="error">原文件不可用</text></view><button class="ws-btn ws-btn-ghost ws-btn-sm" data-index="{{index}}" bindtap="removeAttachment" disabled="{{saving||uploading}}" aria-label="移除文件"><view class="ws-ico ws-ico-close ws-ico-sm"/></button></view>
+    <view wx:if="{{formError}}" class="ws-error-box">{{formError}}</view><view class="ws-sheet-spacer"/>
    </scroll-view>
-   <view class="manage-sheet-footer"><button class="manage-cancel" bindtap="closeForm" disabled="{{saving||uploading}}">取消</button><button class="manage-primary manage-save" bindtap="saveQuestion" loading="{{saving}}" disabled="{{saving||uploading}}">保存题目</button></view>
+   <view class="ws-sheet-footer"><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="closeForm" disabled="{{saving||uploading}}">取消</button><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="saveQuestion" loading="{{saving}}" disabled="{{saving||uploading}}">保存题目</button></view>
   </view>
  </block>
  <block wx:if="{{importPreview}}">
-  <view class="manage-overlay" bindtap="cancelImport"/>
-  <view class="manage-sheet manage-import-sheet" role="dialog" aria-label="导入预览">
-   <view class="manage-sheet-header"><view><text class="manage-sheet-title">导入预览</text><text class="manage-sheet-subtitle">{{importPreview.name}}</text></view><button class="manage-sheet-close" bindtap="cancelImport" disabled="{{importBusy}}" aria-label="取消导入">×</button></view>
-   <scroll-view scroll-y class="manage-sheet-body">
+  <view class="ws-overlay" bindtap="cancelImport"/>
+  <view class="ws-sheet" role="dialog" aria-label="导入预览">
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">导入预览</text><text class="ws-sheet-subtitle">{{importPreview.name}}</text></view><button class="ws-sheet-close" bindtap="cancelImport" disabled="{{importBusy}}" aria-label="取消导入"><view class="ws-ico ws-ico-close ws-ico-sm"/></button></view>
+   <scroll-view scroll-y class="ws-sheet-body">
     <view class="manage-import-stats"><view><text>{{importPreview.summary.items}}</text><text>题目总数</text></view><view><text>{{importPreview.summary.created}}</text><text>新增题目</text></view><view><text>{{importPreview.summary.updated}}</text><text>更新题目</text></view><view><text>{{importPreview.summary.unchanged}}</text><text>内容相同</text></view></view>
     <text class="manage-import-description">已检查 {{importPreview.summary.media}} 个媒体文件，确认后立即写入题库。</text>
-    <text class="manage-field-label">题目预览</text><view wx:for="{{importPreview.samples}}" wx:key="key" class="manage-import-sample"><text>{{item.title}}</text><text>{{item.collection}} · {{item.sourceId}}</text></view>
-    <text wx:if="{{error}}" class="error manage-form-error">{{error}}</text><view class="manage-sheet-spacer"/>
+    <text class="ws-field-label">题目预览</text><view wx:for="{{importPreview.samples}}" wx:key="key" class="manage-import-sample"><text>{{item.title}}</text><text>{{item.collection}} · {{item.sourceId}}</text></view>
+    <view wx:if="{{error}}" class="ws-error-box">{{error}}</view><view class="ws-sheet-spacer"/>
    </scroll-view>
-   <view class="manage-sheet-footer"><button class="manage-cancel" bindtap="cancelImport" disabled="{{importBusy}}">取消</button><button class="manage-primary manage-confirm-import" bindtap="confirmImport" loading="{{importBusy}}" disabled="{{importBusy}}">确认导入</button></view>
+   <view class="ws-sheet-footer"><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-secondary" bindtap="cancelImport" disabled="{{importBusy}}">取消</button><button hover-class="motion-pressed" hover-stay-time="70" class="ws-btn ws-btn-primary" bindtap="confirmImport" loading="{{importBusy}}" disabled="{{importBusy}}">确认导入</button></view>
   </view>
  </block>
 
@@ -91,12 +88,12 @@
  <block wx:if="{{zipSheetOpen}}">
   <view class="ws-overlay" bindtap="closeZipImportSheet"/>
   <view class="ws-sheet" role="dialog" aria-label="ZIP 批量导入">
-   <view class="ws-sheet-header"><view><text class="ws-sheet-title">ZIP 批量导入</text><text class="ws-sheet-subtitle">配合外部 AI 工具按规范导出题库包后直接上传</text></view><button class="ws-sheet-close" bindtap="closeZipImportSheet" disabled="{{importBusy}}" aria-label="关闭">×</button></view>
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">ZIP 批量导入</text><text class="ws-sheet-subtitle">配合外部 AI 工具按规范导出题库包后直接上传</text></view><button class="ws-sheet-close" bindtap="closeZipImportSheet" disabled="{{importBusy}}" aria-label="关闭"><view class="ws-ico ws-ico-close ws-ico-sm"/></button></view>
    <scroll-view scroll-y class="ws-sheet-body">
     <view class="ws-section-head"><text class="ws-section-title">1. 下载题库制作 Skill 压缩包</text></view>
     <text class="manage-import-description">可将压缩包导入 Claude Code、Codex、Cursor 等外部 Agent 工具；内含整卷拆题/审图大 Skill、10 科分类规范与可直接导入服务器的 ZIP 格式说明。</text>
     <button class="ws-btn ws-btn-secondary" bindtap="downloadSkillBundle" loading="{{downloadingSkill}}" disabled="{{downloadingSkill}}">下载 Skill 压缩包</button>
-    <view class="ws-section-head" style="margin-top:24rpx;"><text class="ws-section-title">2. 上传题库 ZIP / JSON</text></view>
+    <view class="ws-section-head" style="margin-top:20px;"><text class="ws-section-title">2. 上传题库 ZIP / JSON</text></view>
     <text class="manage-import-description">使用上述 Skill 导出的题库 ZIP（或 items.json）可在此预览并直接写入题库，每包最多 1000 题。</text>
     <button class="ws-btn ws-btn-primary" bindtap="startZipImport" loading="{{importBusy}}" disabled="{{importBusy}}">选择 ZIP / JSON 文件</button>
     <view class="ws-sheet-spacer"/>
@@ -109,12 +106,12 @@
  <block wx:if="{{taxonomyOpen}}">
   <view class="ws-overlay" bindtap="closeTaxonomy"/>
   <view class="ws-sheet" role="dialog" aria-label="分类与标签管理">
-   <view class="ws-sheet-header"><view><text class="ws-sheet-title">分类与标签管理</text><text class="ws-sheet-subtitle">管理学科、数据集与知识点标签树</text></view><button class="ws-sheet-close" bindtap="closeTaxonomy" aria-label="关闭">×</button></view>
+   <view class="ws-sheet-header"><view><text class="ws-sheet-title">分类与标签管理</text><text class="ws-sheet-subtitle">管理学科、数据集与知识点标签树</text></view><button class="ws-sheet-close" bindtap="closeTaxonomy" aria-label="关闭"><view class="ws-ico ws-ico-close ws-ico-sm"/></button></view>
    <scroll-view scroll-y class="ws-sheet-body">
     <view class="ws-section-head"><text class="ws-section-title">学科（{{taxSubjects.length}}）</text></view>
     <view class="ws-search-row">
-     <input class="ws-input" value="{{newSubjectCode}}" data-field="newSubjectCode" bindinput="taxInput" data-hint-id="taxSubCode" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxSubCode'?'':'学科编号，如 math'}}"/>
-     <input class="ws-input" value="{{newSubjectLabel}}" data-field="newSubjectLabel" bindinput="taxInput" data-hint-id="taxSubLabel" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxSubLabel'?'':'学科名称，如 数学'}}"/>
+     <input class="ws-input" value="{{newSubjectCode}}" data-field="newSubjectCode" bindinput="taxInput" placeholder="学科编号，如 math" placeholder-class="ws-placeholder"/>
+     <input class="ws-input" value="{{newSubjectLabel}}" data-field="newSubjectLabel" bindinput="taxInput" placeholder="学科名称，如 数学" placeholder-class="ws-placeholder"/>
      <button class="ws-btn ws-btn-primary ws-btn-sm" bindtap="addSubject">添加</button>
     </view>
     <view wx:for="{{taxSubjects}}" wx:key="code" class="ws-list-row">
@@ -124,9 +121,9 @@
 
     <view class="ws-section-head"><text class="ws-section-title">数据集（{{taxCollections.length}}）</text></view>
     <view class="ws-search-row">
-     <input class="ws-input" value="{{newColSubject}}" data-field="newColSubject" bindinput="taxInput" data-hint-id="taxColSub" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxColSub'?'':'所属学科编号'}}"/>
-     <input class="ws-input" value="{{newColCode}}" data-field="newColCode" bindinput="taxInput" data-hint-id="taxColCode" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxColCode'?'':'数据集编号'}}"/>
-     <input class="ws-input" value="{{newColLabel}}" data-field="newColLabel" bindinput="taxInput" data-hint-id="taxColLabel" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxColLabel'?'':'数据集名称'}}"/>
+     <input class="ws-input" value="{{newColSubject}}" data-field="newColSubject" bindinput="taxInput" placeholder="所属学科编号" placeholder-class="ws-placeholder"/>
+     <input class="ws-input" value="{{newColCode}}" data-field="newColCode" bindinput="taxInput" placeholder="数据集编号" placeholder-class="ws-placeholder"/>
+     <input class="ws-input" value="{{newColLabel}}" data-field="newColLabel" bindinput="taxInput" placeholder="数据集名称" placeholder-class="ws-placeholder"/>
      <button class="ws-btn ws-btn-primary ws-btn-sm" bindtap="addCollection">添加</button>
     </view>
     <view wx:for="{{taxCollections}}" wx:key="code" class="ws-list-row">
@@ -136,9 +133,9 @@
 
     <view class="ws-section-head"><text class="ws-section-title">知识点标签（{{taxTags.length}}）</text></view>
     <view class="ws-search-row">
-     <input class="ws-input" value="{{newTagCol}}" data-field="newTagCol" bindinput="taxInput" data-hint-id="taxTagCol" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxTagCol'?'':'所属数据集编号'}}"/>
-     <input class="ws-input" value="{{newTagCode}}" data-field="newTagCode" bindinput="taxInput" data-hint-id="taxTagCode" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxTagCode'?'':'标签编号'}}"/>
-     <input class="ws-input" value="{{newTagLabel}}" data-field="newTagLabel" bindinput="taxInput" data-hint-id="taxTagLabel" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" placeholder="{{inputHintFocus==='taxTagLabel'?'':'标签名称'}}"/>
+     <input class="ws-input" value="{{newTagCol}}" data-field="newTagCol" bindinput="taxInput" placeholder="所属数据集编号" placeholder-class="ws-placeholder"/>
+     <input class="ws-input" value="{{newTagCode}}" data-field="newTagCode" bindinput="taxInput" placeholder="标签编号" placeholder-class="ws-placeholder"/>
+     <input class="ws-input" value="{{newTagLabel}}" data-field="newTagLabel" bindinput="taxInput" placeholder="标签名称" placeholder-class="ws-placeholder"/>
      <button class="ws-btn ws-btn-primary ws-btn-sm" bindtap="addTag">添加</button>
     </view>
     <view wx:for="{{taxTags}}" wx:key="id" class="ws-list-row">
@@ -148,25 +145,6 @@
     <view class="ws-sheet-spacer"/>
    </scroll-view>
    <view class="ws-sheet-footer"><button class="ws-btn ws-btn-secondary" bindtap="closeTaxonomy">关闭</button></view>
-  </view>
- </block>
-
- <!-- AI 录题结果预览抽屉 -->
- <block wx:if="{{aiDrafts.length}}">
-  <view class="ws-overlay" bindtap="closeAiDrafts"/>
-  <view class="ws-sheet" role="dialog" aria-label="AI 识别题目草稿">
-   <view class="ws-sheet-header"><view><text class="ws-sheet-title">AI 识别结果（{{aiDrafts.length}} 题）</text><text class="ws-sheet-subtitle">确认后可点「编辑并保存」写入草稿</text></view><button class="ws-sheet-close" bindtap="closeAiDrafts" aria-label="关闭">×</button></view>
-   <scroll-view scroll-y class="ws-sheet-body">
-    <view wx:for="{{aiDrafts}}" wx:key="index" class="ws-list-row">
-     <view class="ws-list-main">
-      <text class="ws-list-title">{{item.title}}</text>
-      <text class="ws-list-meta">{{item.questionText}}</text>
-     </view>
-     <button class="ws-btn ws-btn-primary ws-btn-sm" data-index="{{index}}" bindtap="applyAiDraft">导入编辑</button>
-    </view>
-    <view class="ws-sheet-spacer"/>
-   </scroll-view>
-   <view class="ws-sheet-footer"><button class="ws-btn ws-btn-secondary" bindtap="closeAiDrafts">关闭</button></view>
   </view>
  </block>
 </view>
