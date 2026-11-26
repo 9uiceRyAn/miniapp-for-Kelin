@@ -43,6 +43,9 @@ Page(withInputHints({
     upstreamModel: '',
     baseURL: '',
     apiKey: '',
+    fetchedModels: [],
+    fetchedModelIndex: 0,
+    fetchingModels: false,
     saving: false,
     busy: false,
     testingId: '',
@@ -112,16 +115,42 @@ Page(withInputHints({
     wx.navigateBack();
   },
   input(e) {
-    this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
+    const field = e.currentTarget.dataset.field;
+    const patch = { [field]: e.detail.value };
+    if (field === 'baseURL' || field === 'apiKey') {
+      this.discoveryRequest = null;
+      patch.fetchingModels = false;
+      patch.fetchedModels = [];
+      patch.fetchedModelIndex = 0;
+    }
+    this.setData(patch);
   },
   pick(e) {
     this.setData({ selected: Number(e.detail.value) });
   },
+  pickFetchedModel(e) {
+    const idx = Number(e.detail.value);
+    const chosen = this.data.fetchedModels[idx];
+    if (chosen) this.setData({ fetchedModelIndex: idx, upstreamModel: chosen });
+  },
   closeSheet() {
-    if (!this.data.saving) this.setData({ sheetMode: '', error: '' });
+    if (this.data.saving) return;
+    this.discoveryRequest = null;
+    this.setData({ sheetMode: '', error: '', apiKey: '', fetchingModels: false });
   },
   openCreateSheet() {
-    this.setData({ sheetMode: 'create', name: '', upstreamModel: '', baseURL: '', apiKey: '', error: '' });
+    this.discoveryRequest = null;
+    this.setData({
+      sheetMode: 'create',
+      name: '',
+      upstreamModel: '',
+      baseURL: '',
+      apiKey: '',
+      fetchedModels: [],
+      fetchedModelIndex: 0,
+      fetchingModels: false,
+      error: '',
+    });
   },
   openPriceSheet() {
     this.setData({ sheetMode: 'price', error: '' });
@@ -158,17 +187,63 @@ Page(withInputHints({
       this.setData({ storageLoading: false });
     }
   },
+  async fetchModels() {
+    if (this.data.fetchingModels || this.data.saving) return;
+    const baseURL = String(this.data.baseURL || '').trim();
+    if (!baseURL) {
+      this.setData({ error: '请先填写 API 网址' });
+      return;
+    }
+    const request = {};
+    this.discoveryRequest = request;
+    this.setData({ fetchingModels: true, error: '' });
+    try {
+      const apiKey = String(this.data.apiKey || '').trim();
+      const res = await this.manage('models/discover', 'POST', {
+        baseURL,
+        ...(apiKey ? { apiKey } : {}),
+      });
+      if (this.discoveryRequest !== request || this.data.sheetMode !== 'create') return;
+      const fetchedModels = res.models || [];
+      const currentModel = String(this.data.upstreamModel || '').trim();
+      const existingIndex = fetchedModels.indexOf(currentModel);
+      const fetchedModelIndex = existingIndex >= 0 ? existingIndex : 0;
+      const patch = {
+        fetchedModels,
+        fetchedModelIndex,
+        ...(res.baseURL ? { baseURL: res.baseURL } : {}),
+        ...(!currentModel && fetchedModels.length ? { upstreamModel: fetchedModels[0] } : {}),
+      };
+      this.setData(patch);
+      wx.showToast({ title: '已获取 ' + fetchedModels.length + ' 个模型', icon: 'none' });
+    } catch (e) {
+      if (this.discoveryRequest === request && this.data.sheetMode === 'create')
+        this.setData({ error: e.message });
+    } finally {
+      if (this.discoveryRequest === request) this.setData({ fetchingModels: false });
+    }
+  },
   async create() {
+    this.discoveryRequest = null;
+    this.setData({ fetchingModels: false });
     this.setData({ saving: true, error: '' });
     try {
       await this.manage('models', 'POST', {
-        name: this.data.name,
-        upstreamModel: this.data.upstreamModel,
-        baseURL: this.data.baseURL || undefined,
-        apiKey: this.data.apiKey,
+        name: String(this.data.name || '').trim(),
+        upstreamModel: String(this.data.upstreamModel || '').trim(),
+        baseURL: String(this.data.baseURL || '').trim(),
+        apiKey: String(this.data.apiKey || '').trim(),
         capabilities: { text: true, tools: true, vision: true },
       });
-      this.setData({ apiKey: '', name: '', upstreamModel: '', baseURL: '', sheetMode: '' });
+      this.setData({
+        apiKey: '',
+        name: '',
+        upstreamModel: '',
+        baseURL: '',
+        fetchedModels: [],
+        fetchedModelIndex: 0,
+        sheetMode: '',
+      });
       wx.showToast({ title: '模型已添加' });
       await this.load();
     } catch (e) {

@@ -83,25 +83,34 @@
       <view class="ws-sheet-header">
         <view>
           <text class="ws-sheet-title">添加模型连接</text>
-          <text class="ws-sheet-subtitle">默认启用文字、工具调用与视觉识别能力</text>
+          <text class="ws-sheet-subtitle">支持 OpenAI v1 Chat 兼容接口；默认启用文字、工具调用与视觉识别能力</text>
         </view>
         <button class="ws-sheet-close" bindtap="closeSheet" disabled="{{saving}}" aria-label="关闭">×</button>
       </view>
       <scroll-view scroll-y class="ws-sheet-body">
         <text class="ws-field-label">显示名称</text>
         <input class="ws-input" data-hint-id="hint0" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="name" value="{{name}}" bindinput="input" placeholder="{{inputHintFocus==='hint0'?'':'例如：学习问答模型'}}"/>
-        <text class="ws-field-label">供应商 / 模型标识</text>
-        <input class="ws-input" data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="upstreamModel" value="{{upstreamModel}}" bindinput="input" placeholder="{{inputHintFocus==='hint1'?'':'例如：openai/gpt-4o'}}"/>
-        <text class="ws-field-label">API 地址（选填）</text>
-        <input class="ws-input" data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="baseURL" value="{{baseURL}}" bindinput="input" placeholder="{{inputHintFocus==='hint2'?'':'留空使用供应商默认地址'}}"/>
-        <text class="ws-field-label">供应商 API 密钥</text>
+        <text class="ws-field-label">API 网址（OpenAI v1 Chat 接口）</text>
+        <input class="ws-input" data-hint-id="hint1" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="baseURL" value="{{baseURL}}" bindinput="input" placeholder="{{inputHintFocus==='hint1'?'':'例如：https://api.example.com/v1'}}"/>
+        <view class="model-field-head">
+          <text class="ws-field-label">模型名</text>
+          <button class="ws-btn ws-btn-secondary ws-btn-sm" bindtap="fetchModels" loading="{{fetchingModels}}" disabled="{{fetchingModels||saving||!baseURL}}">获取模型</button>
+        </view>
+        <input class="ws-input" data-hint-id="hint2" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="upstreamModel" value="{{upstreamModel}}" bindinput="input" placeholder="{{inputHintFocus==='hint2'?'':'输入模型名，或点击「获取模型」选择'}}"/>
+        <picker wx:if="{{fetchedModels.length}}" range="{{fetchedModels}}" value="{{fetchedModelIndex}}" bindchange="pickFetchedModel">
+          <view class="ws-picker model-picker">
+            <text class="model-picker-text">{{upstreamModel || '点击选择已获取的模型'}}（共 {{fetchedModels.length}} 个）</text>
+            <text>⌄</text>
+          </view>
+        </picker>
+        <text class="ws-field-label">API Key</text>
         <input class="ws-input" data-hint-id="hint3" bindfocus="onInputHintFocus" bindblur="onInputHintBlur" data-field="apiKey" value="{{apiKey}}" bindinput="input" password="{{true}}" placeholder="{{inputHintFocus==='hint3'?'':'输入 API Key'}}"/>
         <view wx:if="{{error}}" class="ws-error-box">{{error}}</view>
         <view class="ws-sheet-spacer"/>
       </scroll-view>
       <view class="ws-sheet-footer">
         <button class="ws-btn ws-btn-secondary" bindtap="closeSheet" disabled="{{saving}}">取消</button>
-        <button class="ws-btn ws-btn-primary" bindtap="create" loading="{{saving}}" disabled="{{saving||!name||!upstreamModel||!apiKey}}">保存模型</button>
+        <button class="ws-btn ws-btn-primary" bindtap="create" loading="{{saving}}" disabled="{{saving||!name||!baseURL||!upstreamModel||!apiKey}}">保存模型</button>
       </view>
     </view>
   </block>

@@ -53,17 +53,103 @@ async function resolve(id, allowDisabled = false) {
     c.fail(503, '所选模型不可用，请联系管理员');
   return publicModel(model);
 }
+function normalizeBaseURL(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed)
+    c.fail(400, '请填写有效的 API 网址（需以 http:// 或 https:// 开头）');
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    c.fail(400, '请填写有效的 API 网址（需以 http:// 或 https:// 开头）');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+    c.fail(400, '请填写有效的 API 网址（需以 http:// 或 https:// 开头）');
+  if (parsed.username || parsed.password || /[?#]/.test(trimmed))
+    c.fail(400, 'API 网址不能包含登录信息、查询参数或片段');
+  let cleaned = parsed.toString().replace(/\/+$/, '');
+  cleaned = cleaned.replace(/\/(chat\/completions|models)$/i, '').replace(/\/+$/, '');
+  return cleaned;
+}
+function toLitellmModel(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  return trimmed.startsWith('openai/') ? trimmed : 'openai/' + trimmed;
+}
+async function discover(input) {
+  const baseURL = normalizeBaseURL(input?.baseURL);
+  const apiKey = String(input?.apiKey || '').trim();
+  const headers = {
+    Accept: 'application/json',
+    ...(apiKey ? { Authorization: 'Bearer ' + apiKey } : {}),
+  };
+  let resolvedBaseURL = baseURL;
+  let response;
+  try {
+    response = await fetch(baseURL + '/models', {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(15000),
+    });
+    if (response.status === 404 && !/\/v\d+$/i.test(baseURL)) {
+      resolvedBaseURL = baseURL + '/v1';
+      response = await fetch(resolvedBaseURL + '/models', {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(15000),
+      });
+    }
+  } catch {
+    c.fail(502, '无法连接到该 API 网址，请检查地址是否正确');
+  }
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403)
+      c.fail(502, `获取模型失败 (${response.status})，请先填写有效的 API Key`);
+    c.fail(502, `获取模型列表失败 (${response.status})`);
+  }
+  const body = await response.json().catch(() => ({}));
+  const rawItems = Array.isArray(body?.data)
+    ? body.data
+    : Array.isArray(body?.models)
+      ? body.models
+      : Array.isArray(body)
+        ? body
+        : [];
+  const ids = Array.from(
+    new Set(
+      rawItems
+        .map((item) => {
+          if (typeof item === 'string') return item.trim();
+          if (item && typeof item === 'object') {
+            return String(item.id || item.name || '').trim();
+          }
+          return '';
+        })
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+  if (!ids.length)
+    c.fail(422, '该接口未返回可用模型，请手动输入模型名');
+  return { models: ids, baseURL: resolvedBaseURL };
+}
 async function create(input) {
-  if (!input.name || !input.upstreamModel || !input.apiKey)
-    c.fail(400, '请填写模型名称、供应商模型 ID 和密钥');
+  const name = String(input?.name || '').trim();
+  const rawBaseURL = String(input?.baseURL || '').trim();
+  const upstreamModel = String(input?.upstreamModel || '').trim();
+  const apiKey = String(input?.apiKey || '').trim();
+  if (!name || !upstreamModel || !apiKey)
+    c.fail(400, '请填写显示名称、模型名和 API Key');
+  if ([...upstreamModel].length > 191)
+    c.fail(400, '模型名不能超过 191 个字符');
+  const baseURL = rawBaseURL ? normalizeBaseURL(rawBaseURL) : '';
   const id = c.id(),
     alias = 'kelin-' + id;
   const result = await gateway('/model/new', {
     model_name: alias,
     litellm_params: {
-      model: input.upstreamModel,
-      api_key: input.apiKey,
-      ...(input.baseURL ? { api_base: input.baseURL } : {}),
+      model: baseURL ? toLitellmModel(upstreamModel) : upstreamModel,
+      api_key: apiKey,
+      ...(baseURL ? { api_base: baseURL } : {}),
     },
     model_info: { id, mode: 'chat' },
   });
@@ -72,9 +158,9 @@ async function create(input) {
     'INSERT INTO kl_models(id,name,gateway_id,upstream_model,credential_ref,capabilities,parameters) VALUES(?,?,?,?,?,?,?)',
     [
       id,
-      String(input.name).slice(0, 191),
+      name.slice(0, 191),
       alias,
-      input.upstreamModel,
+      upstreamModel,
       remoteId,
       JSON.stringify({
         text: true,
@@ -439,6 +525,9 @@ module.exports = {
   list,
   resolve,
   create,
+  discover,
+  normalizeBaseURL,
+  toLitellmModel,
   update,
   price,
   addPrice,

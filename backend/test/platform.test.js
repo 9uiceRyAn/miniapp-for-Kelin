@@ -240,6 +240,7 @@ test(
             '/api/ai/admin/models',
             {
               name: 'Test model',
+              baseURL: 'https://api.example.com/v1',
               upstreamModel: 'openai/test',
               apiKey: 'not-a-real-secret',
               capabilities: { text: true, tools: true, vision: true },

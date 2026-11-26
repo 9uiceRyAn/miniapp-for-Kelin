@@ -462,6 +462,10 @@ function install(app) {
     wrap(() => require('../utils/server-storage').getStorageSummary(require('../utils/file-storage').UPLOAD_ROOT)),
   );
   ai.post(
+    ['/admin/models/discover', '/connections/models/discover'],
+    wrap((req) => models.discover(req.body)),
+  );
+  ai.post(
     ['/admin/models', '/connections/models'],
     wrap((req) => models.create(req.body)),
   );

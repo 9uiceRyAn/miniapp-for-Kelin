@@ -66,3 +66,24 @@
   color: var(--ws-secondary);
   line-height: 1.6;
 }
+.model-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+.model-field-head .ws-field-label {
+  margin: 0;
+}
+.model-picker {
+  margin-top: 8px;
+}
+.model-picker-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
