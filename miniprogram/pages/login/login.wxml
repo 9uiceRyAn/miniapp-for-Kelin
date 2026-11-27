@@ -3,6 +3,7 @@
  <view class="account-header"><view class="account-brand"><image class="account-logo" src="/images/collins-logo.png" mode="aspectFit"/><text>COLLINS</text></view><text class="account-caption">学习工作台</text></view>
  <view class="account-body">
   <text class="account-title">AI助手</text>
+  <block wx:if="{{!wechatTicket}}">
   <view wx:if="{{autoLoggingIn}}" class="account-notice">正在使用已记住的设备自动登录…</view>
   <view class="account-group"><text class="account-label">用户名</text><view class="account-input-wrap {{focusedField==='username'?'focused':''}}"><input class="account-input" value="{{username}}" placeholder="请输入用户名" placeholder-class="ws-placeholder" maxlength="30" bindinput="onUsernameInput" bindfocus="onUsernameFocus" bindblur="onInputBlur" confirm-type="next"/></view></view>
   <view class="account-group"><text class="account-label">密码</text><view class="account-input-wrap {{focusedField==='password'?'focused':''}}"><input class="account-input" value="{{password}}" password="{{!showPassword}}" placeholder="请输入密码" placeholder-class="ws-placeholder" maxlength="72" bindinput="onPasswordInput" bindfocus="onPasswordFocus" bindblur="onInputBlur" confirm-type="done" bindconfirm="submitLogin"/><text class="account-password-toggle" bindtap="togglePassword">{{showPassword?'隐藏':'显示'}}</text></view></view>
@@ -15,11 +16,13 @@
   <view class="account-wechat">
    <button hover-class="motion-pressed" hover-stay-time="70" class="account-wechat-button" type="primary" plain="{{true}}" bindtap="wechatLogin" loading="{{loading && wechatEnabled}}" disabled="{{!wechatEnabled||loading||autoLoggingIn}}">微信快捷登录</button>
    <text wx:if="{{wechatStatus}}" class="account-wechat-status">{{wechatStatus}}</text>
-   <block wx:if="{{wechatTicket}}">
-    <view class="account-wechat-panel">
+  </view>
+  <view class="account-switch"><text>没有账号？</text><text class="account-link" bindtap="goRegister">创建账号</text></view>
+  </block>
+  <view wx:else class="account-wechat-panel">
      <view class="account-wechat-tabs">
-      <button class="account-wechat-tab {{wechatAction==='register'?'active':''}}" data-mode="register" bindtap="wechatMode">凭码注册</button>
-      <button class="account-wechat-tab {{wechatAction==='bind'?'active':''}}" data-mode="bind" bindtap="wechatMode">绑定已有账号</button>
+      <button class="account-wechat-tab {{wechatAction==='register'?'active':''}}" data-mode="register" bindtap="wechatMode" disabled="{{loading}}" aria-pressed="{{wechatAction==='register'}}">凭码注册</button>
+      <button class="account-wechat-tab {{wechatAction==='bind'?'active':''}}" data-mode="bind" bindtap="wechatMode" disabled="{{loading}}" aria-pressed="{{wechatAction==='bind'}}">绑定已有账号</button>
      </view>
      <form bindsubmit="wechatComplete">
       <block wx:if="{{wechatAction==='bind'}}">
@@ -52,11 +55,10 @@
         <view class="account-input-wrap"><input class="account-input" password="{{true}}" placeholder="请输入内部注册码" placeholder-class="ws-placeholder" value="{{wechatRegisterCode}}" data-field="wechatRegisterCode" bindinput="wechatField"/></view>
        </view>
       </block>
-      <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" form-type="submit" loading="{{loading}}" disabled="{{loading||autoLoggingIn}}">{{wechatAction==='register'?'完成注册':'确认绑定'}}</button>
+      <view wx:if="{{errorMessage}}" class="account-error">{{errorMessage}}</view>
+      <button hover-class="motion-pressed" hover-stay-time="70" class="account-submit" form-type="submit" loading="{{loading||autoLoggingIn}}" disabled="{{loading||autoLoggingIn}}">{{wechatAction==='register'?'完成注册':'确认绑定'}}</button>
      </form>
-    </view>
-   </block>
+     <button hover-class="motion-pressed" hover-stay-time="70" class="account-wechat-back" bindtap="closeWechatPanel" disabled="{{loading}}">返回账号登录</button>
   </view>
-  <view class="account-switch"><text>没有账号？</text><text class="account-link" bindtap="goRegister">创建账号</text></view>
  </view>
 </view>

@@ -67,3 +67,16 @@
 .account-wechat-panel .account-roles {
   margin: 4px 0 18px;
 }
+
+.account-wechat-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  background: transparent;
+  color: var(--ws-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}

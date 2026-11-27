@@ -58,6 +58,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth/wechat', require('./routes/wechat'));
 
 app.use('/api/drive', require('./routes/drive'));
+app.use('/api/files', require('./routes/files'));
 
 app.use('/api/marks', markRoutes);
 

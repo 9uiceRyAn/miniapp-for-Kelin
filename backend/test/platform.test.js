@@ -959,6 +959,83 @@ test(
       });
 
       await require('./question-management.integration')({ t, api, origin, teacher, student, c });
+      await t.test('previous clients can use A-E files and marks together with the drive', async () => {
+        await api('GET', '/api/files/counts', null, null, 401);
+        await api('GET', '/api/marks?category=A', null, null, 401);
+        await api('GET', '/api/files?category=Z', null, student.token, 400);
+        await api('GET', '/api/marks?category=Z', null, student.token, 400);
+        const { folders } = await api('GET', '/api/drive/tree', null, teacher.token);
+        const categoryA = folders.find(folder => folder.legacy_category === 'A');
+        const categoryB = folders.find(folder => folder.legacy_category === 'B');
+        const before = await api('GET', '/api/files/counts', null, student.token);
+        assert.deepEqual(Object.keys(before), ['A', 'B', 'C', 'D', 'E']);
+
+        const name = '旧版资料.bin';
+        const form = new FormData();
+        form.append('category', 'a');
+        form.append('clientFileName', name);
+        form.append('file', new Blob(['legacy bytes']), name);
+        const upload = (token) => fetch(origin + '/api/files/upload', {
+          method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form,
+        });
+        assert.equal((await upload(student.token)).status, 403);
+        const uploaded = await upload(teacher.token);
+        assert.equal(uploaded.status, 201, await uploaded.clone().text());
+        const file = (await uploaded.json()).data;
+        assert.equal(file.category, 'A');
+        assert.equal(file.original_name, name);
+        assert.equal(file.file_size, 12);
+        const legacyPath = '/api/files/' + file.id;
+        const firstItems = await api('GET', '/api/drive/items?folderId=' + categoryA.id, null, student.token);
+        assert.ok(firstItems.files.some(item => item.id === file.id));
+        assert.equal((await api('GET', '/api/files/counts', null, student.token)).A, before.A + 1);
+        assert.deepEqual(await api('GET', legacyPath, null, student.token), file);
+        assert.ok((await api('GET', '/api/files?category=A', null, student.token)).some(item => item.id === file.id));
+        const response = await fetch(origin + legacyPath + '/download', {
+          headers: { Authorization: 'Bearer ' + student.token },
+        });
+        assert.equal(response.status, 200);
+        assert.equal(await response.text(), 'legacy bytes');
+
+        const zipResponse = await fetch(origin + '/api/files/export/A', {
+          headers: { Authorization: 'Bearer ' + student.token },
+        });
+        assert.equal(zipResponse.status, 200);
+        assert.match(zipResponse.headers.get('content-type'), /application\/zip/);
+        const zip = await require('yauzl').fromBufferPromise(Buffer.from(await zipResponse.arrayBuffer()), { lazyEntries: true });
+        const zipNames = [];
+        await new Promise((resolve, reject) => {
+          zip.on('error', reject);
+          zip.on('end', resolve);
+          zip.on('entry', entry => {
+            zipNames.push(entry.fileName);
+            zip.readEntry();
+          });
+          zip.readEntry();
+        });
+        assert.ok(zipNames.some(entry => entry.endsWith('_' + name)));
+
+        await api('PUT', '/api/marks/' + file.id, null, student.token);
+        assert.deepEqual((await api('GET', '/api/marks?category=A', null, student.token)).fileIds, [file.id]);
+        assert.deepEqual((await api('GET', '/api/marks?category=A', null, otherStudent.token)).fileIds, []);
+        await api('PATCH', '/api/drive/files/' + file.id, { folderId: categoryB.id }, teacher.token);
+        assert.equal((await api('GET', legacyPath, null, student.token)).category, 'B');
+        assert.deepEqual((await api('GET', '/api/marks?category=A', null, student.token)).fileIds, []);
+        assert.deepEqual((await api('GET', '/api/marks?category=B', null, student.token)).fileIds, [file.id]);
+
+        await api('PATCH', '/api/drive/files/' + file.id, { folderId: null }, teacher.token);
+        await api('GET', legacyPath, null, student.token, 404);
+        assert.equal((await api('GET', '/api/files/counts', null, student.token)).A, before.A);
+        await api('PATCH', '/api/drive/files/' + file.id, { folderId: categoryB.id }, teacher.token);
+        await api('DELETE', legacyPath, null, student.token, 403);
+        assert.deepEqual(await api('DELETE', legacyPath, null, teacher.token), { message: '删除成功' });
+        await api('GET', legacyPath, null, student.token, 404);
+        assert.deepEqual((await api('GET', '/api/marks?category=B', null, student.token)).fileIds, []);
+        const trash = await api('GET', '/api/drive/trash', null, teacher.token);
+        assert.ok(trash.files.some(item => item.id === file.id));
+        await api('POST', '/api/drive/trash/restore', { type: 'file', id: file.id }, teacher.token);
+        assert.equal((await api('GET', legacyPath, null, student.token)).category, 'B');
+      });
       await t.test('recycling a folder with an indexed file and restoring the file updates resource visibility', async () => {
         const folder = await api('POST', '/api/drive/folders', { name: 'Trash test' }, teacher.token, 201);
         const child = await api('POST', '/api/drive/folders', { name: 'Nested', parentId: folder.id }, teacher.token, 201);

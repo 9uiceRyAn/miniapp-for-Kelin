@@ -2,8 +2,22 @@ const express = require('express');
 
 const { pool } = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { CATEGORIES, cleanCategory, LEGACY_FILES } = require('../utils/file-category');
 
 const router = express.Router();
+
+router.get('/', requireAuth, async (req, res) => {
+  const category = cleanCategory(req.query.category);
+  if (!CATEGORIES.has(category)) {
+    return res.status(400).json({ success: false, message: '文件分类无效' });
+  }
+  const [rows] = await pool.execute(
+    'SELECT m.file_id FROM ' + LEGACY_FILES + ' JOIN user_file_marks m ON m.file_id = f.id' +
+      ' WHERE d.legacy_category = ? AND m.user_id = ? ORDER BY m.marked_at DESC',
+    [category, req.user.id],
+  );
+  res.json({ success: true, data: { fileIds: rows.map(row => Number(row.file_id)) } });
+});
 
 async function fileExists(fileId) {
   const [rows] = await pool.execute(

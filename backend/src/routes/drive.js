@@ -338,50 +338,47 @@ router.delete('/folders/:id', async (req, res) => {
   res.json({ success: true, data: { deletedFolderIds: subtreeIds } });
 });
 
-router.post('/files/upload', upload.single('file'), async (req, res, next) => {
-  let tempPath = req.file?.path || '';
+const uploadSingle = upload.single('file');
+
+async function saveUpload(file, folder, name, user, { index = true } = {}) {
+  const category = folder?.legacy_category || 'A';
+  const originalName = safeName(name || decodeUploadName(file.originalname), '未命名文件');
+  const extension = safeExt(originalName);
+  const storedName = makeStoredName(originalName);
+  const directory = path.join(UPLOAD_ROOT, category);
+  const finalPath = path.join(directory, storedName);
+  await fsp.mkdir(directory, { recursive: true });
+  await fsp.rename(file.path, finalPath);
+
+  const indexStatus = index && AI_INDEX_EXTS.has(extension) ? 'queued' : 'none';
+  let result;
   try {
-    if (!req.file) return res.status(400).json({ success: false, message: '请选择要上传的文件' });
+    [result] = await pool.execute(
+      "INSERT INTO files (category, folder_id, original_name, stored_name, storage_path, file_type, mime_type, file_size, uploader_id, ai_index_status) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [category, folder?.id ?? null, originalName, storedName, category + '/' + storedName,
+        extension.slice(1), file.mimetype || '', Number(file.size || 0), user.id, indexStatus],
+    );
+  } catch (error) {
+    await fsp.unlink(finalPath).catch(() => {});
+    throw error;
+  }
+
+  const row = await fileById(result.insertId);
+  if (indexStatus === 'queued') triggerAiIndex(user, row);
+  return row;
+}
+
+router.post('/files/upload', uploadSingle, async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: '请选择要上传的文件' });
+  try {
     const folderId = req.body.folderId ? Number(req.body.folderId) : null;
-    let folder = null;
-    if (folderId) {
-      folder = await folderById(folderId);
-      if (!folder) {
-        await fsp.unlink(tempPath).catch(() => {});
-        return res.status(404).json({ success: false, message: '目标文件夹不存在' });
-      }
-    }
-    const category = folder?.legacy_category || 'A';
-    const rawName = decodeUploadName(req.file.originalname);
-    const originalName = safeName(req.body.clientFileName || req.body.fileName || rawName, '未命名文件');
-    const storedName = makeStoredName(originalName);
-    const dir = path.join(UPLOAD_ROOT, category);
-    await fsp.mkdir(dir, { recursive: true });
-    const finalPath = path.join(dir, storedName);
-    await fsp.rename(tempPath, finalPath);
-    tempPath = '';
-
-    const storagePath = `${category}/${storedName}`;
-    const fileType = safeExt(originalName).replace('.', '');
-    const indexStatus = AI_INDEX_EXTS.has(safeExt(originalName)) ? 'queued' : 'none';
-
-    let result;
-    try {
-      [result] = await pool.execute(
-        `INSERT INTO files (category, folder_id, original_name, stored_name, storage_path, file_type, mime_type, file_size, uploader_id, ai_index_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [category, folderId, originalName, storedName, storagePath, fileType, req.file.mimetype || '', Number(req.file.size || 0), req.user.id, indexStatus],
-      );
-    } catch (dbErr) {
-      await fsp.unlink(finalPath).catch(() => {});
-      throw dbErr;
-    }
-    const row = await fileById(result.insertId);
-    if (indexStatus === 'queued') triggerAiIndex(req.user, row);
+    const folder = folderId ? await folderById(folderId) : null;
+    if (folderId && !folder) return res.status(404).json({ success: false, message: '目标文件夹不存在' });
+    const row = await saveUpload(req.file, folder, req.body.clientFileName || req.body.fileName, req.user);
     res.status(201).json({ success: true, data: publicDriveFile(row, req.user) });
-  } catch (e) {
-    if (tempPath) await fsp.unlink(tempPath).catch(() => {});
-    next(e);
+  } finally {
+    await fsp.unlink(req.file.path).catch(() => {});
   }
 });
 
@@ -403,28 +400,75 @@ router.patch('/files/:id', async (req, res) => {
   res.json({ success: true, data: publicDriveFile(await fileById(file.id), req.user) });
 });
 
+async function recycleFile(id, userId, expectedFolderId) {
+  return transaction(async db => {
+    const filter = expectedFolderId === undefined ? '' : ' AND folder_id = ?';
+    const values = expectedFolderId === undefined ? [userId, id] : [userId, id, expectedFolderId];
+    const [result] = await db.execute(
+      'UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND deleted_at IS NULL' + filter,
+      values,
+    );
+    if (!result.affectedRows) return false;
+    await db.execute("UPDATE " + INDEXED_FILES + " SET r.visibility='withdrawn' WHERE f.id=?", [id]);
+    return true;
+  });
+}
+
 router.delete('/files/:id', async (req, res) => {
   const file = await fileById(req.params.id);
   if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
   if (!canMutate(req.user, file.uploader_id)) {
     return res.status(403).json({ success: false, message: '只能删除自己上传的文件' });
   }
-  await transaction(async db => {
-    await db.execute('UPDATE files SET deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, file.id]);
-    await db.execute(`UPDATE ${INDEXED_FILES} SET r.visibility='withdrawn' WHERE f.id=?`, [file.id]);
-  });
+  if (!(await recycleFile(file.id, req.user.id))) {
+    return res.status(404).json({ success: false, message: '文件不存在' });
+  }
   res.json({ success: true, data: { id: file.id } });
 });
 
-router.get('/files/:id/download', async (req, res) => {
-  const file = await fileById(req.params.id);
-  if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
+async function sendDownload(file, res) {
   const filePath = storedFilePath(file.storage_path);
   try { await fsp.access(filePath); } catch {
     return res.status(404).json({ success: false, message: '服务器上的文件不存在' });
   }
   return res.download(filePath, file.original_name);
+}
+
+router.get('/files/:id/download', async (req, res) => {
+  const file = await fileById(req.params.id);
+  if (!file) return res.status(404).json({ success: false, message: '文件不存在' });
+  return sendDownload(file, res);
 });
+
+async function sendZip(files, zipName, res, emptyMessage) {
+  const available = [];
+  for (const row of files) {
+    try {
+      const filePath = storedFilePath(row.storage_path);
+      await fsp.access(filePath);
+      available.push({ row, filePath });
+    } catch {}
+  }
+  if (!available.length) return res.status(404).json({ success: false, message: emptyMessage });
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(zipName));
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  archive.on('error', error => {
+    if (!res.headersSent) {
+      res.removeHeader('Content-Type');
+      res.removeHeader('Content-Disposition');
+      res.status(500).json({ success: false, message: 'ZIP 创建失败' });
+    } else {
+      res.destroy(error);
+    }
+  });
+  archive.pipe(res);
+  available.forEach(({ row, filePath }, index) => {
+    const number = String(index + 1).padStart(3, '0');
+    archive.file(filePath, { name: number + '_' + safeName(row.original_name) });
+  });
+  await archive.finalize();
+}
 
 router.get('/folders/:id/export', async (req, res) => {
   const folder = await folderById(req.params.id);
@@ -432,28 +476,12 @@ router.get('/folders/:id/export', async (req, res) => {
   const subtreeIds = await collectSubtreeFolderIds(folder.id);
   const placeholders = subtreeIds.map(() => '?').join(',');
   const [files] = await pool.execute(
-    `SELECT id, original_name, storage_path FROM files WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL ORDER BY created_at DESC`,
+    'SELECT id, original_name, storage_path FROM files WHERE folder_id IN (' +
+      placeholders + ') AND deleted_at IS NULL ORDER BY created_at DESC',
     subtreeIds,
   );
-  const available = [];
-  for (const row of files) {
-    try {
-      const p = storedFilePath(row.storage_path);
-      await fsp.access(p);
-      available.push({ row, filePath: p });
-    } catch {}
-  }
-  if (!available.length) return res.status(404).json({ success: false, message: '当前目录没有可导出的文件' });
-  const zipName = `${safeName(folder.name, '资料')}_${Date.now()}.zip`;
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`);
-  const archive = new ZipArchive({ zlib: { level: 6 } });
-  archive.on('error', err => { if (!res.headersSent) res.status(500).json({ success: false, message: 'ZIP 创建失败' }); else res.destroy(err); });
-  archive.pipe(res);
-  available.forEach(({ row, filePath }, i) => {
-    archive.file(filePath, { name: `${String(i + 1).padStart(3, '0')}_${safeName(row.original_name)}` });
-  });
-  await archive.finalize();
+  const zipName = safeName(folder.name, '资料') + '_' + Date.now() + '.zip';
+  return sendZip(files, zipName, res, '当前目录没有可导出的文件');
 });
 
 router.post('/files/:id/reindex', async (req, res) => {
@@ -541,3 +569,11 @@ router.delete('/trash/:type/:id', requireTeacher, async (req, res) => {
 
 module.exports = router;
 module.exports.helpers = { canMutate, safeName, safeExt };
+module.exports.fileOperations = {
+  ensureLegacyFolders,
+  uploadSingle,
+  saveUpload,
+  recycleFile,
+  sendDownload,
+  sendZip,
+};

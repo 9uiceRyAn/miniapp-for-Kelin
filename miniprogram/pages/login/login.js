@@ -174,6 +174,18 @@ Page({
     }
   },
 
+  closeWechatPanel() {
+    if (this.data.loading) return;
+    this.setData({
+      wechatTicket: '',
+      wechatDisplayName: '',
+      wechatRegisterCode: '',
+      errorMessage: '',
+      showPassword: false,
+      focusedField: '',
+    });
+  },
+
   goRegister() {
     if (this.data.loading || this.data.autoLoggingIn) return;
     wx.navigateTo({ url: '/pages/register/register' });

@@ -139,3 +139,26 @@ test('WeChat registration completes with form displayName for student role', asy
   assert.equal(storage.getToken(), 'tok-456');
   assert.deepEqual(destinations, ['/pages/learning/index?section=agents']);
 });
+
+test('returning from WeChat binding clears the panel and keeps the ordinary login available', t => {
+  const { page } = loginPage(t);
+  page.setData({
+    username: 'saved-user', rememberDevice: true, loading: true, wechatTicket: 'pending',
+    wechatDisplayName: 'Old nickname', wechatRegisterCode: 'old-code', errorMessage: '旧提示',
+    showPassword: true, focusedField: 'password',
+  });
+  page.closeWechatPanel();
+  assert.equal(page.data.wechatTicket, 'pending');
+  page.setData({ loading: false });
+  page.closeWechatPanel();
+  for (const field of ['wechatTicket', 'wechatDisplayName', 'wechatRegisterCode', 'errorMessage', 'focusedField']) {
+    assert.equal(page.data[field], '', field);
+  }
+  assert.equal(page.data.username, 'saved-user');
+  assert.equal(page.data.rememberDevice, true);
+  assert.equal(page.data.showPassword, false);
+  const wxml = require('node:fs').readFileSync(require('node:path').join(__dirname,
+    '../../miniprogram/pages/login/login.wxml'), 'utf8');
+  assert.match(wxml, /wx:if="\{\{!wechatTicket\}\}"/);
+  assert.match(wxml, /bindtap="closeWechatPanel"[^>]*>返回账号登录/);
+});
